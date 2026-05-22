@@ -2,6 +2,70 @@
 const App = {
   expandedMetricId: null,
   expandedMetricGroupId: null,
+  isMeetingMode: false,
+  meetingActiveServiceLineId: null,
+
+  getLocalToday() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
+  confirmAction(message, onConfirm) {
+    let dialog = document.getElementById('confirm-dialog');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'confirm-dialog';
+      dialog.className = 'military-modal';
+      document.body.appendChild(dialog);
+    }
+    dialog.innerHTML = `
+      <div class="military-modal-header">Confirm Action</div>
+      <div class="military-modal-body">${this.escapeHtml(message)}</div>
+      <div class="military-modal-actions">
+        <button class="military-modal-btn cancel" id="confirm-dialog-cancel">Cancel</button>
+        <button class="military-modal-btn confirm" id="confirm-dialog-confirm">Confirm</button>
+      </div>
+    `;
+    const cancelBtn = dialog.querySelector('#confirm-dialog-cancel');
+    const confirmBtn = dialog.querySelector('#confirm-dialog-confirm');
+    
+    cancelBtn.addEventListener('click', () => dialog.close());
+    confirmBtn.addEventListener('click', () => {
+      dialog.close();
+      onConfirm();
+    });
+    dialog.showModal();
+  },
+
+  showTooltip(event, date, value) {
+    let tooltip = document.getElementById('chart-tooltip');
+    if (!tooltip) {
+      tooltip = document.createElement('div');
+      tooltip.id = 'chart-tooltip';
+      tooltip.className = 'chart-tooltip';
+      document.body.appendChild(tooltip);
+    }
+    tooltip.innerHTML = `
+      <div class="chart-tooltip-date">${this.escapeHtml(date)}</div>
+      <div class="chart-tooltip-value">${this.escapeHtml(value)}</div>
+    `;
+    tooltip.classList.add('show');
+    const rect = event.target.getBoundingClientRect();
+    const x = window.scrollX + rect.left + rect.width / 2;
+    const y = window.scrollY + rect.top;
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  },
+
+  hideTooltip() {
+    const tooltip = document.getElementById('chart-tooltip');
+    if (tooltip) {
+      tooltip.classList.remove('show');
+    }
+  },
 
   init() {
     window.addEventListener('hashchange', () => this.route());
@@ -12,6 +76,22 @@ const App = {
     const hash = location.hash.slice(1) || '/';
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
+
+    if (this.isMeetingMode && (parts.length === 0 || hash === '/')) {
+      this.isMeetingMode = false;
+      const body = document.body;
+      const btn = document.getElementById('btn-meeting-mode');
+      body.classList.remove('meeting-mode-active');
+      if (btn) btn.classList.remove('active');
+    }
+
+    if (this.isMeetingMode) {
+      this.renderMeetingMode(main);
+      this.renderSidebar(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const isFrameworkRoute = parts[0] === 'framework';
     const serviceLineId = isFrameworkRoute ? parts[1] : null;
 
@@ -88,18 +168,18 @@ const App = {
         </div>
         ${this.renderLandingPhaseStrip()}
         <div class="landing-footer">
-          <div style="display:flex;justify-content:center;gap:3rem;flex-wrap:wrap;">
-            <div style="text-align:center;">
+          <div class="landing-leadership">
+            <div class="landing-leader-box">
               <div class="landing-footer-name">${D.leader.name}</div>
               <div class="landing-footer-title">${D.leader.title}</div>
             </div>
-            <div style="text-align:center;">
+            <div class="landing-leader-box">
               <div class="landing-footer-name">${D.assistant.name}</div>
               <div class="landing-footer-title">${D.assistant.title}</div>
             </div>
           </div>
-          <div style="margin-top:12px;font-size:0.75rem;color:var(--text-muted);">
-            Motto: <span style="color:var(--gold);font-weight:600;">${D.motto}</span>
+          <div class="landing-motto-box">
+            Motto: <span>${D.motto}</span>
           </div>
         </div>
       </div>`;
@@ -163,7 +243,7 @@ const App = {
               <div class="loe-bridge-arrow">
                 <span class="loe-bridge-num">LOE ${loe.id}</span>
                 <span class="loe-bridge-name">${loe.name}</span>
-                <span style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;margin-top:6px;max-width:85%;">${loe.description}</span>
+                <span class="loe-bridge-desc">${loe.description}</span>
               </div>
             `).join('')}
           </div>
@@ -175,7 +255,7 @@ const App = {
         </div>
 
         <div class="progression-map">
-          <div class="progression-title">Operational Timeline — <span style="color:var(--gold);">Progression Map</span></div>
+          <div class="progression-title">Operational Timeline — <span class="text-gold">Progression Map</span></div>
           <div class="timeline">
             ${D.phases.map((phase, i) => `
               <div class="timeline-phase ${phase.status}">
@@ -189,13 +269,13 @@ const App = {
                 ${phase.status === 'active' ? '<div class="timeline-you-are-here">★ YOU ARE HERE</div>' : ''}
                 <div class="timeline-phase-name">Phase ${phase.id}: ${phase.name}</div>
                 <div class="timeline-phase-effort">Main Effort: <strong>LOE — ${phase.mainEffort}</strong></div>
-                <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;">${phase.description}</div>
-                <div style="font-size:0.75rem;color:var(--text-muted);">HQ: ${phase.hq}</div>
+                <div class="timeline-phase-desc">${phase.description}</div>
+                <div class="timeline-phase-hq">HQ: ${phase.hq}</div>
                 <div class="timeline-dp">
                   <span class="timeline-dp-icon">${phase.decisivePoint.status === 'complete' ? '✓' : '★'}</span>
                   <div>
-                    <div style="font-weight:600;font-size:0.8rem;">Decisive Point: ${phase.decisivePoint.name}</div>
-                    <div style="font-size:0.7rem;color:var(--text-muted);">${phase.decisivePoint.date}</div>
+                    <div class="timeline-dp-title">Decisive Point: ${phase.decisivePoint.name}</div>
+                    <div class="timeline-dp-date">${phase.decisivePoint.date}</div>
                   </div>
                 </div>
               </div>
@@ -203,21 +283,21 @@ const App = {
           </div>
         </div>
 
-        <div style="margin:2rem 0;text-align:center;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem;">Priority Populations</div>
-          <div style="display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div class="priority-pop-container">
+          <div class="priority-pop-header">Priority Populations</div>
+          <div class="priority-pop-list">
             ${D.priorityPopulations.map((p, i) => `
-              <div style="padding:8px 16px;background:var(--bg-card);border:1px solid ${i===0?'var(--border-accent)':'var(--border-subtle)'};border-radius:var(--radius);font-size:0.85rem;${i===0?'color:var(--gold);font-weight:700;':'color:var(--text-secondary);'}">
+              <div class="priority-pop-item ${i === 0 ? 'primary' : ''}">
                 ${i+1}. ${p}
               </div>
-              ${i < D.priorityPopulations.length - 1 ? '<span style="color:var(--text-muted);">›</span>' : ''}
+              ${i < D.priorityPopulations.length - 1 ? '<span class="priority-pop-separator">›</span>' : ''}
             `).join('')}
           </div>
         </div>
 
-        <div style="margin-top:2rem;padding:1.25rem;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius);">
-          <div style="font-size:0.85rem;font-weight:600;color:var(--gold);margin-bottom:4px;">Cross-Cutting Tasks (LOE 2: Ready Medical Force)</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);">${D.crossCuttingTasks.length} tasks apply across all service lines and remain visible within each service line detail view.</div>
+        <div class="cross-cutting-info-box">
+          <div class="cross-cutting-info-title">Cross-Cutting Tasks (LOE 2: Ready Medical Force)</div>
+          <div class="cross-cutting-info-desc">${D.crossCuttingTasks.length} tasks apply across all service lines and remain visible within each service line detail view.</div>
         </div>
       </section>`;
   },
@@ -244,8 +324,8 @@ const App = {
             <p class="sl-context-line">${this.serviceLineFunction(sl)}</p>
           </div>
         </div>
-        <div class="sl-detail-clinics" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:2rem;">
-          ${sl.clinics.map(c => `<span class="clinic-tag">${c}</span>`).join('<span style="color:var(--border-subtle);">•</span>')}
+        <div class="sl-detail-clinics">
+          ${sl.clinics.map(c => `<span class="clinic-tag">${c}</span>`).join('<span class="clinic-separator">•</span>')}
         </div>
         <div class="page-actions" aria-label="Page actions">
           <button type="button" onclick="App.setServiceSections(true)">Expand sections</button>
@@ -323,12 +403,12 @@ const App = {
                 return `
                 <div class="timeline-phase ${phase.status}">
                   ${i < D.phases.length - 1 ? '<div class="timeline-connector"></div>' : ''}
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                    <span class="phase-badge ${phase.status}" style="font-size:11px;">${phase.status === 'complete' ? '✓' : phase.status === 'active' ? '★' : '◇'} Phase ${phase.id}: ${phase.name}</span>
-                    <span style="font-size:0.7rem;color:var(--text-muted);">${phase.dateRange}</span>
+                  <div class="timeline-phase-sub-header">
+                    <span class="phase-badge ${phase.status} timeline-phase-sub-badge">${phase.status === 'complete' ? '✓' : phase.status === 'active' ? '★' : '◇'} Phase ${phase.id}: ${phase.name}</span>
+                    <span class="timeline-phase-sub-date">${phase.dateRange}</span>
                   </div>
-                  ${phase.status === 'active' ? '<div class="timeline-you-are-here" style="font-size:11px;padding:4px 10px;margin-bottom:8px;">Current Phase</div>' : ''}
-                  <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">${phaseTasks.length} service line tasks${phaseCC.length > 0 ? ' + ' + phaseCC.length + ' cross-cutting' : ''}</div>
+                  ${phase.status === 'active' ? '<div class="timeline-you-are-here timeline-you-are-here-sub">Current Phase</div>' : ''}
+                  <div class="timeline-phase-sub-tasks">${phaseTasks.length} service line tasks${phaseCC.length > 0 ? ' + ' + phaseCC.length + ' cross-cutting' : ''}</div>
                 </div>`;
               }).join('')}
             </div>
@@ -355,6 +435,13 @@ const App = {
   },
 
   refreshTaskCard(taskId) {
+    if (this.isMeetingMode) {
+      const sl = FRAMEWORK.serviceLines.find(s => s.tasks?.some(t => t.id === taskId));
+      if (sl) {
+        this.setMeetingActiveServiceLine(sl.id);
+        return;
+      }
+    }
     const card = document.getElementById(`task-${taskId}`);
     const task = this.findTask(taskId);
     if (!card || !task) {
@@ -475,7 +562,7 @@ const App = {
       <div class="task-card" id="task-${task.id}">
         <div class="task-header">
           <div class="task-title">${task.title}</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+          <div class="task-header-badges">
             <span class="loe-tag loe-${task.loe}">LOE ${task.loe}</span>
             <span class="status-badge ${currentStatus}" id="badge-${task.id}">${this.statusLabel(currentStatus)}</span>
           </div>
@@ -483,7 +570,7 @@ const App = {
         <div class="task-desc">${task.description}</div>
 
         <!-- Interactive KPIs -->
-        <div style="margin-top:8px;">
+        <div class="task-kpi-list">
           ${(task.kpis || []).map((k, i) => {
             const checked = !!kpiChecks[i];
             const deleted = !!deletedKpis[i];
@@ -514,7 +601,7 @@ const App = {
 
         <!-- Status Selector + Notes -->
         <div class="task-notes-area">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div class="task-action-row">
             <div class="status-selector">
               <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
               <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
@@ -577,10 +664,28 @@ const App = {
   addMetricEntry(metricId) {
     const valInput = document.getElementById(`metric-val-${metricId}`);
     const dateInput = document.getElementById(`metric-date-${metricId}`);
-    if (!valInput || !valInput.value) return;
+    if (!valInput) return;
+    
+    valInput.classList.remove('input-error');
+    if (dateInput) dateInput.classList.remove('input-error');
+    
+    let hasError = false;
+    if (!dateInput || !dateInput.value) {
+      if (dateInput) dateInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    const parsedVal = parseFloat(valInput.value);
+    if (valInput.value === '' || isNaN(parsedVal)) {
+      valInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    if (hasError) return;
+    
     const all = this.getMetricStore();
     const entries = all[metricId] || [];
-    entries.push({ date: dateInput?.value || new Date().toISOString().slice(0, 10), value: parseFloat(valInput.value) });
+    entries.push({ date: dateInput.value, value: parsedVal });
     entries.sort((a, b) => a.date.localeCompare(b.date));
     all[metricId] = entries;
     this.saveMetricStore(all);
@@ -601,10 +706,50 @@ const App = {
     if (!found) return;
     const { group } = found;
     const dateInput = document.getElementById(`metric-group-date-${group.id}`);
-    const date = dateInput?.value || new Date().toISOString().slice(0, 10);
+    
+    if (dateInput) dateInput.classList.remove('input-error');
+    
+    let dateHasError = false;
+    if (!dateInput || !dateInput.value) {
+      if (dateInput) dateInput.classList.add('input-error');
+      dateHasError = true;
+    }
+    
+    let hasValues = false;
+    let valueHasError = false;
+    const inputs = [];
+    
+    group.series.forEach(series => {
+      const input = document.getElementById(`metric-group-val-${group.id}-${series.id}`);
+      if (input) {
+        input.classList.remove('input-error');
+        inputs.push({ series, input });
+        if (input.value !== '') {
+          const parsed = parseFloat(input.value);
+          if (isNaN(parsed)) {
+            input.classList.add('input-error');
+            valueHasError = true;
+          } else {
+            hasValues = true;
+          }
+        }
+      }
+    });
+    
+    // If no values were entered at all, mark all empty series inputs as errors
+    if (!hasValues && !valueHasError) {
+      inputs.forEach(({ input }) => {
+        input.classList.add('input-error');
+      });
+      valueHasError = true;
+    }
+    
+    if (dateHasError || valueHasError) return;
+    
+    const date = dateInput.value;
     const all = this.getMetricStore();
     let added = false;
-
+    
     group.series.forEach(series => {
       const input = document.getElementById(`metric-group-val-${group.id}-${series.id}`);
       if (!input || input.value === '') return;
@@ -615,7 +760,7 @@ const App = {
       input.value = '';
       added = true;
     });
-
+    
     if (!added) return;
     this.saveMetricStore(all);
     this.refreshMetricGroupDisplay(group.id);
@@ -757,8 +902,11 @@ const App = {
       `;
     })() : '';
     const circles = points.map(p => `
-      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point">
-        <title>Date: ${this.escapeHtml(p.entry.date)}&#10;Value: ${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}</title>
+      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point"></circle>
+      <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="12" fill="transparent" style="cursor: pointer;"
+        onmouseenter="App.showTooltip(event, '${this.escapeHtml(p.entry.date)}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')"
+        onmouseleave="App.hideTooltip()"
+        onmousemove="App.showTooltip(event, '${this.escapeHtml(p.entry.date)}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')">
       </circle>
     `).join('');
 
@@ -869,8 +1017,11 @@ const App = {
         <polyline points="${points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}" class="metric-chart-line" style="stroke:${series.color};"/>
       ` : '';
       const circles = points.map(point => `
-        <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point" style="fill:${series.color};">
-          <title>${this.escapeHtml(series.name)}&#10;Date: ${this.escapeHtml(point.entry.date)}&#10;Value: ${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}</title>
+        <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point" style="fill:${series.color};"></circle>
+        <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="12" fill="transparent" style="cursor: pointer;"
+          onmouseenter="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(point.entry.date)}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')"
+          onmouseleave="App.hideTooltip()"
+          onmousemove="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(point.entry.date)}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')">
         </circle>
       `).join('');
       return `${line}${circles}`;
@@ -914,13 +1065,13 @@ const App = {
     if (!entry) return;
     const metric = this.getMetricDefinition(metricId);
     const metricName = metric ? metric.name : 'this metric';
-    const confirmed = window.confirm(`Delete the ${entry.date} entry for ${metricName}?`);
-    if (!confirmed) return;
-
-    entries.splice(entryIndex, 1);
-    all[metricId] = entries;
-    this.saveMetricStore(all);
-    this.refreshMetricDisplay(metricId);
+    
+    this.confirmAction(`Delete the ${entry.date} entry for ${metricName}?`, () => {
+      entries.splice(entryIndex, 1);
+      all[metricId] = entries;
+      this.saveMetricStore(all);
+      this.refreshMetricDisplay(metricId);
+    });
   },
 
   deleteMetricGroupEntry(groupId, seriesId, entryIndex) {
@@ -934,13 +1085,12 @@ const App = {
     const entry = entries[entryIndex];
     if (!entry) return;
 
-    const confirmed = window.confirm(`Delete the ${entry.date} ${series.name} entry?`);
-    if (!confirmed) return;
-
-    entries.splice(entryIndex, 1);
-    all[series.id] = entries;
-    this.saveMetricStore(all);
-    this.refreshMetricGroupDisplay(groupId);
+    this.confirmAction(`Delete the ${entry.date} ${series.name} entry?`, () => {
+      entries.splice(entryIndex, 1);
+      all[series.id] = entries;
+      this.saveMetricStore(all);
+      this.refreshMetricGroupDisplay(groupId);
+    });
   },
 
   refreshMetricDisplay(metricId) {
@@ -1120,7 +1270,7 @@ const App = {
         <form class="metric-entry-form" onsubmit="App.addMetricEntry('${metric.id}'); return false;">
           <label>
             <span>${this.escapeHtml(this.metricPeriodLabel(metric))}</span>
-            <input type="date" id="metric-date-${metric.id}" value="${new Date().toISOString().slice(0, 10)}">
+            <input type="date" id="metric-date-${metric.id}" value="${this.getLocalToday()}">
           </label>
           <label>
             <span>Value</span>
@@ -1130,7 +1280,7 @@ const App = {
         </form>
 
         <details class="metric-log">
-          <summary id="metric-summary-${metric.id}">Data log (${entries.length} ${entries.length === 1 ? 'entry' : 'entries'})</summary>
+          <summary id="metric-summary-${metric.id}">View/Manage Entry History</summary>
           <div class="metric-log-table-wrap">
             <table>
               <thead>
@@ -1215,7 +1365,7 @@ const App = {
         <form class="metric-group-entry-form" onsubmit="App.addMetricGroupEntry('${group.id}'); return false;">
           <label class="metric-group-date">
             <span>${this.escapeHtml(this.metricPeriodLabel(group))}</span>
-            <input type="date" id="metric-group-date-${group.id}" value="${new Date().toISOString().slice(0, 10)}">
+            <input type="date" id="metric-group-date-${group.id}" value="${this.getLocalToday()}">
           </label>
           <div class="metric-group-series-fields">
             ${group.series.map(series => `
@@ -1492,7 +1642,7 @@ const App = {
     if (!ta || !ta.value.trim()) return;
     const entries = this.getDialogueEntries(slId);
     entries.unshift({
-      date: new Date().toISOString().slice(0, 10),
+      date: this.getLocalToday(),
       text: ta.value.trim()
     });
     Sync.saveDialogueEntries(slId, entries);
@@ -1570,7 +1720,7 @@ const App = {
 
   renderWeeklyDialogue(sl) {
     const entries = this.getDialogueEntries(sl.id);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.getLocalToday();
     const countText = `${entries.length} saved ${entries.length === 1 ? 'entry' : 'entries'}`;
     return `
       <details class="service-section dialogue-section top-dialogue-section" open>
@@ -1686,6 +1836,538 @@ const App = {
           `).join('')}
         </div>
       </div>`;
+  },
+
+  // ===== MEETING MODE (Weekly Sync) =====
+  toggleMeetingMode() {
+    this.isMeetingMode = !this.isMeetingMode;
+    const body = document.body;
+    const btn = document.getElementById('btn-meeting-mode');
+    
+    if (this.isMeetingMode) {
+      const hash = location.hash.slice(1) || '/';
+      const parts = hash.split('/').filter(Boolean);
+      const isFrameworkRoute = parts[0] === 'framework';
+      const serviceLineId = isFrameworkRoute ? parts[1] : null;
+      
+      if (serviceLineId && FRAMEWORK.serviceLines.some(s => s.id === serviceLineId)) {
+        this.meetingActiveServiceLineId = serviceLineId;
+      } else if (!this.meetingActiveServiceLineId && FRAMEWORK.serviceLines.length > 0) {
+        this.meetingActiveServiceLineId = FRAMEWORK.serviceLines[0].id;
+      }
+      body.classList.add('meeting-mode-active');
+      if (btn) btn.classList.add('active');
+    } else {
+      body.classList.remove('meeting-mode-active');
+      if (btn) btn.classList.remove('active');
+    }
+    
+    this.route();
+  },
+
+  renderMeetingMode(el) {
+    const activeId = this.meetingActiveServiceLineId || (FRAMEWORK.serviceLines[0] && FRAMEWORK.serviceLines[0].id);
+    const activeSL = FRAMEWORK.serviceLines.find(s => s.id === activeId) || FRAMEWORK.serviceLines[0];
+    
+    el.innerHTML = `
+      <div class="meeting-container">
+        <div class="meeting-sidebar">
+          <div class="meeting-sidebar-header">
+            <div class="meeting-sidebar-subtitle">Command View</div>
+            <h3>Weekly Sync</h3>
+          </div>
+          <div class="meeting-sl-list">
+            ${FRAMEWORK.serviceLines.map(sl => {
+              const isActive = sl.id === activeId;
+              return `
+                <a class="meeting-sl-link ${isActive ? 'active' : ''}" data-sl-id="${sl.id}" href="javascript:void(0)" onclick="App.setMeetingActiveServiceLine('${sl.id}')">
+                  <div class="meeting-sl-link-header">
+                    <span class="meeting-sl-name">${this.escapeHtml(sl.name)}</span>
+                    <span class="meeting-sl-meta">${this.escapeHtml(sl.abbr || '')}</span>
+                  </div>
+                  <div style="font-size:0.7rem; color:var(--text-muted); margin-bottom: 4px;">${this.escapeHtml(sl.leader)}</div>
+                  ${this.getMeetingStatusRowHtml(sl)}
+                </a>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div class="meeting-focus-panel" id="meeting-focus-panel">
+          <!-- Focus panel content populated dynamically -->
+        </div>
+      </div>
+    `;
+    
+    if (activeSL) {
+      this.renderMeetingFocusPanel(activeSL);
+    }
+  },
+
+  getMeetingStatusRowHtml(sl) {
+    const dots = [];
+    
+    // Single metrics
+    if (sl.trackedMetrics) {
+      sl.trackedMetrics.forEach(m => {
+        const entries = this.getMetricEntries(m.id);
+        const status = this.metricStatus(m, entries);
+        dots.push(`<span class="meeting-status-dot ${status.tone}" title="${this.escapeHtml(m.name)}: ${status.label}"></span>`);
+      });
+    }
+    
+    // Group metrics
+    if (sl.metricGroups) {
+      sl.metricGroups.forEach(g => {
+        g.series.forEach(s => {
+          const entries = this.getMetricEntries(s.id);
+          const status = this.metricStatus(s, entries);
+          dots.push(`<span class="meeting-status-dot ${status.tone}" title="${this.escapeHtml(s.name)}: ${status.label}"></span>`);
+        });
+      });
+    }
+
+    const dialogueEntries = this.getDialogueEntries(sl.id);
+    let dialogueBadgeHtml = '';
+    if (dialogueEntries.length > 0) {
+      dialogueBadgeHtml = `
+        <span class="dialogue-indicator-badge" style="font-size:0.7rem; color:var(--gold); display:flex; align-items:center; gap:2px;" title="${dialogueEntries.length} dialogue entries">
+          💬 ${dialogueEntries.length}
+        </span>
+      `;
+    }
+    
+    return `
+      <div class="meeting-sl-status-row">
+        <div style="display: flex; gap: 4px; align-items: center;">
+          ${dots.join('')}
+        </div>
+        ${dialogueBadgeHtml}
+      </div>
+    `;
+  },
+
+  setMeetingActiveServiceLine(slId) {
+    this.meetingActiveServiceLineId = slId;
+    const sl = FRAMEWORK.serviceLines.find(s => s.id === slId);
+    if (sl) {
+      const listContainer = document.querySelector('.meeting-sl-list');
+      if (listContainer) {
+        const links = listContainer.querySelectorAll('.meeting-sl-link');
+        links.forEach(link => {
+          if (link.getAttribute('data-sl-id') === slId) {
+            link.classList.add('active');
+          } else {
+            link.classList.remove('active');
+          }
+        });
+      }
+      this.renderMeetingFocusPanel(sl);
+    }
+  },
+
+  renderMeetingFocusPanel(sl) {
+    const container = document.getElementById('meeting-focus-panel');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-subtle); padding-bottom:1rem;">
+        <div>
+          <h2 style="font-family:var(--font-display); font-size:1.5rem; color:var(--gold); margin:0; text-transform:uppercase;">${this.escapeHtml(sl.name)} Sync</h2>
+          <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 0 0;">${this.escapeHtml(this.serviceLineFunction(sl))}</p>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${this.escapeHtml(sl.leader)}</div>
+          <div style="font-size:0.7rem; color:var(--text-muted);">${this.escapeHtml(sl.role || 'Service Line Leader')}</div>
+        </div>
+      </div>
+      
+      <div class="meeting-focus-grid">
+        <div class="meeting-focus-col-left">
+          ${this.renderMeetingDialogueCard(sl)}
+          ${this.renderMeetingTasksCard(sl)}
+        </div>
+        <div class="meeting-focus-col-right">
+          ${this.renderMeetingMetricQuickEntryCard(sl)}
+        </div>
+      </div>
+    `;
+  },
+
+  renderMeetingDialogueCard(sl) {
+    const entries = this.getDialogueEntries(sl.id);
+    const today = this.getLocalToday();
+    
+    return `
+      <div class="meeting-card">
+        <div class="meeting-card-header">
+          <span>Weekly Dialogue & Issues</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;" id="meeting-dialogue-count-${sl.id}">${entries.length} entries</span>
+        </div>
+        
+        <div class="dialogue-entry-panel" style="margin-bottom:1.5rem; background:rgba(0,0,0,0.15); border:1px solid var(--border-subtle); padding:12px; border-radius:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.75rem;">
+            <strong style="color:var(--text-primary); font-family:var(--font-display);">${today} Update</strong>
+            <span style="color:var(--text-muted);">Autosaves on add</span>
+          </div>
+          <textarea id="meeting-dialogue-text-${sl.id}" class="dialogue-textarea" style="width:100%; min-height:80px; margin-bottom:8px; font-size:0.8rem; background:rgba(0,0,0,0.25); border:1px solid var(--border-subtle); border-radius:4px; padding:8px;" placeholder="Current efforts, roadblocks, decisions, or issues for this week's sync..."></textarea>
+          <div style="display:flex; justify-content:flex-end;">
+            <button type="button" class="meeting-btn-add" onclick="App.addMeetingDialogueEntry('${sl.id}')">Add Dialogue</button>
+          </div>
+        </div>
+        
+        <div class="dialogue-history" style="max-height:220px; overflow-y:auto;" id="meeting-dialogue-list-${sl.id}">
+          ${this.renderMeetingDialogueList(sl, entries)}
+        </div>
+      </div>
+    `;
+  },
+
+  renderMeetingDialogueList(sl, entries) {
+    if (entries.length === 0) {
+      return `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.8rem;">No dialogue entries recorded.</div>`;
+    }
+    
+    return entries.map((entry, index) => `
+      <div class="dialogue-entry" style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; gap:1rem; align-items:flex-start;">
+        <div style="flex:1;">
+          <div class="dialogue-entry-date" style="font-size:0.7rem; color:var(--gold); margin-bottom:4px; font-family:var(--font-display); font-weight:700;">${this.escapeHtml(entry.date)}</div>
+          <div class="dialogue-entry-text" style="font-size:0.8rem; line-height:1.4; color:var(--text-secondary); white-space:pre-line;">${this.escapeHtml(entry.text)}</div>
+        </div>
+        <button type="button" class="dialogue-icon-btn" onclick="App.deleteMeetingDialogueEntry('${sl.id}', ${index})" title="Delete entry" style="background:transparent; border:none; color:var(--red); font-size:0.75rem; cursor:pointer; padding:2px 6px;">Delete</button>
+      </div>
+    `).join('');
+  },
+
+  addMeetingDialogueEntry(slId) {
+    const ta = document.getElementById(`meeting-dialogue-text-${slId}`);
+    if (!ta || !ta.value.trim()) {
+      ta?.classList.add('input-error');
+      return;
+    }
+    ta.classList.remove('input-error');
+    const entries = this.getDialogueEntries(slId);
+    entries.unshift({
+      date: this.getLocalToday(),
+      text: ta.value.trim()
+    });
+    Sync.saveDialogueEntries(slId, entries);
+    ta.value = '';
+    
+    const countEl = document.getElementById(`meeting-dialogue-count-${slId}`);
+    if (countEl) countEl.textContent = `${entries.length} entries`;
+    
+    const listEl = document.getElementById(`meeting-dialogue-list-${slId}`);
+    if (listEl) listEl.innerHTML = this.renderMeetingDialogueList({ id: slId }, entries);
+    
+    const activeSL = FRAMEWORK.serviceLines.find(s => s.id === slId);
+    if (activeSL) {
+      const link = document.querySelector(`.meeting-sl-link[data-sl-id="${slId}"]`);
+      if (link) {
+        const statusRow = link.querySelector('.meeting-sl-status-row');
+        if (statusRow) {
+          statusRow.outerHTML = this.getMeetingStatusRowHtml(activeSL);
+        }
+      }
+    }
+  },
+
+  deleteMeetingDialogueEntry(slId, index) {
+    this.confirmAction("Are you sure you want to delete this dialogue entry?", () => {
+      const entries = this.getDialogueEntries(slId);
+      if (index >= 0 && index < entries.length) {
+        entries.splice(index, 1);
+        Sync.saveDialogueEntries(slId, entries);
+        
+        const countEl = document.getElementById(`meeting-dialogue-count-${slId}`);
+        if (countEl) countEl.textContent = `${entries.length} entries`;
+        
+        const listEl = document.getElementById(`meeting-dialogue-list-${slId}`);
+        if (listEl) listEl.innerHTML = this.renderMeetingDialogueList({ id: slId }, entries);
+        
+        const activeSL = FRAMEWORK.serviceLines.find(s => s.id === slId);
+        if (activeSL) {
+          const link = document.querySelector(`.meeting-sl-link[data-sl-id="${slId}"]`);
+          if (link) {
+            const statusRow = link.querySelector('.meeting-sl-status-row');
+            if (statusRow) {
+              statusRow.outerHTML = this.getMeetingStatusRowHtml(activeSL);
+            }
+          }
+        }
+      }
+    });
+  },
+
+  renderMeetingTasksCard(sl) {
+    const D = FRAMEWORK;
+    const phases = [1, 2, 3];
+    
+    const phaseTasksHtml = phases.map(phaseNum => {
+      const phase = D.phases[phaseNum - 1];
+      const tasks = (sl.tasks || []).filter(t => t.phase === phaseNum);
+      const cc = D.crossCuttingTasks.filter(t => t.phase === phaseNum);
+      
+      if (tasks.length === 0 && cc.length === 0) return '';
+      
+      const allTasks = [...tasks, ...cc];
+      
+      return `
+        <div class="meeting-phase-tasks" style="margin-bottom: 1.5rem;">
+          <div class="meeting-phase-title" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; border-left:2px solid var(--gold); padding-left:8px;">
+            Phase ${phase.id}: ${this.escapeHtml(phase.name)}
+          </div>
+          ${allTasks.map(task => {
+            const saved = this.getTaskData(task.id);
+            const currentStatus = saved.status || task.status;
+            const kpiChecks = saved.kpis || {};
+            const deletedKpis = saved.deletedKpis || {};
+            const notes = saved.notes || '';
+            const isCrossCutting = !sl.tasks?.some(t => t.id === task.id);
+            
+            return `
+              <div class="meeting-task-card" id="task-${task.id}" style="background:rgba(255, 255, 255, 0.015); border:1px solid var(--border-subtle); border-radius:6px; padding:12px; margin-bottom:8px;">
+                <div class="meeting-task-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                  <div class="meeting-task-title" style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">
+                    ${isCrossCutting ? '<span style="color:var(--gold); font-size:0.65rem; border:1px solid var(--gold); padding:1px 4px; border-radius:3px; margin-right:4px; text-transform:uppercase; font-family:var(--font-body);">CC</span>' : ''}
+                    ${this.escapeHtml(task.title)}
+                  </div>
+                  <span class="meeting-task-status-badge ${currentStatus}" id="badge-${task.id}">${this.statusLabel(currentStatus)}</span>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px; line-height:1.4;">${this.escapeHtml(task.description)}</div>
+                
+                <!-- Interactive KPIs -->
+                <div class="meeting-task-kpis" style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                  ${(task.kpis || []).map((k, i) => {
+                    const checked = !!kpiChecks[i];
+                    const deleted = !!deletedKpis[i];
+                    if (deleted) return '';
+                    return `
+                      <div class="kpi-interactive ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}" id="kpi-${task.id}-${i}" onclick="App.toggleKpi('${task.id}', '${i}')">
+                        <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
+                        <div class="kpi-label ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}">${this.escapeHtml(k)}</div>
+                      </div>`;
+                  }).join('')}
+                  ${(saved.customKpis || []).map((k, i) => {
+                    const idx = `custom-${i}`;
+                    const checked = !!kpiChecks[idx];
+                    return `
+                      <div class="kpi-interactive custom-kpi ${checked ? 'checked' : ''}" id="kpi-${task.id}-${idx}" onclick="App.toggleKpi('${task.id}', '${idx}')">
+                        <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
+                        <div class="kpi-label ${checked ? 'checked' : ''}">${this.escapeHtml(k)}</div>
+                      </div>`;
+                  }).join('')}
+                </div>
+                
+                <!-- Task Notes and Status Option -->
+                <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <div class="status-selector" style="display:flex; gap:4px;">
+                    <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
+                    <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
+                    <button class="status-option ${currentStatus === 'not-started' ? 'active-not-started' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="not-started" onclick="App.setTaskStatus('${task.id}','not-started')">○ Not Started</button>
+                  </div>
+                  <button class="meeting-task-notes-toggle ${notes ? 'open' : ''}" style="background:transparent; border:none; color:var(--gold-light); font-size:0.7rem; cursor:pointer; padding:0; margin-top:6px; display:inline-block;" id="notes-btn-${task.id}" onclick="App.toggleNotes('${task.id}')">
+                    ✎ ${notes ? 'Notes' : '+ Note'}
+                  </button>
+                </div>
+                
+                <div id="notes-area-${task.id}" class="meeting-task-notes-area" style="display:${notes ? 'block' : 'none'}; margin-top:6px;">
+                  <textarea placeholder="Enter accomplishments, updates, or notes..." style="width:100%; min-height:60px; background:rgba(0, 0, 0, 0.2); border:1px solid var(--border-subtle); color:var(--text-primary); font-size:0.75rem; padding:6px; border-radius:4px; font-family:inherit; resize:vertical;" id="notes-input-${task.id}" oninput="App.saveNotes('${task.id}')">${this.escapeHtml(notes)}</textarea>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="meeting-card">
+        <div class="meeting-card-header">
+          <span>Active Tasks Checklist</span>
+        </div>
+        <div style="max-height:480px; overflow-y:auto; padding-right:4px;">
+          ${phaseTasksHtml}
+        </div>
+      </div>
+    `;
+  },
+
+  renderMeetingMetricQuickEntryCard(sl) {
+    const trackedMetrics = sl.trackedMetrics || [];
+    const metricGroups = sl.metricGroups || [];
+    
+    if (trackedMetrics.length === 0 && metricGroups.length === 0) {
+      return `
+        <div class="meeting-card">
+          <div class="meeting-card-header">
+            <span>Metric Quick-Entry</span>
+          </div>
+          <div style="text-align:center; padding:2rem; color:var(--text-muted); font-size:0.85rem;">
+            No metrics defined for this service line.
+          </div>
+        </div>
+      `;
+    }
+    
+    let html = `
+      <div class="meeting-card">
+        <div class="meeting-card-header">
+          <span>Metric Quick-Entry</span>
+        </div>
+        <div style="max-height:480px; overflow-y:auto; padding-right:4px;">
+    `;
+    
+    if (trackedMetrics.length > 0) {
+      html += `
+        <div style="font-size:0.75rem; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Single Metrics</div>
+        <div style="margin-bottom:1.5rem;">
+          ${trackedMetrics.map(m => {
+            const entries = this.getMetricEntries(m.id);
+            return `
+              <div class="meeting-metric-row">
+                <div class="meeting-metric-info" style="max-width:55%;">
+                  <strong>${this.escapeHtml(m.name)}</strong>
+                  <span class="meeting-metric-sub">Goal: ${this.escapeHtml(this.metricTargetText(m))} • Latest: ${this.escapeHtml(this.metricLatestText(m, entries))}</span>
+                </div>
+                <div class="meeting-metric-inputs">
+                  <div class="meeting-date-selector">
+                    <input type="date" id="meeting-metric-date-${m.id}" value="${this.getLocalToday()}">
+                  </div>
+                  <input type="number" step="any" id="meeting-metric-val-${m.id}" placeholder="${this.escapeHtml(m.unit)}" style="width:70px;" onkeydown="if(event.key === 'Enter') { App.addMeetingMetric('${m.id}'); event.preventDefault(); }">
+                  <button type="button" class="meeting-btn-add" onclick="App.addMeetingMetric('${m.id}')">Add</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+    
+    if (metricGroups.length > 0) {
+      html += `
+        <div style="font-size:0.75rem; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin-top:1rem; margin-bottom:10px;">Metric Groups</div>
+        ${metricGroups.map(group => `
+          <div style="margin-bottom:1.5rem; background:rgba(0,0,0,0.1); border:1px solid var(--border-subtle); padding:10px; border-radius:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
+              <span style="font-size:0.8rem; font-weight:700; color:var(--text-primary); font-family:var(--font-display);">${this.escapeHtml(group.name)}</span>
+              <div class="meeting-date-selector">
+                <input type="date" id="meeting-group-date-${group.id}" value="${this.getLocalToday()}">
+              </div>
+            </div>
+            ${group.series.map(series => {
+              const entries = this.getMetricEntries(series.id);
+              return `
+                <div class="meeting-metric-row" style="padding:6px 0;">
+                  <div class="meeting-metric-info" style="max-width:60%;">
+                    <strong style="font-size:0.8rem;">${this.escapeHtml(series.name)}</strong>
+                    <span class="meeting-metric-sub">Latest: ${this.escapeHtml(this.metricLatestText(series, entries))}</span>
+                  </div>
+                  <div class="meeting-metric-inputs">
+                    <input type="number" step="any" id="meeting-group-val-${group.id}-${series.id}" placeholder="${this.escapeHtml(series.unit || group.unit)}" style="width:70px;" onkeydown="if(event.key === 'Enter') { App.addMeetingGroupMetric('${group.id}', '${series.id}'); event.preventDefault(); }">
+                    <button type="button" class="meeting-btn-add" onclick="App.addMeetingGroupMetric('${group.id}', '${series.id}')">Add</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `).join('')}
+      `;
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+    return html;
+  },
+
+  addMeetingMetric(metricId) {
+    const valInput = document.getElementById(`meeting-metric-val-${metricId}`);
+    const dateInput = document.getElementById(`meeting-metric-date-${metricId}`);
+    if (!valInput) return;
+    
+    valInput.classList.remove('input-error');
+    if (dateInput) dateInput.classList.remove('input-error');
+    
+    let hasError = false;
+    if (!dateInput || !dateInput.value) {
+      if (dateInput) dateInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    const parsedVal = parseFloat(valInput.value);
+    if (valInput.value === '' || isNaN(parsedVal)) {
+      valInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    if (hasError) return;
+    
+    const all = this.getMetricStore();
+    const entries = all[metricId] || [];
+    entries.push({ date: dateInput.value, value: parsedVal });
+    entries.sort((a, b) => a.date.localeCompare(b.date));
+    all[metricId] = entries;
+    this.saveMetricStore(all);
+    valInput.value = '';
+    
+    const sl = FRAMEWORK.serviceLines.find(s => s.trackedMetrics?.some(m => m.id === metricId));
+    if (sl) {
+      this.setMeetingActiveServiceLine(sl.id);
+      
+      const link = document.querySelector(`.meeting-sl-link[data-sl-id="${sl.id}"]`);
+      if (link) {
+        const statusRow = link.querySelector('.meeting-sl-status-row');
+        if (statusRow) {
+          statusRow.outerHTML = this.getMeetingStatusRowHtml(sl);
+        }
+      }
+    }
+  },
+
+  addMeetingGroupMetric(groupId, seriesId) {
+    const valInput = document.getElementById(`meeting-group-val-${groupId}-${seriesId}`);
+    const dateInput = document.getElementById(`meeting-group-date-${groupId}`);
+    if (!valInput) return;
+    
+    valInput.classList.remove('input-error');
+    if (dateInput) dateInput.classList.remove('input-error');
+    
+    let hasError = false;
+    if (!dateInput || !dateInput.value) {
+      if (dateInput) dateInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    const parsedVal = parseFloat(valInput.value);
+    if (valInput.value === '' || isNaN(parsedVal)) {
+      valInput.classList.add('input-error');
+      hasError = true;
+    }
+    
+    if (hasError) return;
+    
+    const all = this.getMetricStore();
+    const entries = all[seriesId] || [];
+    entries.push({ date: dateInput.value, value: parsedVal });
+    entries.sort((a, b) => a.date.localeCompare(b.date));
+    all[seriesId] = entries;
+    this.saveMetricStore(all);
+    valInput.value = '';
+    
+    const found = this.getMetricGroupDefinition(groupId);
+    if (found) {
+      const sl = found.serviceLine;
+      this.setMeetingActiveServiceLine(sl.id);
+      
+      const link = document.querySelector(`.meeting-sl-link[data-sl-id="${sl.id}"]`);
+      if (link) {
+        const statusRow = link.querySelector('.meeting-sl-status-row');
+        if (statusRow) {
+          statusRow.outerHTML = this.getMeetingStatusRowHtml(sl);
+        }
+      }
+    }
   },
 
 };
