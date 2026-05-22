@@ -4,6 +4,8 @@ const App = {
   expandedMetricGroupId: null,
   isMeetingMode: false,
   meetingActiveServiceLineId: null,
+  isPresentationMode: false,
+  presentationActiveIndex: 0,
 
   getLocalToday() {
     const d = new Date();
@@ -77,12 +79,20 @@ const App = {
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
 
-    if (this.isMeetingMode && (parts.length === 0 || hash === '/')) {
-      this.isMeetingMode = false;
+    if (this.isPresentationMode && (parts.length === 0 || hash === '/')) {
+      this.isPresentationMode = false;
       const body = document.body;
-      const btn = document.getElementById('btn-meeting-mode');
-      body.classList.remove('meeting-mode-active');
+      const btn = document.getElementById('btn-presentation-mode');
+      body.classList.remove('presentation-mode-active');
       if (btn) btn.classList.remove('active');
+      this.teardownPresentationListeners();
+    }
+
+    if (this.isPresentationMode) {
+      this.renderPresentationMode(main);
+      this.renderSidebar(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
 
     if (this.isMeetingMode) {
@@ -2368,6 +2378,423 @@ const App = {
         }
       }
     }
+  },
+
+  // ===== PRESENTATION MODE (Command Briefing Deck) =====
+  
+  togglePresentationMode() {
+    this.isPresentationMode = !this.isPresentationMode;
+    const body = document.body;
+    const btn = document.getElementById('btn-presentation-mode');
+    
+    if (this.isPresentationMode) {
+      body.classList.add('presentation-mode-active');
+      if (btn) btn.classList.add('active');
+      this.presentationActiveIndex = 0;
+      this.setupPresentationListeners();
+      this.route();
+    } else {
+      body.classList.remove('presentation-mode-active');
+      if (btn) btn.classList.remove('active');
+      this.teardownPresentationListeners();
+      this.route();
+    }
+  },
+
+  setupPresentationListeners() {
+    this.teardownPresentationListeners(); // Prevent duplicates
+    this._onPresentationKeydown = this.handlePresentationKeydown.bind(this);
+    window.addEventListener('keydown', this._onPresentationKeydown);
+  },
+
+  teardownPresentationListeners() {
+    if (this._onPresentationKeydown) {
+      window.removeEventListener('keydown', this._onPresentationKeydown);
+      this._onPresentationKeydown = null;
+    }
+  },
+
+  handlePresentationKeydown(e) {
+    if (!this.isPresentationMode) return;
+    
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      this.navigateSlide(1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      this.navigateSlide(-1);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.togglePresentationMode();
+    }
+  },
+
+  navigateSlide(direction) {
+    const nextIndex = this.presentationActiveIndex + direction;
+    if (nextIndex >= 0 && nextIndex <= 5) {
+      const transDir = direction > 0 ? 'forward' : 'backward';
+      this.goToSlide(nextIndex, transDir);
+    }
+  },
+
+  goToSlide(index, direction) {
+    if (index < 0 || index > 5) return;
+    if (index === this.presentationActiveIndex) return;
+    
+    const updateCallback = () => {
+      this.presentationActiveIndex = index;
+      const main = document.getElementById('app');
+      this.renderPresentationMode(main);
+    };
+
+    if (!direction) {
+      direction = index > this.presentationActiveIndex ? 'forward' : 'backward';
+    }
+
+    try {
+      if (document.startViewTransition) {
+        document.startViewTransition({
+          update: updateCallback,
+          types: [direction]
+        });
+      } else {
+        updateCallback();
+      }
+    } catch (e) {
+      try {
+        document.startViewTransition(updateCallback);
+      } catch (e2) {
+        updateCallback();
+      }
+    }
+  },
+
+  renderPresentationMode(el) {
+    if (!el) return;
+    
+    const slideIndex = this.presentationActiveIndex;
+    const slideSubTitle = slideIndex === 0 ? "Command Briefing" : `Slide ${slideIndex}`;
+    const slideTitle = slideIndex === 0 
+      ? FRAMEWORK.title 
+      : FRAMEWORK.serviceLines[slideIndex - 1].name;
+    
+    const slideHeaderMeta = slideIndex === 0
+      ? `General Leonard Wood Community Hospital`
+      : `Leader: ${FRAMEWORK.serviceLines[slideIndex - 1].leader}`;
+
+    const slideContent = this.getSlideHtml(slideIndex);
+    
+    el.innerHTML = `
+      <div class="presentation-container slide-fade-in">
+        <!-- Header -->
+        <header class="presentation-header">
+          <div class="presentation-header-title">
+            <span class="presentation-header-badge">${slideSubTitle}</span>
+            <h2>${this.escapeHtml(slideTitle)}</h2>
+          </div>
+          <div class="presentation-header-meta">
+            ${this.escapeHtml(slideHeaderMeta)}
+          </div>
+        </header>
+
+        <!-- Body -->
+        <div class="presentation-body">
+          ${slideContent}
+        </div>
+
+        <!-- Footer -->
+        <footer class="presentation-footer-controls">
+          <div class="presentation-nav-buttons">
+            <button class="presentation-btn" onclick="App.navigateSlide(-1)" ${slideIndex === 0 ? 'disabled' : ''}>← Prev</button>
+            <button class="presentation-btn" onclick="App.navigateSlide(1)" ${slideIndex === 5 ? 'disabled' : ''}>Next →</button>
+          </div>
+          
+          <div class="presentation-jump-tabs">
+            <button class="presentation-tab ${slideIndex === 0 ? 'active' : ''}" onclick="App.goToSlide(0)">Executive</button>
+            ${FRAMEWORK.serviceLines.map((sl, idx) => `
+              <button class="presentation-tab ${slideIndex === idx + 1 ? 'active' : ''}" onclick="App.goToSlide(${idx + 1})">${sl.abbr || sl.name}</button>
+            `).join('')}
+          </div>
+
+          <div class="presentation-indicator-dots">
+            ${[0, 1, 2, 3, 4, 5].map(i => `
+              <button class="presentation-dot ${slideIndex === i ? 'active' : ''}" onclick="App.goToSlide(${i})" aria-label="Go to slide ${i}"></button>
+            `).join('')}
+          </div>
+
+          <button class="presentation-btn exit" onclick="App.togglePresentationMode()">Exit Briefing</button>
+        </footer>
+      </div>
+    `;
+  },
+
+  getSlideHtml(index) {
+    if (index === 0) {
+      return this.getExecutiveSlideHtml();
+    }
+    const sl = FRAMEWORK.serviceLines[index - 1];
+    return this.getServiceLineSlideHtml(sl);
+  },
+
+  getExecutiveSlideHtml() {
+    // Generate overall progression stats by LOE
+    const loeProgressHtml = FRAMEWORK.loes.map(loe => {
+      const tasks = [
+        ...FRAMEWORK.serviceLines.flatMap(sl => sl.tasks || []),
+        ...FRAMEWORK.crossCuttingTasks
+      ].filter(t => t.loe === loe.id);
+      
+      const total = tasks.length;
+      const completed = tasks.filter(t => {
+        const saved = this.getTaskData(t.id);
+        return (saved.status || t.status) === 'complete';
+      }).length;
+      
+      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      return `
+        <div class="exec-progress-row" style="margin-bottom: 12px;">
+          <div class="exec-progress-label">
+            <span>LOE ${loe.id}: ${this.escapeHtml(loe.name)}</span>
+            <strong>${completed}/${total} Tasks (${percent}%)</strong>
+          </div>
+          <div class="exec-progress-bar-outer">
+            <div class="exec-progress-bar-inner" style="width: ${percent}%;"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Generate service line status cards
+    const matrixHtml = FRAMEWORK.serviceLines.map(sl => {
+      const dots = [];
+      (sl.trackedMetrics || []).forEach(m => {
+        if (m.goal !== null && m.goal !== undefined) {
+          const entries = this.getMetricEntries(m.id);
+          if (entries.length) {
+            const latest = entries[entries.length - 1].value;
+            const good = m.direction === 'lower' ? latest <= m.goal : latest >= m.goal;
+            dots.push(`<span class="exec-matrix-dot ${good ? 'good' : 'warn'}" title="${this.escapeHtml(m.name)}: ${this.formatMetricValue(m, latest)} (Goal: ${this.formatMetricValue(m, m.goal)})"></span>`);
+          } else {
+            dots.push(`<span class="exec-matrix-dot neutral" title="${this.escapeHtml(m.name)}: No data"></span>`);
+          }
+        }
+      });
+
+      (sl.metricGroups || []).forEach(g => {
+        g.series.forEach(s => {
+          if (s.goal !== null && s.goal !== undefined) {
+            const entries = this.getMetricEntries(s.id);
+            if (entries.length) {
+              const latest = entries[entries.length - 1].value;
+              const good = s.direction === 'lower' ? latest <= s.goal : latest >= s.goal;
+              dots.push(`<span class="exec-matrix-dot ${good ? 'good' : 'warn'}" title="${this.escapeHtml(s.name)}: ${this.formatMetricValue(s, latest)} (Goal: ${this.formatMetricValue(s, s.goal)})"></span>`);
+            } else {
+              dots.push(`<span class="exec-matrix-dot neutral" title="${this.escapeHtml(s.name)}: No data"></span>`);
+            }
+          }
+        });
+      });
+
+      const dotsHtml = dots.length > 0 
+        ? dots.join('') 
+        : `<span style="font-size:0.65rem;color:var(--text-muted);">No goal metrics</span>`;
+
+      return `
+        <div class="exec-matrix-card">
+          <div>
+            <div class="exec-matrix-name">${this.escapeHtml(sl.abbr || sl.name)}</div>
+            <div class="exec-matrix-abbr" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${this.escapeHtml(sl.leader)}</div>
+          </div>
+          <div class="exec-matrix-status">
+            ${dotsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="exec-layout-grid">
+        <!-- Left Column: Mission & Priorities -->
+        <div class="slide-panel">
+          <div class="slide-panel-title">
+            <span>Command Mission & Intent</span>
+          </div>
+          <div class="exec-mission-box" style="flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">
+            "${this.escapeHtml(FRAMEWORK.mission)}"
+          </div>
+          
+          <div class="slide-panel-title" style="margin-top: 1.5rem;">
+            <span>Command Motto & Vision</span>
+          </div>
+          <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem;">
+            <div><strong>Motto:</strong> "${this.escapeHtml(FRAMEWORK.motto)}"</div>
+            <div><strong>Vision:</strong> "${this.escapeHtml(FRAMEWORK.vision)}"</div>
+            <div><strong>Installation Support:</strong> ${this.escapeHtml(FRAMEWORK.installationMission)}</div>
+          </div>
+        </div>
+        
+        <!-- Right Column: Progress & Readiness -->
+        <div class="slide-panel">
+          <div class="slide-panel-title">
+            <span>Operational Progress by Line of Effort</span>
+          </div>
+          <div style="margin-top: 0.5rem;">
+            ${loeProgressHtml}
+          </div>
+          
+          <div class="slide-panel-title" style="margin-top: 1.5rem;">
+            <span>Service Line Command Readiness Matrix</span>
+          </div>
+          <div class="exec-matrix-grid" style="margin-top: 0.5rem;">
+            ${matrixHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  getServiceLineSlideHtml(sl) {
+    // Separate tasks into accomplishments (completed) and way forward (incomplete)
+    const accomplishments = [];
+    const wayForward = [];
+
+    const getTaskKpiSummaryHtml = (task) => {
+      const saved = this.getTaskData(task.id);
+      const kpiChecks = saved.kpis || {};
+      const deletedKpis = saved.deletedKpis || {};
+      const customKpis = saved.customKpis || [];
+      
+      const builtInCount = (task.kpis || []).filter((_, i) => !deletedKpis[i]).length;
+      const totalKpis = builtInCount + customKpis.length;
+      
+      const completedBuiltIn = (task.kpis || []).filter((_, i) => !deletedKpis[i] && kpiChecks[i]).length;
+      const completedCustom = customKpis.filter((_, i) => kpiChecks[`custom-${i}`]).length;
+      const completedKpisCount = completedBuiltIn + completedCustom;
+      
+      if (totalKpis === 0) return '';
+      return `<span class="slide-list-kpi-badge">${completedKpisCount}/${totalKpis} Milestones Achieved</span>`;
+    };
+
+    (sl.tasks || []).forEach(task => {
+      const saved = this.getTaskData(task.id);
+      const currentStatus = saved.status || task.status;
+      if (currentStatus === 'complete') {
+        accomplishments.push(task);
+      } else {
+        wayForward.push(task);
+      }
+    });
+
+    const accomplishmentsHtml = accomplishments.length > 0 
+      ? accomplishments.map(t => `
+          <div class="slide-list-item accomplishment">
+            <span class="slide-list-item-icon">✓</span>
+            <div class="slide-list-item-text">
+              <span class="slide-list-item-title">${this.escapeHtml(t.title)}</span>
+              <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
+              ${getTaskKpiSummaryHtml(t)}
+            </div>
+          </div>
+        `).join('')
+      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">No completed tasks in current database.</div>`;
+
+    const wayForwardHtml = wayForward.length > 0
+      ? wayForward.map(t => `
+          <div class="slide-list-item way-forward">
+            <span class="slide-list-item-icon">▶</span>
+            <div class="slide-list-item-text">
+              <span class="slide-list-item-title">${this.escapeHtml(t.title)}</span>
+              <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
+              ${getTaskKpiSummaryHtml(t)}
+            </div>
+          </div>
+        `).join('')
+      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">All tasks completed. Ready for next phase.</div>`;
+
+    // Charts rendering
+    const trackedCharts = (sl.trackedMetrics || []).map(m => {
+      const entries = this.getMetricEntries(m.id);
+      return `
+        <div class="presentation-chart-container" style="margin-bottom: 1rem;">
+          <div class="presentation-chart-title">${this.escapeHtml(m.name)}</div>
+          <div class="presentation-chart-pane-svg">
+            ${this.renderMetricChart(m, entries, { variant: 'expanded' })}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const groupCharts = (sl.metricGroups || []).map(g => `
+      <div class="presentation-chart-container" style="margin-bottom: 1rem;">
+        <div class="presentation-chart-title">${this.escapeHtml(g.name)}</div>
+        <div class="presentation-chart-pane-svg">
+          ${this.renderMetricGroupChart(g, { variant: 'expanded' })}
+        </div>
+        <div class="presentation-chart-legend">
+          ${this.renderMetricGroupLegend(g)}
+        </div>
+      </div>
+    `).join('');
+
+    const chartsHtml = (trackedCharts + groupCharts) || `
+      <div style="text-align:center;color:var(--text-muted);font-style:italic;padding:2rem 0;">No active quantitative performance metric charts.</div>
+    `;
+
+    // Weekly Command Dialogue
+    const dialogueEntries = this.getDialogueEntries(sl.id).slice(0, 3);
+    const dialogueHtml = `
+      <div class="dialogue-log-readonly" style="max-height: 180px; overflow-y: auto; margin-top: 0.5rem; padding-right: 6px;">
+        ${dialogueEntries.length > 0 ? dialogueEntries.map(e => `
+          <div class="dialogue-item-readonly" style="margin-bottom: 8px;">
+            <div class="dialogue-meta-readonly" style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span>Entry Date: ${this.escapeHtml(e.date)}</span>
+            </div>
+            <div class="dialogue-content-readonly" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; white-space: pre-wrap;">${this.escapeHtml(e.text)}</div>
+          </div>
+        `).join('') : `
+          <div class="dialogue-empty-readonly" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; font-style: italic;">
+            No dialogue logs submitted for this service line.
+          </div>
+        `}
+      </div>
+    `;
+
+    return `
+      <div class="slide-layout">
+        <!-- Left Column: Tasks -->
+        <div class="slide-panel">
+          <div class="slide-panel-title">
+            <span>Accomplishments & Milestones</span>
+          </div>
+          <div class="slide-list" style="overflow-y: auto; flex: 1; max-height: calc(50vh - 120px); padding-right: 6px;">
+            ${accomplishmentsHtml}
+          </div>
+          
+          <div class="slide-panel-title" style="margin-top: 1rem;">
+            <span>Way Forward & Next Steps</span>
+          </div>
+          <div class="slide-list" style="overflow-y: auto; flex: 1; max-height: calc(50vh - 120px); padding-right: 6px;">
+            ${wayForwardHtml}
+          </div>
+        </div>
+        
+        <!-- Right Column: Metrics & Dialogues -->
+        <div class="slide-panel">
+          <div class="slide-panel-title">
+            <span>Performance Trends</span>
+          </div>
+          <div class="presentation-chart-panel" style="overflow-y: auto; flex: 1; max-height: calc(60vh - 150px); padding-right: 6px;">
+            ${chartsHtml}
+          </div>
+          
+          <div class="slide-panel-title" style="margin-top: 1rem;">
+            <span>Weekly Command Dialogue</span>
+          </div>
+          ${dialogueHtml}
+        </div>
+      </div>
+    `;
   },
 
 };
