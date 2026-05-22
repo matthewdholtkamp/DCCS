@@ -2,13 +2,13 @@
 
 /* ===== CSS VARIABLES ===== */
 :root {
-  --bg-primary: #10100f;
-  --bg-secondary: #171714;
-  --bg-card: rgba(28, 28, 25, 0.92);
-  --bg-card-hover: rgba(36, 36, 32, 0.98);
-  --bg-glass: rgba(255,255,255,0.035);
-  --border-subtle: rgba(255,255,255,0.12);
-  --border-accent: rgba(255,184,28,0.4); /* Army Gold */
+  --bg-primary: #0a0b09; /* Deeper tactical black/charcoal base */
+  --bg-secondary: #111310; /* Dark secondary background */
+  --bg-card: #181b17; /* Elevated card background - distinct from bg-primary */
+  --bg-card-hover: #20241e; /* Elevated card background on hover */
+  --bg-glass: rgba(255,255,255,0.03);
+  --border-subtle: rgba(255,255,255,0.08); /* Crisp outlines for structure */
+  --border-accent: rgba(255,184,28,0.3); /* Army Gold border accent */
   --gold: #FFB81C; /* Official Army Gold */
   --gold-light: #f6ca63;
   --gold-glow: rgba(255,184,28,0.16);
@@ -22,11 +22,11 @@
   --red: #c0392b;
   --text-primary: #ffffff; /* Pure white text like army.mil */
   --text-secondary: #cccccc; /* Neutral gray text */
-  --text-muted: #999999;
+  --text-muted: #8c928b; /* Olive-tinted gray text for tactical feel */
   --text-gold: #FFB81C;
   --radius: 8px;
   --radius-lg: 10px;
-  --shadow: 0 8px 20px rgba(0,0,0,0.35);
+  --shadow: 0 8px 24px rgba(0,0,0,0.5); /* Stronger shadow for elevation */
   --shadow-glow: 0 0 0 1px rgba(255,184,28,0.22);
   --transition: all 0.18s ease;
 }

@@ -339,14 +339,11 @@ const App = {
 
   // ===== PERSISTENCE (localStorage) =====
   getTaskData(taskId) {
-    const all = JSON.parse(localStorage.getItem('dccs-task-data') || '{}');
-    return all[taskId] || {};
+    return Sync.getTaskData(taskId);
   },
 
   saveTaskData(taskId, data) {
-    const all = JSON.parse(localStorage.getItem('dccs-task-data') || '{}');
-    all[taskId] = { ...all[taskId], ...data };
-    localStorage.setItem('dccs-task-data', JSON.stringify(all));
+    Sync.saveTaskData(taskId, data);
   },
 
   findTask(taskId) {
@@ -537,16 +534,11 @@ const App = {
 
   // ===== TRACKED METRICS (line graph + data entry) =====
   getMetricStore() {
-    try {
-      return JSON.parse(localStorage.getItem('dccs-metric-entries') || '{}');
-    } catch (error) {
-      console.warn('Unable to read metric entries from localStorage.', error);
-      return {};
-    }
+    return Sync.getMetricStore();
   },
 
   saveMetricStore(all) {
-    localStorage.setItem('dccs-metric-entries', JSON.stringify(all));
+    Sync.saveMetricStore(all);
   },
 
   getMetricDefinition(metricId) {
@@ -1379,15 +1371,11 @@ const App = {
 
   // ===== HEDIS CUSTOM KPIs & NOTES =====
   getHedisData(slId) {
-    const all = JSON.parse(localStorage.getItem('dccs-hedis-data') || '{}');
-    return all[slId] || { kpis: {}, customKpis: [], notes: '' };
+    return Sync.getHedisData(slId);
   },
 
   saveHedisData(slId, update) {
-    const all = JSON.parse(localStorage.getItem('dccs-hedis-data') || '{}');
-    const current = all[slId] || { kpis: {}, customKpis: [], notes: '' };
-    all[slId] = { ...current, ...update };
-    localStorage.setItem('dccs-hedis-data', JSON.stringify(all));
+    Sync.saveHedisData(slId, update);
   },
 
   findServiceLine(slId) {
@@ -1496,31 +1484,26 @@ const App = {
 
   // ===== WEEKLY DIALOGUE (running log) =====
   getDialogueEntries(slId) {
-    const all = JSON.parse(localStorage.getItem('dccs-dialogue-entries') || '{}');
-    return all[slId] || [];
+    return Sync.getDialogueEntries(slId);
   },
 
   addDialogueEntry(slId) {
     const ta = document.getElementById(`dialogue-text-${slId}`);
     if (!ta || !ta.value.trim()) return;
-    const all = JSON.parse(localStorage.getItem('dccs-dialogue-entries') || '{}');
-    const entries = all[slId] || [];
+    const entries = this.getDialogueEntries(slId);
     entries.unshift({
       date: new Date().toISOString().slice(0, 10),
       text: ta.value.trim()
     });
-    all[slId] = entries;
-    localStorage.setItem('dccs-dialogue-entries', JSON.stringify(all));
+    Sync.saveDialogueEntries(slId, entries);
     ta.value = '';
     this.updateDialogueList(slId, entries);
   },
 
   deleteDialogueEntry(slId, index) {
-    const all = JSON.parse(localStorage.getItem('dccs-dialogue-entries') || '{}');
-    const entries = all[slId] || [];
+    const entries = this.getDialogueEntries(slId);
     entries.splice(index, 1);
-    all[slId] = entries;
-    localStorage.setItem('dccs-dialogue-entries', JSON.stringify(all));
+    Sync.saveDialogueEntries(slId, entries);
     this.updateDialogueList(slId, entries);
   },
 
@@ -1550,12 +1533,10 @@ const App = {
       this.deleteDialogueEntry(slId, index);
       return;
     }
-    const all = JSON.parse(localStorage.getItem('dccs-dialogue-entries') || '{}');
-    const entries = all[slId] || [];
+    const entries = this.getDialogueEntries(slId);
     if (entries[index]) {
       entries[index].text = val;
-      all[slId] = entries;
-      localStorage.setItem('dccs-dialogue-entries', JSON.stringify(all));
+      Sync.saveDialogueEntries(slId, entries);
     }
     this.updateDialogueList(slId, entries);
   },
