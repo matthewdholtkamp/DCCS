@@ -2660,6 +2660,7 @@ const App = {
     const wayForward = [];
 
     const getTaskKpiSummaryHtml = (task) => {
+      if (task.id.startsWith('hedis-action-')) return '';
       const saved = this.getTaskData(task.id);
       const kpiChecks = saved.kpis || {};
       const deletedKpis = saved.deletedKpis || {};
@@ -2676,7 +2677,28 @@ const App = {
       return `<span class="slide-list-kpi-badge">${completedKpisCount}/${totalKpis} Milestones Achieved</span>`;
     };
 
-    (sl.tasks || []).forEach(task => {
+    // Include service line specific tasks and cross-cutting tasks
+    const allTasks = [...(sl.tasks || []), ...FRAMEWORK.crossCuttingTasks];
+
+    // Include HEDIS action items if this is the PCSL
+    if (sl.id === 'pcsl') {
+      const hedisData = this.getHedisData('pcsl');
+      const kpiChecks = hedisData.kpis || {};
+      const customKpis = hedisData.customKpis || [];
+      customKpis.forEach((k, i) => {
+        const checked = !!kpiChecks[`custom-${i}`];
+        allTasks.push({
+          id: `hedis-action-${i}`,
+          title: k,
+          description: "HEDIS Action Item",
+          status: checked ? "complete" : "in-progress",
+          kpis: [],
+          loe: 1
+        });
+      });
+    }
+
+    allTasks.forEach(task => {
       const saved = this.getTaskData(task.id);
       const currentStatus = saved.status || task.status;
       if (currentStatus === 'complete') {
@@ -2686,30 +2708,35 @@ const App = {
       }
     });
 
-    const accomplishmentsHtml = accomplishments.length > 0 
-      ? accomplishments.map(t => `
-          <div class="slide-list-item accomplishment">
-            <span class="slide-list-item-icon">✓</span>
-            <div class="slide-list-item-text">
-              <span class="slide-list-item-title">${this.escapeHtml(t.title)}</span>
-              <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
-              ${getTaskKpiSummaryHtml(t)}
-            </div>
+    const renderTaskItem = (t, type) => {
+      const isCc = t.id.startsWith('cc-');
+      const isHedis = t.id.startsWith('hedis-action-');
+      let tag = '';
+      if (isCc) {
+        tag = ` <span class="loe-tag loe-2" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight:700;">LOE 2 Cross-Cutting</span>`;
+      } else if (isHedis) {
+        tag = ` <span class="loe-tag loe-1" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight:700; background:rgba(255, 184, 28, 0.15); border:1px solid var(--border-accent); color:var(--gold);">HEDIS Action Item</span>`;
+      }
+      
+      const icon = type === 'accomplishment' ? '✓' : '▶';
+      return `
+        <div class="slide-list-item ${type}">
+          <span class="slide-list-item-icon">${icon}</span>
+          <div class="slide-list-item-text">
+            <span class="slide-list-item-title">${this.escapeHtml(t.title)}${tag}</span>
+            <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
+            ${getTaskKpiSummaryHtml(t)}
           </div>
-        `).join('')
+        </div>
+      `;
+    };
+
+    const accomplishmentsHtml = accomplishments.length > 0 
+      ? accomplishments.map(t => renderTaskItem(t, 'accomplishment')).join('')
       : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">No completed tasks in current database.</div>`;
 
     const wayForwardHtml = wayForward.length > 0
-      ? wayForward.map(t => `
-          <div class="slide-list-item way-forward">
-            <span class="slide-list-item-icon">▶</span>
-            <div class="slide-list-item-text">
-              <span class="slide-list-item-title">${this.escapeHtml(t.title)}</span>
-              <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
-              ${getTaskKpiSummaryHtml(t)}
-            </div>
-          </div>
-        `).join('')
+      ? wayForward.map(t => renderTaskItem(t, 'way-forward')).join('')
       : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">All tasks completed. Ready for next phase.</div>`;
 
     // Charts rendering
@@ -2743,7 +2770,7 @@ const App = {
 
     // Weekly Command Dialogue
     const dialogueEntries = this.getDialogueEntries(sl.id).slice(0, 3);
-    const dialogueHtml = `
+    let dialogueHtml = `
       <div class="dialogue-log-readonly" style="max-height: 180px; overflow-y: auto; margin-top: 0.5rem; padding-right: 6px;">
         ${dialogueEntries.length > 0 ? dialogueEntries.map(e => `
           <div class="dialogue-item-readonly" style="margin-bottom: 8px;">
@@ -2759,6 +2786,44 @@ const App = {
         `}
       </div>
     `;
+
+    // Append HEDIS Meeting Notes for PCSL slide
+    if (sl.id === 'pcsl') {
+      const hedisData = this.getHedisData('pcsl');
+      const hedisNotes = hedisData.notes || '';
+      if (hedisNotes.trim()) {
+        dialogueHtml += `
+          <div class="slide-panel-title" style="margin-top: 1rem;">
+            <span>HEDIS Meeting Notes</span>
+          </div>
+          <div class="dialogue-log-readonly" style="max-height: 120px; overflow-y: auto; margin-top: 0.5rem; padding: 8px; background: rgba(255, 184, 28, 0.05); border: 1px solid var(--border-accent); border-radius: 6px;">
+            <div class="dialogue-content-readonly" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; white-space: pre-wrap;">${this.escapeHtml(hedisNotes)}</div>
+          </div>
+        `;
+      }
+    }
+
+    // Append MSCoE Trainee Care Pipeline for MSCoE slide
+    if (sl.id === 'mscoe' && sl.traineeCareFlow) {
+      dialogueHtml += `
+        <div class="slide-panel-title" style="margin-top: 1rem;">
+          <span>Trainee Care Pipeline</span>
+        </div>
+        <div style="margin-top: 0.5rem; overflow-x: auto; padding-bottom: 4px;">
+          <div class="care-flow" style="display: flex; align-items: stretch; gap: 6px; margin: 0; flex-wrap: nowrap; min-width: 480px;">
+            ${sl.traineeCareFlow.map((step, i) => `
+              ${i > 0 ? '<div class="care-flow-arrow" style="align-self: center; font-size: 0.8rem; padding: 0 2px;">→</div>' : ''}
+              <div class="care-flow-step" style="flex: 1; padding: 6px 8px; margin: 0; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); min-width: 90px; box-sizing: border-box;">
+                <div class="care-flow-step-num" style="width: 16px; height: 16px; font-size: 0.65rem; margin-bottom: 2px;">${step.step}</div>
+                <div class="care-flow-step-name" style="font-size: 0.75rem; margin-bottom: 2px;">${step.name}</div>
+                <div class="care-flow-step-desc" style="font-size: 0.65rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${step.description}</div>
+                <div style="margin-top: 2px; font-size: 0.6rem; color: var(--gold); font-weight: 600;">${step.capacity}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <div class="slide-layout">
