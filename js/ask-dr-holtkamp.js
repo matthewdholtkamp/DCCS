@@ -338,7 +338,21 @@ Always confirm in a direct, command-intent voice that you have applied the reque
   },
 
   normalizeDate(dateString) {
-    if (!dateString || dateString.trim().toLowerCase() === "today" || dateString.trim().toLowerCase() === "now") {
+    if (!dateString) {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    const trimmed = String(dateString).trim();
+    const yyyymmddRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (yyyymmddRegex.test(trimmed)) {
+      return trimmed;
+    }
+
+    if (trimmed.toLowerCase() === "today" || trimmed.toLowerCase() === "now") {
       const d = new Date();
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -347,7 +361,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     }
 
     try {
-      const d = new Date(dateString);
+      const d = new Date(trimmed);
       if (!isNaN(d.getTime())) {
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -355,11 +369,6 @@ Always confirm in a direct, command-intent voice that you have applied the reque
         return `${year}-${month}-${day}`;
       }
     } catch (_) {}
-
-    const yyyymmddRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (yyyymmddRegex.test(dateString)) {
-      return dateString;
-    }
 
     // Fallback to local today
     const d = new Date();
