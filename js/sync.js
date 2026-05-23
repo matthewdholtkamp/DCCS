@@ -1,4 +1,7 @@
 // DCCS Operational Framework — Real-Time Firebase Sync Layer
+// SECURITY: Firebase config keys below are PUBLIC identifiers, not secrets.
+// Access control is enforced by Firestore Security Rules on the server.
+// Ensure rules restrict writes to authenticated users only in production.
 const Sync = {
   db: null,
   enabled: false,
@@ -57,7 +60,6 @@ const Sync = {
       });
 
       this.enabled = true;
-      console.log("Firebase Sync Layer successfully initialized.");
       this.setStatus('synced');
 
       // Listen to window online/offline events
@@ -108,7 +110,6 @@ const Sync = {
       this.setStatus('synced');
 
       if (changed) {
-        console.log("Remote updates received. Syncing cache and updating page.");
         
         // Update local backups
         if (this.cache.tasks) localStorage.setItem('dccs-task-data', JSON.stringify(this.cache.tasks));

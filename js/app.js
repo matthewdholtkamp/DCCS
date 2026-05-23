@@ -1,5 +1,9 @@
 // DCCS Operational Framework — Main Application
+// SECURITY NOTE: Firebase config keys are exposed client-side by design.
+// Firestore Security Rules must be configured to restrict read/write access.
+// These keys alone do not grant admin access — they identify the project.
 const App = {
+  _notesSaveTimers: {},
   expandedMetricId: null,
   expandedMetricGroupId: null,
   isMeetingMode: false,
@@ -71,6 +75,12 @@ const App = {
 
   init() {
     window.addEventListener('hashchange', () => this.route());
+    // P2: Auto-clear input validation errors when user interacts
+    document.addEventListener('focus', (e) => {
+      if (e.target.classList?.contains('input-error')) {
+        e.target.classList.remove('input-error');
+      }
+    }, true);
     this.route();
   },
 
@@ -79,13 +89,21 @@ const App = {
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
 
-    if (this.isPresentationMode && (parts.length === 0 || hash === '/')) {
-      this.isPresentationMode = false;
-      const body = document.body;
-      const btn = document.getElementById('btn-presentation-mode');
-      body.classList.remove('presentation-mode-active');
-      if (btn) btn.classList.remove('active');
-      this.teardownPresentationListeners();
+    // If navigating to root, exit any active mode
+    if (parts.length === 0 || hash === '/') {
+      if (this.isPresentationMode) {
+        this.isPresentationMode = false;
+        document.body.classList.remove('presentation-mode-active');
+        const presBtn = document.getElementById('btn-presentation-mode');
+        if (presBtn) presBtn.classList.remove('active');
+        this.teardownPresentationListeners();
+      }
+      if (this.isMeetingMode) {
+        this.isMeetingMode = false;
+        document.body.classList.remove('meeting-mode-active');
+        const meetBtn = document.getElementById('btn-meeting-mode');
+        if (meetBtn) meetBtn.classList.remove('active');
+      }
     }
 
     if (this.isPresentationMode) {
@@ -550,15 +568,19 @@ const App = {
   },
 
   saveNotes(taskId) {
-    const textarea = document.getElementById(`notes-input-${taskId}`);
-    if (textarea) {
-      this.saveTaskData(taskId, { notes: textarea.value });
-      const indicator = document.getElementById(`notes-saved-${taskId}`);
-      if (indicator) {
-        indicator.classList.add('show');
-        setTimeout(() => indicator.classList.remove('show'), 1500);
+    // P5: Debounce saves to reduce Firestore writes during rapid typing
+    if (this._notesSaveTimers[taskId]) clearTimeout(this._notesSaveTimers[taskId]);
+    this._notesSaveTimers[taskId] = setTimeout(() => {
+      const textarea = document.getElementById(`notes-input-${taskId}`);
+      if (textarea) {
+        this.saveTaskData(taskId, { notes: textarea.value });
+        const indicator = document.getElementById(`notes-saved-${taskId}`);
+        if (indicator) {
+          indicator.classList.add('show');
+          setTimeout(() => indicator.classList.remove('show'), 1800);
+        }
       }
-    }
+    }, 600);
   },
 
   renderTaskCard(task) {
@@ -571,13 +593,13 @@ const App = {
     return `
       <div class="task-card" id="task-${task.id}">
         <div class="task-header">
-          <div class="task-title">${task.title}</div>
+          <div class="task-title">${this.escapeHtml(task.title)}</div>
           <div class="task-header-badges">
             <span class="loe-tag loe-${task.loe}">LOE ${task.loe}</span>
             <span class="status-badge ${currentStatus}" id="badge-${task.id}">${this.statusLabel(currentStatus)}</span>
           </div>
         </div>
-        <div class="task-desc">${task.description}</div>
+        <div class="task-desc">${this.escapeHtml(task.description)}</div>
 
         <!-- Interactive KPIs -->
         <div class="task-kpi-list">
@@ -700,6 +722,9 @@ const App = {
     all[metricId] = entries;
     this.saveMetricStore(all);
     valInput.value = '';
+    // P2: Show save confirmation flash
+    valInput.style.boxShadow = '0 0 0 2px rgba(122,172,106,0.5)';
+    setTimeout(() => { valInput.style.boxShadow = ''; }, 800);
     this.refreshMetricDisplay(metricId);
   },
 
@@ -1850,6 +1875,15 @@ const App = {
 
   // ===== MEETING MODE (Weekly Sync) =====
   toggleMeetingMode() {
+    // If presentation mode is active, exit it first
+    if (this.isPresentationMode) {
+      this.isPresentationMode = false;
+      document.body.classList.remove('presentation-mode-active');
+      const presBtn = document.getElementById('btn-presentation-mode');
+      if (presBtn) presBtn.classList.remove('active');
+      this.teardownPresentationListeners();
+    }
+
     this.isMeetingMode = !this.isMeetingMode;
     const body = document.body;
     const btn = document.getElementById('btn-meeting-mode');
@@ -1992,12 +2026,12 @@ const App = {
       </div>
       
       <div class="meeting-focus-grid">
-        <div class="meeting-focus-col-left">
+        <div class="meeting-focus-top-row">
           ${this.renderMeetingDialogueCard(sl)}
-          ${this.renderMeetingTasksCard(sl)}
-        </div>
-        <div class="meeting-focus-col-right">
           ${this.renderMeetingMetricQuickEntryCard(sl)}
+        </div>
+        <div class="meeting-focus-bottom-row">
+          ${this.renderMeetingTasksCard(sl)}
         </div>
       </div>
     `;
@@ -2383,6 +2417,14 @@ const App = {
   // ===== PRESENTATION MODE (Command Briefing Deck) =====
   
   togglePresentationMode() {
+    // If meeting mode is active, exit it first
+    if (this.isMeetingMode) {
+      this.isMeetingMode = false;
+      document.body.classList.remove('meeting-mode-active');
+      const meetBtn = document.getElementById('btn-meeting-mode');
+      if (meetBtn) meetBtn.classList.remove('active');
+    }
+
     this.isPresentationMode = !this.isPresentationMode;
     const body = document.body;
     const btn = document.getElementById('btn-presentation-mode');
@@ -2402,7 +2444,7 @@ const App = {
   },
 
   setupPresentationListeners() {
-    this.teardownPresentationListeners(); // Prevent duplicates
+    this.teardownPresentationListeners();
     this._onPresentationKeydown = this.handlePresentationKeydown.bind(this);
     window.addEventListener('keydown', this._onPresentationKeydown);
   },
@@ -2416,29 +2458,38 @@ const App = {
 
   handlePresentationKeydown(e) {
     if (!this.isPresentationMode) return;
+    const totalSlides = FRAMEWORK.serviceLines.length + 1;
     
-    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar') {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'Spacebar') {
       e.preventDefault();
       this.navigateSlide(1);
-    } else if (e.key === 'ArrowLeft') {
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
       e.preventDefault();
       this.navigateSlide(-1);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       this.togglePresentationMode();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      this.goToSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      this.goToSlide(totalSlides - 1);
     }
   },
 
   navigateSlide(direction) {
+    const totalSlides = FRAMEWORK.serviceLines.length + 1;
     const nextIndex = this.presentationActiveIndex + direction;
-    if (nextIndex >= 0 && nextIndex <= 5) {
+    if (nextIndex >= 0 && nextIndex < totalSlides) {
       const transDir = direction > 0 ? 'forward' : 'backward';
       this.goToSlide(nextIndex, transDir);
     }
   },
 
   goToSlide(index, direction) {
-    if (index < 0 || index > 5) return;
+    const totalSlides = FRAMEWORK.serviceLines.length + 1;
+    if (index < 0 || index >= totalSlides) return;
     if (index === this.presentationActiveIndex) return;
     
     const updateCallback = () => {
@@ -2469,44 +2520,186 @@ const App = {
     }
   },
 
+  // Compute a dynamic headline for each slide based on actual data
+  getSlideHeadline(slideIndex) {
+    if (slideIndex === 0) {
+      // Executive summary: compute overall task completion
+      const allTasks = [
+        ...FRAMEWORK.serviceLines.flatMap(sl => sl.tasks || []),
+        ...FRAMEWORK.crossCuttingTasks
+      ];
+      const completed = allTasks.filter(t => {
+        const saved = this.getTaskData(t.id);
+        return (saved.status || t.status) === 'complete';
+      }).length;
+      const total = allTasks.length;
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return `${FRAMEWORK.title} — ${pct}% Tasks Complete`;
+    }
+
+    const sl = FRAMEWORK.serviceLines[slideIndex - 1];
+    
+    // Count metrics on track vs off track
+    let onTrack = 0;
+    let offTrack = 0;
+    let totalMetrics = 0;
+    
+    (sl.trackedMetrics || []).forEach(m => {
+      if (m.goal !== null && m.goal !== undefined) {
+        const entries = this.getMetricEntries(m.id);
+        if (entries.length) {
+          totalMetrics++;
+          const latest = entries[entries.length - 1].value;
+          const good = m.direction === 'lower' ? latest <= m.goal : latest >= m.goal;
+          if (good) onTrack++;
+          else offTrack++;
+        }
+      }
+    });
+    
+    (sl.metricGroups || []).forEach(g => {
+      g.series.forEach(s => {
+        if (s.goal !== null && s.goal !== undefined) {
+          const entries = this.getMetricEntries(s.id);
+          if (entries.length) {
+            totalMetrics++;
+            const latest = entries[entries.length - 1].value;
+            const good = s.direction === 'lower' ? latest <= s.goal : latest >= s.goal;
+            if (good) onTrack++;
+            else offTrack++;
+          }
+        }
+      });
+    });
+
+    if (totalMetrics > 0) {
+      if (offTrack === 0) return `${sl.name} — All ${totalMetrics} Metrics On Track`;
+      return `${sl.name} — ${onTrack}/${totalMetrics} Metrics On Track`;
+    }
+    
+    // Fallback: task completion
+    const tasks = [...(sl.tasks || []), ...FRAMEWORK.crossCuttingTasks];
+    const done = tasks.filter(t => {
+      const saved = this.getTaskData(t.id);
+      return (saved.status || t.status) === 'complete';
+    }).length;
+    return `${sl.name} — ${done}/${tasks.length} Tasks Complete`;
+  },
+
+  // Get a metric delta badge showing trend
+  getMetricDeltaHtml(metric, entries) {
+    if (entries.length < 2) return '';
+    const prev = entries[entries.length - 2].value;
+    const latest = entries[entries.length - 1].value;
+    const delta = Math.round((latest - prev) * 10) / 10;
+    if (delta === 0) return `<span class="pres-metric-delta stable">→ Stable</span>`;
+    
+    const improving = metric.direction === 'lower' ? delta < 0 : delta > 0;
+    const arrow = delta > 0 ? '↑' : '↓';
+    const cls = improving ? 'improving' : 'declining';
+    const label = `${arrow} ${Math.abs(delta)} ${metric.unit || ''}`.trim();
+    return `<span class="pres-metric-delta ${cls}">${this.escapeHtml(label)}</span>`;
+  },
+
+  // Auto-detect current phase based on today's date
+  getCurrentPhaseIndex() {
+    const now = new Date();
+    // Phase transition dates (end dates for each phase)
+    const transitions = [
+      new Date('2026-03-01'), // Phase 1 ends
+      new Date('2026-08-10'), // Phase 2 ends
+      new Date('2027-07-31'), // Phase 3 ends
+    ];
+    for (let i = 0; i < transitions.length; i++) {
+      if (now < transitions[i]) return i; // 0-indexed
+    }
+    return transitions.length - 1;
+  },
+
+  renderTimelineRibbon() {
+    const phases = FRAMEWORK.phases;
+    const currentIdx = this.getCurrentPhaseIndex();
+
+    const phaseSegments = phases.map((phase, i) => {
+      const isComplete = i < currentIdx;
+      const isActive = i === currentIdx;
+      const isUpcoming = i > currentIdx;
+
+      let segClass = 'tl-upcoming';
+      if (isComplete) segClass = 'tl-complete';
+      if (isActive) segClass = 'tl-active';
+
+      // Decisive point marker
+      const dp = phase.decisivePoint;
+      const dpDone = dp.status === 'complete';
+      const dpMarker = `<span class="tl-dp ${dpDone ? 'done' : ''}" title="${this.escapeHtml(dp.name)} — ${this.escapeHtml(dp.date)}">${dpDone ? '◆' : '◇'}</span>`;
+
+      const nowMarker = isActive ? '<span class="tl-now-marker">▼ NOW</span>' : '';
+
+      return `
+        <div class="tl-segment ${segClass}">
+          <div class="tl-line-row">
+            <span class="tl-dot"></span>
+            <span class="tl-line"></span>
+            ${dpMarker}
+            ${i === phases.length - 1 ? '<span class="tl-dot tl-dot-end"></span>' : ''}
+          </div>
+          ${nowMarker}
+          <div class="tl-label">
+            <span class="tl-phase-name">Phase ${phase.id}: ${this.escapeHtml(phase.name)}</span>
+            <span class="tl-phase-date">${this.escapeHtml(phase.dateRange)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="timeline-ribbon" aria-label="Operational timeline">
+        ${phaseSegments}
+      </div>
+    `;
+  },
+
   renderPresentationMode(el) {
     if (!el) return;
     
     const slideIndex = this.presentationActiveIndex;
-    const slideSubTitle = slideIndex === 0 ? "Command Briefing" : `Slide ${slideIndex}`;
-    const slideTitle = slideIndex === 0 
-      ? FRAMEWORK.title 
-      : FRAMEWORK.serviceLines[slideIndex - 1].name;
+    const totalSlides = FRAMEWORK.serviceLines.length + 1;
+    const progressPct = totalSlides > 1 ? Math.round((slideIndex / (totalSlides - 1)) * 100) : 100;
+    const slideLabel = slideIndex === 0 ? 'Executive Summary' : `${slideIndex} of ${totalSlides - 1}`;
+    const headline = this.getSlideHeadline(slideIndex);
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
     
     const slideHeaderMeta = slideIndex === 0
-      ? `General Leonard Wood Community Hospital`
-      : `Leader: ${FRAMEWORK.serviceLines[slideIndex - 1].leader}`;
+      ? FRAMEWORK.hospital
+      : `${FRAMEWORK.serviceLines[slideIndex - 1].leader}`;
 
     const slideContent = this.getSlideHtml(slideIndex);
+    const timelineRibbon = this.renderTimelineRibbon();
     
     el.innerHTML = `
       <div class="presentation-container slide-fade-in">
-        <!-- Header -->
         <header class="presentation-header">
-          <div class="presentation-header-title">
-            <span class="presentation-header-badge">${slideSubTitle}</span>
-            <h2>${this.escapeHtml(slideTitle)}</h2>
+          <div class="presentation-header-left">
+            <span class="presentation-header-badge">${slideLabel}</span>
+            <span class="presentation-header-headline">${this.escapeHtml(headline)}</span>
           </div>
-          <div class="presentation-header-meta">
-            ${this.escapeHtml(slideHeaderMeta)}
+          <div class="presentation-header-right">
+            <span class="presentation-header-meta">${this.escapeHtml(slideHeaderMeta)}</span>
+            <span class="presentation-header-date">${today}</span>
           </div>
         </header>
 
-        <!-- Body -->
+        ${timelineRibbon}
+
         <div class="presentation-body">
           ${slideContent}
         </div>
 
-        <!-- Footer -->
         <footer class="presentation-footer-controls">
           <div class="presentation-nav-buttons">
-            <button class="presentation-btn" onclick="App.navigateSlide(-1)" ${slideIndex === 0 ? 'disabled' : ''}>← Prev</button>
-            <button class="presentation-btn" onclick="App.navigateSlide(1)" ${slideIndex === 5 ? 'disabled' : ''}>Next →</button>
+            <button class="presentation-btn" onclick="App.navigateSlide(-1)" ${slideIndex === 0 ? 'disabled' : ''} aria-label="Previous slide">← Prev</button>
+            <button class="presentation-btn" onclick="App.navigateSlide(1)" ${slideIndex === totalSlides - 1 ? 'disabled' : ''} aria-label="Next slide">Next →</button>
           </div>
           
           <div class="presentation-jump-tabs">
@@ -2516,13 +2709,11 @@ const App = {
             `).join('')}
           </div>
 
-          <div class="presentation-indicator-dots">
-            ${[0, 1, 2, 3, 4, 5].map(i => `
-              <button class="presentation-dot ${slideIndex === i ? 'active' : ''}" onclick="App.goToSlide(${i})" aria-label="Go to slide ${i}"></button>
-            `).join('')}
+          <div class="presentation-progress-bar" title="Slide ${slideIndex + 1} of ${totalSlides}">
+            <div class="presentation-progress-fill" style="width: ${progressPct}%"></div>
           </div>
 
-          <button class="presentation-btn exit" onclick="App.togglePresentationMode()">Exit Briefing</button>
+          <button class="presentation-btn exit" onclick="App.togglePresentationMode()" aria-label="Exit presentation mode">Exit ✕</button>
         </footer>
       </div>
     `;
@@ -2536,78 +2727,213 @@ const App = {
     return this.getServiceLineSlideHtml(sl);
   },
 
+  // Compute service line health summary for executive slide
+  getServiceLineHealth(sl) {
+    let onTrack = 0, offTrack = 0, noData = 0, totalGoalMetrics = 0;
+
+    const checkMetric = (m) => {
+      if (m.goal !== null && m.goal !== undefined) {
+        const entries = this.getMetricEntries(m.id);
+        if (entries.length) {
+          totalGoalMetrics++;
+          const latest = entries[entries.length - 1].value;
+          const good = m.direction === 'lower' ? latest <= m.goal : latest >= m.goal;
+          if (good) onTrack++; else offTrack++;
+        } else {
+          noData++;
+        }
+      }
+    };
+
+    (sl.trackedMetrics || []).forEach(checkMetric);
+    (sl.metricGroups || []).forEach(g => g.series.forEach(checkMetric));
+
+    // Task completion
+    const allTasks = [...(sl.tasks || []), ...FRAMEWORK.crossCuttingTasks];
+    const completedTasks = allTasks.filter(t => {
+      const saved = this.getTaskData(t.id);
+      return (saved.status || t.status) === 'complete';
+    }).length;
+    const totalTasks = allTasks.length;
+    const taskPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    // Overall status
+    let status = 'neutral';
+    let statusLabel = 'No Data';
+    if (totalGoalMetrics > 0) {
+      if (offTrack === 0) { status = 'good'; statusLabel = 'On Track'; }
+      else if (offTrack <= onTrack) { status = 'warn'; statusLabel = 'Mixed'; }
+      else { status = 'risk'; statusLabel = 'At Risk'; }
+    }
+
+    return { onTrack, offTrack, noData, totalGoalMetrics, completedTasks, totalTasks, taskPct, status, statusLabel };
+  },
+
   getExecutiveSlideHtml() {
-    // Generate overall progression stats by LOE
-    const loeProgressHtml = FRAMEWORK.loes.map(loe => {
-      const tasks = [
-        ...FRAMEWORK.serviceLines.flatMap(sl => sl.tasks || []),
-        ...FRAMEWORK.crossCuttingTasks
-      ].filter(t => t.loe === loe.id);
-      
-      const total = tasks.length;
-      const completed = tasks.filter(t => {
+    // Gather all tasks
+    const allTasks = [
+      ...FRAMEWORK.serviceLines.flatMap(sl => sl.tasks || []),
+      ...FRAMEWORK.crossCuttingTasks
+    ];
+    const totalTaskCount = allTasks.length;
+    const totalCompleted = allTasks.filter(t => {
+      const saved = this.getTaskData(t.id);
+      return (saved.status || t.status) === 'complete';
+    }).length;
+    const totalPct = totalTaskCount > 0 ? Math.round((totalCompleted / totalTaskCount) * 100) : 0;
+
+    // Phase-by-phase breakdown
+    const currentPhaseIdx = this.getCurrentPhaseIndex();
+    const phaseProgressHtml = FRAMEWORK.phases.map((phase, i) => {
+      const phaseTasks = allTasks.filter(t => t.phase === phase.id);
+      const phaseTotal = phaseTasks.length;
+      const phaseDone = phaseTasks.filter(t => {
         const saved = this.getTaskData(t.id);
         return (saved.status || t.status) === 'complete';
       }).length;
-      
-      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
+      const phasePct = phaseTotal > 0 ? Math.round((phaseDone / phaseTotal) * 100) : 0;
+
+      let barColor = 'var(--text-muted)';
+      let statusTag = '';
+      if (i < currentPhaseIdx) {
+        barColor = 'var(--emerald)';
+        statusTag = '<span class="exec-phase-tag complete">COMPLETE</span>';
+      } else if (i === currentPhaseIdx) {
+        barColor = 'var(--gold)';
+        statusTag = '<span class="exec-phase-tag active">ACTIVE</span>';
+      } else {
+        statusTag = '<span class="exec-phase-tag upcoming">UPCOMING</span>';
+      }
+
       return `
-        <div class="exec-progress-row" style="margin-bottom: 12px;">
-          <div class="exec-progress-label">
-            <span>LOE ${loe.id}: ${this.escapeHtml(loe.name)}</span>
-            <strong>${completed}/${total} Tasks (${percent}%)</strong>
+        <div class="exec-phase-row">
+          <div class="exec-phase-header">
+            <span class="exec-phase-name">Phase ${phase.id}: ${this.escapeHtml(phase.name)}</span>
+            <span class="exec-phase-stats">${statusTag} <strong>${phaseDone}/${phaseTotal}</strong> (${phasePct}%)</span>
           </div>
           <div class="exec-progress-bar-outer">
-            <div class="exec-progress-bar-inner" style="width: ${percent}%;"></div>
+            <div class="exec-progress-bar-inner" style="width: ${phasePct}%; background: ${barColor};"></div>
           </div>
         </div>
       `;
     }).join('');
 
-    // Generate service line status cards
-    const matrixHtml = FRAMEWORK.serviceLines.map(sl => {
-      const dots = [];
-      (sl.trackedMetrics || []).forEach(m => {
-        if (m.goal !== null && m.goal !== undefined) {
-          const entries = this.getMetricEntries(m.id);
-          if (entries.length) {
-            const latest = entries[entries.length - 1].value;
-            const good = m.direction === 'lower' ? latest <= m.goal : latest >= m.goal;
-            dots.push(`<span class="exec-matrix-dot ${good ? 'good' : 'warn'}" title="${this.escapeHtml(m.name)}: ${this.formatMetricValue(m, latest)} (Goal: ${this.formatMetricValue(m, m.goal)})"></span>`);
-          } else {
-            dots.push(`<span class="exec-matrix-dot neutral" title="${this.escapeHtml(m.name)}: No data"></span>`);
-          }
+    // --- Metric Spotlight: find the single biggest WIN across all metrics ---
+    let bestWin = null;
+    const scanMetric = (metric, slName) => {
+      const entries = this.getMetricEntries(metric.id);
+      if (entries.length < 2) return;
+      const prev = entries[entries.length - 2].value;
+      const latest = entries[entries.length - 1].value;
+      const delta = latest - prev;
+      if (delta === 0) return;
+      const improving = metric.direction === 'lower' ? delta < 0 : delta > 0;
+      if (!improving) return;
+      const magnitude = Math.abs(delta);
+      if (!bestWin || magnitude > bestWin.magnitude) {
+        bestWin = { metric, slName, delta, magnitude, latest, prev };
+      }
+    };
+    FRAMEWORK.serviceLines.forEach(sl => {
+      (sl.trackedMetrics || []).forEach(m => scanMetric(m, sl.abbr || sl.name));
+      (sl.metricGroups || []).forEach(g => g.series.forEach(s => scanMetric(s, sl.abbr || sl.name)));
+    });
+
+    let spotlightHtml = '';
+    if (bestWin) {
+      const arrow = bestWin.delta > 0 ? '↑' : '↓';
+      const deltaVal = Math.round(Math.abs(bestWin.delta) * 10) / 10;
+      const unit = bestWin.metric.unit || '';
+      spotlightHtml = `
+        <div class="slide-panel-title" style="margin-top: 0.75rem;">
+          <span>📈 Metric Spotlight</span>
+          <span class="slide-panel-count">Biggest Win</span>
+        </div>
+        <div class="exec-spotlight-card">
+          <div class="exec-spotlight-icon">▲</div>
+          <div class="exec-spotlight-body">
+            <div class="exec-spotlight-metric">${this.escapeHtml(bestWin.metric.name)}</div>
+            <div class="exec-spotlight-detail">${this.escapeHtml(bestWin.slName)} • ${arrow} ${deltaVal} ${this.escapeHtml(unit)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Next 30-Day Milestones: upcoming decisive points + in-progress tasks ---
+    const milestones = [];
+    
+    // Add upcoming decisive points
+    FRAMEWORK.phases.forEach(phase => {
+      const dp = phase.decisivePoint;
+      if (dp.status !== 'complete') {
+        milestones.push({
+          type: 'dp',
+          label: dp.name,
+          detail: dp.date,
+          phase: phase.id,
+          sort: new Date(dp.date).getTime() || Infinity
+        });
+      }
+    });
+
+    // Add in-progress tasks from current phase
+    const currentPhase = FRAMEWORK.phases[currentPhaseIdx];
+    if (currentPhase) {
+      allTasks.filter(t => t.phase === currentPhase.id).forEach(t => {
+        const saved = this.getTaskData(t.id);
+        const status = saved.status || t.status;
+        if (status === 'in-progress') {
+          // Find which SL this belongs to
+          const sl = FRAMEWORK.serviceLines.find(s => (s.tasks || []).some(st => st.id === t.id));
+          milestones.push({
+            type: 'task',
+            label: t.title,
+            detail: sl ? (sl.abbr || sl.name) : 'Cross-Cutting',
+            phase: t.phase,
+            sort: t.phase * 1000
+          });
         }
       });
+    }
 
-      (sl.metricGroups || []).forEach(g => {
-        g.series.forEach(s => {
-          if (s.goal !== null && s.goal !== undefined) {
-            const entries = this.getMetricEntries(s.id);
-            if (entries.length) {
-              const latest = entries[entries.length - 1].value;
-              const good = s.direction === 'lower' ? latest <= s.goal : latest >= s.goal;
-              dots.push(`<span class="exec-matrix-dot ${good ? 'good' : 'warn'}" title="${this.escapeHtml(s.name)}: ${this.formatMetricValue(s, latest)} (Goal: ${this.formatMetricValue(s, s.goal)})"></span>`);
-            } else {
-              dots.push(`<span class="exec-matrix-dot neutral" title="${this.escapeHtml(s.name)}: No data"></span>`);
-            }
-          }
-        });
-      });
+    // Cap at 5 items
+    const displayMilestones = milestones.sort((a, b) => a.sort - b.sort).slice(0, 5);
 
-      const dotsHtml = dots.length > 0 
-        ? dots.join('') 
-        : `<span style="font-size:0.65rem;color:var(--text-muted);">No goal metrics</span>`;
+    let milestonesHtml = '';
+    if (displayMilestones.length > 0) {
+      milestonesHtml = `
+        <div class="slide-panel-title" style="margin-top: 0.75rem;">
+          <span>Next Milestones</span>
+          <span class="slide-panel-count">${displayMilestones.length} items</span>
+        </div>
+        <div class="exec-milestones-list">
+          ${displayMilestones.map(m => `
+            <div class="exec-milestone-item ${m.type}">
+              <span class="exec-milestone-icon">${m.type === 'dp' ? '◇' : '◉'}</span>
+              <div class="exec-milestone-body">
+                <span class="exec-milestone-label">${this.escapeHtml(m.label)}</span>
+                <span class="exec-milestone-detail">${this.escapeHtml(m.detail)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
 
+    // Service line cards with health status
+    const slCardsHtml = FRAMEWORK.serviceLines.map((sl, idx) => {
+      const health = this.getServiceLineHealth(sl);
+      
       return `
-        <div class="exec-matrix-card">
-          <div>
-            <div class="exec-matrix-name">${this.escapeHtml(sl.abbr || sl.name)}</div>
-            <div class="exec-matrix-abbr" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${this.escapeHtml(sl.leader)}</div>
+        <div class="exec-sl-card" onclick="App.goToSlide(${idx + 1})" title="View ${this.escapeHtml(sl.name)} details">
+          <div class="exec-sl-abbr">${this.escapeHtml(sl.abbr || sl.id.toUpperCase())}</div>
+          <div class="exec-sl-info">
+            <div class="exec-sl-name">${this.escapeHtml(sl.name)}</div>
+            <div class="exec-sl-leader">${this.escapeHtml(sl.leader)}</div>
           </div>
-          <div class="exec-matrix-status">
-            ${dotsHtml}
+          <div class="exec-sl-status">
+            <span class="exec-sl-status-badge ${health.status}">${health.statusLabel}</span>
+            <span class="exec-sl-task-progress">${health.completedTasks}/${health.totalTasks} tasks</span>
           </div>
         </div>
       `;
@@ -2615,39 +2941,42 @@ const App = {
 
     return `
       <div class="exec-layout-grid">
-        <!-- Left Column: Mission & Priorities -->
+        <!-- Left Column: Command Intent → Total → By Phase → Spotlight → Milestones -->
         <div class="slide-panel">
           <div class="slide-panel-title">
-            <span>Command Mission & Intent</span>
+            <span>Command Intent</span>
           </div>
-          <div class="exec-mission-box" style="flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.05rem;">
+          <div class="exec-mission-box">
             "${this.escapeHtml(FRAMEWORK.mission)}"
           </div>
           
-          <div class="slide-panel-title" style="margin-top: 1.5rem;">
-            <span>Command Motto & Vision</span>
+          <div class="slide-panel-title" style="margin-top: 0.75rem;">
+            <span>Total Line of Effort Progress</span>
+            <span class="slide-panel-count"><strong>${totalCompleted}/${totalTaskCount}</strong> (${totalPct}%)</span>
           </div>
-          <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.6; display: flex; flex-direction: column; gap: 8px; margin-top: 0.5rem;">
-            <div><strong>Motto:</strong> "${this.escapeHtml(FRAMEWORK.motto)}"</div>
-            <div><strong>Vision:</strong> "${this.escapeHtml(FRAMEWORK.vision)}"</div>
-            <div><strong>Installation Support:</strong> ${this.escapeHtml(FRAMEWORK.installationMission)}</div>
+          <div class="exec-progress-bar-outer" style="height: 12px; border-radius: 6px; margin-bottom: 0.25rem;">
+            <div class="exec-progress-bar-inner" style="width: ${totalPct}%; border-radius: 6px; background: var(--gold);"></div>
           </div>
+
+          <div class="slide-panel-title" style="margin-top: 0.75rem;">
+            <span>Progress by Phase</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 0.25rem;">
+            ${phaseProgressHtml}
+          </div>
+
+          ${spotlightHtml}
+          ${milestonesHtml}
         </div>
         
-        <!-- Right Column: Progress & Readiness -->
+        <!-- Right Column: Service Line Health -->
         <div class="slide-panel">
           <div class="slide-panel-title">
-            <span>Operational Progress by Line of Effort</span>
+            <span>Service Line Readiness</span>
+            <span class="slide-panel-count">${FRAMEWORK.serviceLines.length} departments</span>
           </div>
-          <div style="margin-top: 0.5rem;">
-            ${loeProgressHtml}
-          </div>
-          
-          <div class="slide-panel-title" style="margin-top: 1.5rem;">
-            <span>Service Line Command Readiness Matrix</span>
-          </div>
-          <div class="exec-matrix-grid" style="margin-top: 0.5rem;">
-            ${matrixHtml}
+          <div class="exec-sl-grid">
+            ${slCardsHtml}
           </div>
         </div>
       </div>
@@ -2655,7 +2984,7 @@ const App = {
   },
 
   getServiceLineSlideHtml(sl) {
-    // Separate tasks into accomplishments (completed) and way forward (incomplete)
+    // Separate tasks into accomplishments and way forward
     const accomplishments = [];
     const wayForward = [];
 
@@ -2674,13 +3003,13 @@ const App = {
       const completedKpisCount = completedBuiltIn + completedCustom;
       
       if (totalKpis === 0) return '';
-      return `<span class="slide-list-kpi-badge">${completedKpisCount}/${totalKpis} Milestones Achieved</span>`;
+      return `<span class="slide-list-kpi-badge">${completedKpisCount}/${totalKpis} Milestones</span>`;
     };
 
-    // Include service line specific tasks and cross-cutting tasks
+    // Include service line tasks and cross-cutting tasks
     const allTasks = [...(sl.tasks || []), ...FRAMEWORK.crossCuttingTasks];
 
-    // Include HEDIS action items if this is the PCSL
+    // Include HEDIS action items for PCSL
     if (sl.id === 'pcsl') {
       const hedisData = this.getHedisData('pcsl');
       const kpiChecks = hedisData.kpis || {};
@@ -2713,9 +3042,9 @@ const App = {
       const isHedis = t.id.startsWith('hedis-action-');
       let tag = '';
       if (isCc) {
-        tag = ` <span class="loe-tag loe-2" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight:700;">LOE 2 Cross-Cutting</span>`;
+        tag = ` <span class="loe-tag loe-2" style="font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;">Cross-Cutting</span>`;
       } else if (isHedis) {
-        tag = ` <span class="loe-tag loe-1" style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight:700; background:rgba(255, 184, 28, 0.15); border:1px solid var(--border-accent); color:var(--gold);">HEDIS Action Item</span>`;
+        tag = ` <span class="loe-tag loe-1" style="font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;background:rgba(255,184,28,0.12);border:1px solid var(--border-accent);color:var(--gold);">HEDIS</span>`;
       }
       
       const icon = type === 'accomplishment' ? '✓' : '▶';
@@ -2733,18 +3062,19 @@ const App = {
 
     const accomplishmentsHtml = accomplishments.length > 0 
       ? accomplishments.map(t => renderTaskItem(t, 'accomplishment')).join('')
-      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">No completed tasks in current database.</div>`;
+      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1rem 0;font-size:0.88rem;">No completed tasks yet.</div>`;
 
     const wayForwardHtml = wayForward.length > 0
       ? wayForward.map(t => renderTaskItem(t, 'way-forward')).join('')
-      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.9rem;">All tasks completed. Ready for next phase.</div>`;
+      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1rem 0;font-size:0.88rem;">All tasks completed ✓</div>`;
 
-    // Charts rendering
+    // Charts with delta badges
     const trackedCharts = (sl.trackedMetrics || []).map(m => {
       const entries = this.getMetricEntries(m.id);
+      const deltaHtml = this.getMetricDeltaHtml(m, entries);
       return `
-        <div class="presentation-chart-container" style="margin-bottom: 1rem;">
-          <div class="presentation-chart-title">${this.escapeHtml(m.name)}</div>
+        <div class="presentation-chart-container">
+          <div class="presentation-chart-title">${this.escapeHtml(m.name)}${deltaHtml}</div>
           <div class="presentation-chart-pane-svg">
             ${this.renderMetricChart(m, entries, { variant: 'expanded' })}
           </div>
@@ -2753,7 +3083,7 @@ const App = {
     }).join('');
 
     const groupCharts = (sl.metricGroups || []).map(g => `
-      <div class="presentation-chart-container" style="margin-bottom: 1rem;">
+      <div class="presentation-chart-container">
         <div class="presentation-chart-title">${this.escapeHtml(g.name)}</div>
         <div class="presentation-chart-pane-svg">
           ${this.renderMetricGroupChart(g, { variant: 'expanded' })}
@@ -2765,59 +3095,57 @@ const App = {
     `).join('');
 
     const chartsHtml = (trackedCharts + groupCharts) || `
-      <div style="text-align:center;color:var(--text-muted);font-style:italic;padding:2rem 0;">No active quantitative performance metric charts.</div>
+      <div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.88rem;">No metric data entered yet.</div>
     `;
 
-    // Weekly Command Dialogue
+    // Weekly dialogue (most recent 3)
     const dialogueEntries = this.getDialogueEntries(sl.id).slice(0, 3);
     let dialogueHtml = `
-      <div class="dialogue-log-readonly" style="max-height: 180px; overflow-y: auto; margin-top: 0.5rem; padding-right: 6px;">
+      <div class="dialogue-log-readonly" style="margin-top: 0.25rem;">
         ${dialogueEntries.length > 0 ? dialogueEntries.map(e => `
-          <div class="dialogue-item-readonly" style="margin-bottom: 8px;">
-            <div class="dialogue-meta-readonly" style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 2px;">
-              <span>Entry Date: ${this.escapeHtml(e.date)}</span>
-            </div>
-            <div class="dialogue-content-readonly" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; white-space: pre-wrap;">${this.escapeHtml(e.text)}</div>
+          <div class="dialogue-item-readonly">
+            <div class="dialogue-meta-readonly">${this.escapeHtml(e.date)}</div>
+            <div class="dialogue-content-readonly">${this.escapeHtml(e.text)}</div>
           </div>
         `).join('') : `
-          <div class="dialogue-empty-readonly" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0; font-style: italic;">
-            No dialogue logs submitted for this service line.
+          <div class="dialogue-empty-readonly">
+            No dialogue entries submitted.
           </div>
         `}
       </div>
     `;
 
-    // Append HEDIS Meeting Notes for PCSL slide
+    // HEDIS notes for PCSL
     if (sl.id === 'pcsl') {
       const hedisData = this.getHedisData('pcsl');
       const hedisNotes = hedisData.notes || '';
       if (hedisNotes.trim()) {
         dialogueHtml += `
-          <div class="slide-panel-title" style="margin-top: 1rem;">
-            <span>HEDIS Meeting Notes</span>
+          <div class="slide-panel-title" style="margin-top: 0.75rem;">
+            <span>HEDIS Notes</span>
           </div>
-          <div class="dialogue-log-readonly" style="max-height: 120px; overflow-y: auto; margin-top: 0.5rem; padding: 8px; background: rgba(255, 184, 28, 0.05); border: 1px solid var(--border-accent); border-radius: 6px;">
-            <div class="dialogue-content-readonly" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; white-space: pre-wrap;">${this.escapeHtml(hedisNotes)}</div>
+          <div class="dialogue-log-readonly" style="margin-top: 0.25rem;">
+            <div class="dialogue-item-readonly">
+              <div class="dialogue-content-readonly">${this.escapeHtml(hedisNotes)}</div>
+            </div>
           </div>
         `;
       }
     }
 
-    // Append MSCoE Trainee Care Pipeline for MSCoE slide
+    // Trainee Care Pipeline for MSCoE
     if (sl.id === 'mscoe' && sl.traineeCareFlow) {
       dialogueHtml += `
-        <div class="slide-panel-title" style="margin-top: 1rem;">
+        <div class="slide-panel-title" style="margin-top: 0.75rem;">
           <span>Trainee Care Pipeline</span>
         </div>
-        <div style="margin-top: 0.5rem; overflow-x: auto; padding-bottom: 4px;">
-          <div class="care-flow" style="display: flex; align-items: stretch; gap: 6px; margin: 0; flex-wrap: nowrap; min-width: 480px;">
+        <div style="margin-top: 0.25rem; overflow-x: auto;">
+          <div style="display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;min-width:480px;">
             ${sl.traineeCareFlow.map((step, i) => `
-              ${i > 0 ? '<div class="care-flow-arrow" style="align-self: center; font-size: 0.8rem; padding: 0 2px;">→</div>' : ''}
-              <div class="care-flow-step" style="flex: 1; padding: 6px 8px; margin: 0; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); min-width: 90px; box-sizing: border-box;">
-                <div class="care-flow-step-num" style="width: 16px; height: 16px; font-size: 0.65rem; margin-bottom: 2px;">${step.step}</div>
-                <div class="care-flow-step-name" style="font-size: 0.75rem; margin-bottom: 2px;">${step.name}</div>
-                <div class="care-flow-step-desc" style="font-size: 0.65rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${step.description}</div>
-                <div style="margin-top: 2px; font-size: 0.6rem; color: var(--gold); font-weight: 600;">${step.capacity}</div>
+              ${i > 0 ? '<div style="align-self:center;font-size:0.75rem;color:var(--gold);padding:0 2px;">→</div>' : ''}
+              <div style="flex:1;padding:5px 6px;border:1px solid var(--border-subtle);border-radius:5px;background:rgba(255,255,255,0.02);min-width:80px;">
+                <div style="font-size:0.72rem;font-weight:700;color:var(--gold);margin-bottom:1px;">${step.step}. ${this.escapeHtml(step.name)}</div>
+                <div style="font-size:0.62rem;color:var(--text-muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${this.escapeHtml(step.description)}</div>
               </div>
             `).join('')}
           </div>
@@ -2830,31 +3158,34 @@ const App = {
         <!-- Left Column: Tasks -->
         <div class="slide-panel">
           <div class="slide-panel-title">
-            <span>Accomplishments & Milestones</span>
+            <span>Accomplishments</span>
+            <span class="slide-panel-count">${accomplishments.length} completed</span>
           </div>
-          <div class="slide-list" style="overflow-y: auto; flex: 1; max-height: calc(50vh - 120px); padding-right: 6px;">
+          <div class="slide-list">
             ${accomplishmentsHtml}
           </div>
           
-          <div class="slide-panel-title" style="margin-top: 1rem;">
-            <span>Way Forward & Next Steps</span>
+          <div class="slide-panel-title" style="margin-top: 0.5rem;">
+            <span>Way Forward</span>
+            <span class="slide-panel-count">${wayForward.length} remaining</span>
           </div>
-          <div class="slide-list" style="overflow-y: auto; flex: 1; max-height: calc(50vh - 120px); padding-right: 6px;">
+          <div class="slide-list">
             ${wayForwardHtml}
           </div>
         </div>
         
-        <!-- Right Column: Metrics & Dialogues -->
+        <!-- Right Column: Metrics & Dialogue -->
         <div class="slide-panel">
           <div class="slide-panel-title">
             <span>Performance Trends</span>
           </div>
-          <div class="presentation-chart-panel" style="overflow-y: auto; flex: 1; max-height: calc(60vh - 150px); padding-right: 6px;">
+          <div class="presentation-chart-panel">
             ${chartsHtml}
           </div>
           
-          <div class="slide-panel-title" style="margin-top: 1rem;">
-            <span>Weekly Command Dialogue</span>
+          <div class="slide-panel-title" style="margin-top: 0.5rem;">
+            <span>Command Dialogue</span>
+            <span class="slide-panel-count">${dialogueEntries.length} entries</span>
           </div>
           ${dialogueHtml}
         </div>
@@ -2866,3 +3197,4 @@ const App = {
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => App.init());
+

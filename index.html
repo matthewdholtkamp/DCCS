@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260522-sync">
+  <link rel="stylesheet" href="css/styles.css?v=20260523-v2">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23c8a84e'/><text x='16' y='22' text-anchor='middle' font-size='16' font-weight='800' fill='%23060a13'>G</text></svg>">
 </head>
 <body>
@@ -30,11 +30,40 @@
         <span class="sync-dot"></span>
         <span class="sync-text">Offline</span>
       </div>
+      <button class="nav-ask" id="btn-ask-dr-holtkamp" type="button" aria-expanded="false" aria-controls="ask-dr-holtkamp-panel">Ask Dr. Holtkamp</button>
       <button class="nav-meeting-mode" id="btn-meeting-mode" type="button" onclick="App.toggleMeetingMode()">Meeting Mode</button>
       <button class="nav-presentation-mode" id="btn-presentation-mode" type="button" onclick="App.togglePresentationMode()">Presentation Mode</button>
       <button class="nav-home" type="button" onclick="location.hash='#/'">Home</button>
     </div>
   </nav>
+
+  <section class="ask-panel" id="ask-dr-holtkamp-panel" aria-label="Ask Dr. Holtkamp about DCCS" hidden>
+    <div class="ask-panel-header">
+      <div>
+        <div class="ask-panel-kicker">BAND-AID 6</div>
+        <h2>Ask Dr. Holtkamp</h2>
+      </div>
+      <button class="ask-close" id="ask-close" type="button">Close</button>
+    </div>
+    <div class="ask-status" id="ask-status">Loading persona...</div>
+    <div class="ask-messages" id="ask-messages" aria-live="polite">
+      <div class="ask-message assistant">
+        <div class="ask-message-label">Dr. Holtkamp persona</div>
+        <div class="ask-message-body">Ask about DCCS goals, KPI status, service lines, meeting prep, or what needs attention next.</div>
+      </div>
+    </div>
+    <div class="ask-suggestions" aria-label="Suggested questions">
+      <button type="button" data-ask-prompt="Where are we against the DCCS goals?">Goals</button>
+      <button type="button" data-ask-prompt="Which service line needs the most attention right now?">Focus</button>
+      <button type="button" data-ask-prompt="Summarize the current KPI risk areas.">KPI risk</button>
+    </div>
+    <form class="ask-form" id="ask-form">
+      <label class="sr-only" for="ask-input">Ask a DCCS operational question</label>
+      <textarea id="ask-input" rows="3" placeholder="Ask about DCCS KPIs, goals, metrics, or service-line progress..."></textarea>
+      <button class="ask-send" id="ask-send" type="submit">Send</button>
+    </form>
+    <div class="ask-note">Uses the shared BAND-AID 6 persona and this page's current DCCS data. Do not enter patient information.</div>
+  </section>
 
   <aside class="sidebar" id="sidebar" aria-label="Operational framework navigation"></aside>
 
@@ -46,8 +75,9 @@
   <!-- Scripts -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <script src="js/data.js?v=20260522-sync"></script>
-  <script src="js/sync.js?v=20260522-sync"></script>
-  <script src="js/app.js?v=20260522-sync"></script>
+  <script src="js/data.js?v=20260523-v2"></script>
+  <script src="js/sync.js?v=20260523-v2"></script>
+  <script src="js/app.js?v=20260523-v2"></script>
+  <script src="js/ask-dr-holtkamp.js?v=20260523-v1"></script>
 </body>
 </html>
