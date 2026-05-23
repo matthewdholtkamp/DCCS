@@ -67,7 +67,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     if (!this.els.button || !this.els.panel || !this.els.form) return;
 
-    this.history = this.loadHistory();
+    this.history = [];
     this.renderHistory();
     this.updateSendButtonState();
 
@@ -109,17 +109,11 @@ Always confirm in a direct, command-intent voice that you have applied the reque
   },
 
   loadHistory() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem("dccs-ask-history") || "[]");
-      return Array.isArray(parsed) ? parsed.slice(-12) : [];
-    } catch (_) {
-      return [];
-    }
+    return [];
   },
 
   saveHistory() {
-    this.history = this.history.slice(-12);
-    localStorage.setItem("dccs-ask-history", JSON.stringify(this.history));
+    // Strictly in-memory session history
   },
 
   toggle() {
@@ -128,6 +122,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
   open() {
     this.isOpen = true;
+    this.history = []; // Reset history for a fresh session
+    this.renderHistory(); // Re-render greeting message
     this.els.panel.classList.add("open");
     this.els.backdrop.classList.add("open");
     this.els.button.classList.add("active");
