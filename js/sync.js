@@ -235,7 +235,7 @@ const Sync = {
     if (this.enabled && this.db) {
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("metrics").set(allMetrics);
+        await this.db.collection("dccs_data").doc("metrics").set(allMetrics, { merge: true });
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write metrics:", e);
@@ -257,7 +257,7 @@ const Sync = {
     if (this.enabled && this.db) {
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("hedis").set(hedis);
+        await this.db.collection("dccs_data").doc("hedis").set(hedis, { merge: true });
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write HEDIS:", e);
@@ -278,7 +278,7 @@ const Sync = {
     if (this.enabled && this.db) {
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("dialogue").set(dialogue);
+        await this.db.collection("dccs_data").doc("dialogue").set(dialogue, { merge: true });
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write dialogue entries:", e);
