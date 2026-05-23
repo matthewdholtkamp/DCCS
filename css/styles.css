@@ -558,6 +558,17 @@ textarea:focus-visible {
   line-height: 1.45;
 }
 
+/* System confirmation log */
+.ask-system-log {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed rgba(255, 184, 28, 0.15);
+  color: var(--emerald);
+  font-family: monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
 /* ===== SIDEBAR ===== */
 .sidebar {
   position: fixed; top: 64px; left: 0; bottom: 0; z-index: 50;

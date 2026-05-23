@@ -6,13 +6,36 @@ const AskDrHoltkamp = {
   dependenciesPromise: null,
   history: [],
   els: {},
-
   DCCS_CONTEXT_RULES: `You are embedded inside the DCCS Operational Framework portal. Use the DCCS_CONTEXT block attached to the latest user message as the authoritative source for current DCCS goals, service-line status, KPI completion, metric trends, HEDIS action items, and meeting-sync context.
 
 Answer in the BAND-AID 6 voice, but stay grounded in the DCCS_CONTEXT. If the context does not contain the requested status, say that plainly and tell the user where the gap is. Do not invent metric values, completion percentages, names, or dates. Do not expose raw JSON. Summarize operationally: BLUF, what it means, what needs attention, and what you would do next.
 
-The context may include only summarized dialogue or notes to reduce sensitive data exposure. Never ask the user to enter patient information, PII, PHI, or classified/sensitive operational details into this chat.`,
+The context may include only summarized dialogue or notes to reduce sensitive data exposure. Never ask the user to enter patient information, PII, PHI, or classified/sensitive operational details into this chat.
 
+============================================================
+DATA WRITING / PORTAL UPDATING CAPABILITY
+============================================================
+If the user asks you to update, add, change, check, clear, or record any data (such as a metric value, a weekly dialogue comment/roadblock, a task status, or a KPI checkmark), you MUST perform this change by appending a structured command block at the very end of your response text.
+Format the command block exactly as:
+[DCCS_COMMAND: <JSON_ARRAY_OF_COMMANDS>]
+
+Available commands inside the JSON array:
+1. Update Metric Value:
+   { "action": "update_metric", "metricId": "<metric-id>", "value": <number>, "date": "YYYY-MM-DD" }
+   * Updates or inserts a value for a metric. "metricId" must match the ID from the context (e.g., "pcsl-wait-time", "pcsl-satisfaction", "pcsl-enrollees", "tsl-wait-time", "tsl-ref-mrf", "tsl-ref-network", "tsl-bh-wait", "tsl-access-care", "tsl-pt-eval", "asl-acuity", "asl-wait-mrf", "asl-ref-internal", "asl-ref-network", "asl-bed-days", "asl-bed-utilization", "msl-surg-cases", "msl-utilization", "msl-rvus", "msl-wait-surg", "msl-wait-ref", "msl-pt-eval", "msl-readmissions", "msl-post-op-pt", "mscoe-clinic-wait", "mscoe-physical-wait", "mscoe-pt-wait").
+   * Date MUST be in "YYYY-MM-DD" format. If the user doesn't specify a date, default to the current local date (today).
+2. Add Weekly Dialogue / Roadblock Entry:
+   { "action": "add_dialogue", "serviceLineId": "<service-line-id>", "text": "<entry-text>", "date": "YYYY-MM-DD" }
+   * Appends a new dialogue comment to the service line ("pcsl", "tsl", "asl", "msl", "mscoe").
+   * Text should be the operational roadblock or update provided by the user.
+3. Update Task Status:
+   { "action": "update_task_status", "taskId": "<task-id>", "status": "not-reviewed" | "in-progress" | "complete" }
+   * Updates the overall completion state of a task (e.g. "mrf-1", "mrf-2", "rmf-1", etc.).
+4. Check/Uncheck Task KPI:
+   { "action": "update_task_kpi", "taskId": "<task-id>", "kpiIndex": <number>, "checked": true | false }
+   * Checks or unchecks a KPI index under a specific task. "kpiIndex" is a 0-indexed number corresponding to the KPI's position.
+
+Always confirm in a direct, command-intent voice that you have applied the requested changes, explaining what was updated, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,
   CLINICAL_REFUSAL: "I can't answer clinical or medical questions here. For medical emergencies, call 911. For non-emergency medical issues at General Leonard Wood Army Community Hospital, contact the appropriate GLWACH clinical channel. This assistant is for DCCS operations, goals, KPIs, access systems, quality, staff care, and leadership questions only.",
 
   CLINICAL_PATTERNS: [
@@ -210,16 +233,10 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 
     const body = document.createElement("div");
     body.className = "ask-message-body";
-    if (role === "assistant" && text === "Thinking...") {
-      body.innerHTML = `
-        <div class="typing-indicator">
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-        </div>
-      `;
-    } else {
+    if (role === "user") {
       body.innerHTML = this.renderText(text);
+    } else {
+      this.processIncomingText(body, text);
     }
 
     item.append(label, body);
@@ -229,6 +246,11 @@ The context may include only summarized dialogue or notes to reduce sensitive da
   },
 
   updateMessage(body, text) {
+    this.processIncomingText(body, text);
+    this.scrollToBottom(false);
+  },
+
+  processIncomingText(body, text) {
     if (text === "Thinking...") {
       body.innerHTML = `
         <div class="typing-indicator">
@@ -237,10 +259,116 @@ The context may include only summarized dialogue or notes to reduce sensitive da
           <div class="typing-dot"></div>
         </div>
       `;
-    } else {
-      body.innerHTML = this.renderText(text);
+      return;
     }
-    this.scrollToBottom(false);
+
+    // Check for DCCS command block
+    const commandRegex = /\[DCCS_COMMAND:\s*([\s\S]*?)\s*\]/;
+    const match = text.match(commandRegex);
+
+    let cleanText = text;
+    let commands = null;
+
+    if (match) {
+      cleanText = text.replace(commandRegex, "").trim();
+      try {
+        commands = JSON.parse(match[1]);
+      } catch (e) {
+        console.error("Failed to parse DCCS command JSON:", e);
+      }
+    }
+
+    body.innerHTML = this.renderText(cleanText);
+
+    // If we have parsed commands, execute them!
+    if (commands) {
+      this.executeCommands(commands, body);
+    }
+  },
+
+  executeCommands(commands, body) {
+    const commandsArray = Array.isArray(commands) ? commands : [commands];
+    const results = [];
+
+    commandsArray.forEach((cmd) => {
+      try {
+        switch (cmd.action) {
+          case "update_metric":
+            this.updateMetricLocal(cmd.metricId, cmd.value, cmd.date);
+            results.push(`Updated metric "${cmd.metricId}" to ${cmd.value}`);
+            break;
+          case "add_dialogue":
+            this.addDialogueLocal(cmd.serviceLineId, cmd.text, cmd.date);
+            results.push(`Added dialogue entry to ${cmd.serviceLineId.toUpperCase()}`);
+            break;
+          case "update_task_status":
+            this.updateTaskStatusLocal(cmd.taskId, cmd.status);
+            results.push(`Updated task "${cmd.taskId}" status to ${cmd.status}`);
+            break;
+          case "update_task_kpi":
+            this.updateTaskKpiLocal(cmd.taskId, cmd.kpiIndex, cmd.checked);
+            results.push(`${cmd.checked ? "Checked" : "Unchecked"} KPI ${cmd.kpiIndex} in task "${cmd.taskId}"`);
+            break;
+          default:
+            console.warn("Unknown command action:", cmd.action);
+        }
+      } catch (err) {
+        console.error("Error executing command:", cmd, err);
+        results.push(`Failed update for ${cmd.action}: ${err.message}`);
+      }
+    });
+
+    if (results.length > 0) {
+      const systemLog = document.createElement("div");
+      systemLog.className = "ask-system-log";
+      systemLog.innerHTML = results.map(r => `<div>✓ ${r}</div>`).join("");
+      body.appendChild(systemLog);
+
+      if (window.App && typeof window.App.route === "function") {
+        window.App.route();
+      }
+    }
+  },
+
+  updateMetricLocal(metricId, value, dateString) {
+    const date = dateString || new Date().toISOString().split("T")[0];
+    const val = Number(value);
+    if (Number.isNaN(val)) throw new Error("Invalid metric value");
+
+    const store = { ...Sync.getMetricStore() };
+    const entries = Array.isArray(store[metricId]) ? [...store[metricId]] : [];
+    
+    const existingIndex = entries.findIndex(e => e.date === date);
+    if (existingIndex >= 0) {
+      entries[existingIndex].value = val;
+    } else {
+      entries.push({ date, value: val });
+    }
+
+    store[metricId] = entries;
+    Sync.saveMetricStore(store);
+  },
+
+  addDialogueLocal(serviceLineId, text, dateString) {
+    const date = dateString || new Date().toISOString().split("T")[0];
+    const entries = [...Sync.getDialogueEntries(serviceLineId)];
+    
+    entries.unshift({ date, text });
+    Sync.saveDialogueEntries(serviceLineId, entries);
+  },
+
+  updateTaskStatusLocal(taskId, status) {
+    if (!["not-reviewed", "in-progress", "complete"].includes(status)) {
+      throw new Error("Invalid task status");
+    }
+    Sync.saveTaskData(taskId, { status });
+  },
+
+  updateTaskKpiLocal(taskId, kpiIndex, checked) {
+    const taskData = Sync.getTaskData(taskId);
+    const kpis = { ...taskData.kpis };
+    kpis[kpiIndex] = !!checked;
+    Sync.saveTaskData(taskId, { kpis });
   },
 
   scrollToBottom(smooth = false) {
