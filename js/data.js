@@ -43,7 +43,10 @@ const FRAMEWORK = {
         { id: "pcsl-followup", name: "Follow-up Appointments (Goal: <7 days)", unit: "days", goal: 7, direction: "lower" },
         { id: "pcsl-medic", name: "Medic Clinic Encounters", unit: "per week", goal: null, direction: "higher" },
         { id: "pcsl-nursing", name: "Nursing-Led Encounters", unit: "per week", goal: null, direction: "higher" },
-        { id: "pcsl-virtual", name: "Number of Virtual Appointments by Week", unit: "per week", goal: null, direction: "higher" }
+        { id: "pcsl-virtual", name: "Number of Virtual Appointments by Week", unit: "per week", goal: null, direction: "higher" },
+        { id: "pcsl-escape-rate", name: "Care Ladder Escape Rate", unit: "percentage", goal: 10, direction: "lower", period: "week" },
+        { id: "pcsl-trainee-bas-ctmc-ratio", name: "Trainee BAS/CTMC Ratio", unit: "ratio", goal: null, direction: "higher", period: "week" },
+        { id: "pcsl-app-physician-ratio", name: "APP to Physician Encounter Ratio", unit: "ratio", goal: null, direction: "higher", period: "week" }
       ],
       hedisMetrics: [
         { name: "Breast Cancer Screening (BCS)", ages: "40–74", goal: "≥90%", description: "Mammogram screening for eligible members" },
