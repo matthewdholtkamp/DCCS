@@ -16,6 +16,9 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 DATA WRITING / PORTAL UPDATING CAPABILITY
 ============================================================
 If the user asks you to update, add, change, check, clear, or record any data (such as a metric value, a weekly dialogue comment/roadblock, a task status, or a KPI checkmark), you MUST perform this change by appending a structured command block at the very end of your response text.
+
+IMPORTANT: The portal has an active client-side executor (the "bridge" is fully functional). When you output a command block, the portal JavaScript immediately intercepts it, writes it to the local cache/Firestore database, and updates the screen. Therefore, you CAN and DO save data to the page! Confidently tell the user that the data has been recorded and updated on the dashboard. Do not tell the user that you cannot write to the database or that they have to do it manually. When asked if you saved it, verify if the value is in the DCCS_CONTEXT; if it is, confirm to the user that it is saved and visible on the screen.
+
 Format the command block exactly as:
 [DCCS_COMMAND: <JSON_ARRAY_OF_COMMANDS>]
 
@@ -267,19 +270,42 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       return;
     }
 
-    // Check for DCCS command block
-    const commandRegex = /\[DCCS_COMMAND:\s*([\s\S]*?)\s*\]/;
-    const match = text.match(commandRegex);
+    // Check for DCCS command block using substring search for ultimate bracket nesting resilience
+    const commandMarker = "[DCCS_COMMAND:";
+    const markerIndex = text.indexOf(commandMarker);
 
     let cleanText = text;
     let commands = null;
 
-    if (match) {
-      cleanText = text.replace(commandRegex, "").trim();
+    if (markerIndex >= 0) {
+      cleanText = text.substring(0, markerIndex).trim();
+      let commandString = text.substring(markerIndex + commandMarker.length).trim();
+
+      // Strip outer closing bracket of the [DCCS_COMMAND: ... ] wrapper
+      if (commandString.endsWith("]")) {
+        commandString = commandString.slice(0, -1).trim();
+      }
+
+      // Robustly clean any markdown code block formatting (like ```json ... ```)
+      let cleanedJsonStr = commandString.trim();
+      cleanedJsonStr = cleanedJsonStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
       try {
-        commands = JSON.parse(match[1]);
+        commands = JSON.parse(cleanedJsonStr);
       } catch (e) {
-        console.error("Failed to parse DCCS command JSON:", e);
+        console.error("DCCS Ask: Substring JSON parse failed, trying regex fallback...", e);
+        // Fallback to balanced-bracket regex matching if substring parser encounters an issue
+        const commandRegex = /\[DCCS_COMMAND:\s*([\s\S]*?)\s*\]/;
+        const match = text.match(commandRegex);
+        if (match) {
+          let matchedStr = match[1].trim();
+          matchedStr = matchedStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+          try {
+            commands = JSON.parse(matchedStr);
+          } catch (err) {
+            console.error("DCCS Ask: Fallback regex JSON parse failed:", err);
+          }
+        }
       }
     }
 
