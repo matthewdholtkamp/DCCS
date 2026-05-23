@@ -5,6 +5,7 @@
 const Sync = {
   db: null,
   enabled: false,
+  unsubscribe: null,
   cache: {
     tasks: {},
     metrics: {},
@@ -41,6 +42,9 @@ const Sync = {
 
   init() {
     try {
+      // 1. ALWAYS load local storage backup first so the app has data instantly
+      this.loadLocalBackup();
+
       const firebaseConfig = {
         projectId: "glwch-dccs-2027",
         appId: "1:1022797767837:web:5d3bb4d314efe49c216074",
@@ -76,7 +80,6 @@ const Sync = {
       console.warn("Firebase failed to initialize. Falling back to local storage.", e);
       this.enabled = false;
       this.setStatus('offline');
-      this.loadLocalBackup();
     }
   },
 
@@ -91,26 +94,87 @@ const Sync = {
     }
   },
 
+  disableSync() {
+    this.enabled = false;
+    if (this.unsubscribe) {
+      try {
+        this.unsubscribe();
+      } catch (err) {
+        console.warn("Error unsubscribing from Firestore snapshot:", err);
+      }
+      this.unsubscribe = null;
+    }
+    this.setStatus('offline');
+    this.loadLocalBackup();
+    
+    // Refresh the UI to reflect fallback to offline local storage
+    if (window.App && typeof App.route === "function") {
+      App.route();
+    }
+  },
+
+  async uploadDocument(id, data) {
+    if (!this.enabled || !this.db) return;
+    try {
+      await this.db.collection("dccs_data").doc(id).set(data);
+    } catch (e) {
+      console.error(`Firestore upload failed for "${id}":`, e);
+      this.disableSync();
+    }
+  },
+
   subscribe() {
     if (!this.enabled || !this.db) return;
 
     this.setStatus('syncing');
+
+    if (this.unsubscribe) {
+      try { this.unsubscribe(); } catch (_) {}
+    }
+
     // Listen to changes across all framework data documents in the dccs_data collection
-    this.db.collection("dccs_data").onSnapshot((snapshot) => {
+    this.unsubscribe = this.db.collection("dccs_data").onSnapshot((snapshot) => {
       let changed = false;
+
+      // Skip snapshot updates during client-side optimistic writes to avoid layout jank
+      if (snapshot.metadata.hasPendingWrites) {
+        return;
+      }
+
       snapshot.forEach((doc) => {
         const id = doc.id;
-        const data = doc.data() || {};
-        if (JSON.stringify(this.cache[id]) !== JSON.stringify(data)) {
-          this.cache[id] = data;
+        const serverData = doc.data() || {};
+        const localData = this.cache[id] || {};
+
+        const serverTime = serverData._lastUpdated || 0;
+        const localTime = localData._lastUpdated || 0;
+
+        if (localTime > serverTime) {
+          // Local data is newer (e.g. edited while offline or waiting for sync)
+          this.uploadDocument(id, localData);
+        } else if (serverTime > localTime) {
+          // Server data is newer
+          this.cache[id] = serverData;
           changed = true;
+        } else if (JSON.stringify(localData) !== JSON.stringify(serverData)) {
+          // Content differs but timestamps are missing/equal
+          const localHasData = Object.keys(localData).filter(k => k !== '_lastUpdated').length > 0;
+          const serverHasData = Object.keys(serverData).filter(k => k !== '_lastUpdated').length > 0;
+
+          if (localHasData && !serverHasData) {
+            // Local client has data but server is empty
+            this.uploadDocument(id, localData);
+          } else {
+            // Revert/align to server representation
+            this.cache[id] = serverData;
+            changed = true;
+          }
         }
       });
 
       this.setStatus('synced');
 
       if (changed) {
-        
         // Update local backups
         if (this.cache.tasks) localStorage.setItem('dccs-task-data', JSON.stringify(this.cache.tasks));
         if (this.cache.metrics) localStorage.setItem('dccs-metric-entries', JSON.stringify(this.cache.metrics));
@@ -123,9 +187,8 @@ const Sync = {
         }
       }
     }, (error) => {
-      console.warn("Firestore subscription lost, reverting to local backups:", error);
-      this.setStatus('offline');
-      this.loadLocalBackup();
+      console.warn("Firestore subscription failed/lost, reverting to local backups:", error);
+      this.disableSync();
     });
   },
 
@@ -133,6 +196,7 @@ const Sync = {
   async saveTaskData(taskId, data) {
     const tasks = { ...this.getTaskStore() };
     tasks[taskId] = { ...tasks[taskId], ...data };
+    tasks._lastUpdated = Date.now();
     this.cache.tasks = tasks;
     localStorage.setItem('dccs-task-data', JSON.stringify(tasks));
 
@@ -143,7 +207,7 @@ const Sync = {
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write task:", e);
-        this.setStatus('offline');
+        this.disableSync();
       }
     } else {
       this.setStatus('offline');
@@ -151,6 +215,7 @@ const Sync = {
   },
 
   async saveMetricStore(allMetrics) {
+    allMetrics._lastUpdated = Date.now();
     this.cache.metrics = allMetrics;
     localStorage.setItem('dccs-metric-entries', JSON.stringify(allMetrics));
 
@@ -161,7 +226,7 @@ const Sync = {
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write metrics:", e);
-        this.setStatus('offline');
+        this.disableSync();
       }
     } else {
       this.setStatus('offline');
@@ -172,6 +237,7 @@ const Sync = {
     const hedis = { ...this.getHedisStore() };
     const current = hedis[slId] || { kpis: {}, customKpis: [], notes: '' };
     hedis[slId] = { ...current, ...update };
+    hedis._lastUpdated = Date.now();
     this.cache.hedis = hedis;
     localStorage.setItem('dccs-hedis-data', JSON.stringify(hedis));
 
@@ -182,7 +248,7 @@ const Sync = {
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write HEDIS:", e);
-        this.setStatus('offline');
+        this.disableSync();
       }
     } else {
       this.setStatus('offline');
@@ -192,6 +258,7 @@ const Sync = {
   async saveDialogueEntries(slId, entries) {
     const dialogue = { ...this.getDialogueStore() };
     dialogue[slId] = entries;
+    dialogue._lastUpdated = Date.now();
     this.cache.dialogue = dialogue;
     localStorage.setItem('dccs-dialogue-entries', JSON.stringify(dialogue));
 
@@ -202,7 +269,7 @@ const Sync = {
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write dialogue entries:", e);
-        this.setStatus('offline');
+        this.disableSync();
       }
     } else {
       this.setStatus('offline');

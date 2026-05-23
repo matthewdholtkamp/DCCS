@@ -22,15 +22,20 @@ Format the command block exactly as:
 Available commands inside the JSON array:
 1. Update Metric Value:
    { "action": "update_metric", "metricId": "<metric-id>", "value": <number>, "date": "YYYY-MM-DD" }
-   * Updates or inserts a value for a metric. "metricId" must match the ID from the context (e.g., "pcsl-wait-time", "pcsl-satisfaction", "pcsl-enrollees", "tsl-wait-time", "tsl-ref-mrf", "tsl-ref-network", "tsl-bh-wait", "tsl-access-care", "tsl-pt-eval", "asl-acuity", "asl-wait-mrf", "asl-ref-internal", "asl-ref-network", "asl-bed-days", "asl-bed-utilization", "msl-surg-cases", "msl-utilization", "msl-rvus", "msl-wait-surg", "msl-wait-ref", "msl-pt-eval", "msl-readmissions", "msl-post-op-pt", "mscoe-clinic-wait", "mscoe-physical-wait", "mscoe-pt-wait").
+   * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are:
+     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", "pcsl-escape-rate", "pcsl-trainee-bas-ctmc-ratio", "pcsl-app-physician-ratio"
+     - Surgery (3SL): "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho"
+     - Mental Health (MH): "mh-active-duty-off-post", "mh-4707-epts"
+     - Emergency Department (ED): "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs"
+     - MSCoE Model: "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
    * Date MUST be in "YYYY-MM-DD" format. If the user doesn't specify a date, default to the current local date (today).
 2. Add Weekly Dialogue / Roadblock Entry:
    { "action": "add_dialogue", "serviceLineId": "<service-line-id>", "text": "<entry-text>", "date": "YYYY-MM-DD" }
-   * Appends a new dialogue comment to the service line ("pcsl", "tsl", "asl", "msl", "mscoe").
+   * Appends a new dialogue comment to the service line ("pcsl", "surgery", "mental-health", "emergency", "mscoe").
    * Text should be the operational roadblock or update provided by the user.
 3. Update Task Status:
    { "action": "update_task_status", "taskId": "<task-id>", "status": "not-reviewed" | "in-progress" | "complete" }
-   * Updates the overall completion state of a task (e.g. "mrf-1", "mrf-2", "rmf-1", etc.).
+   * Updates the overall completion state of a task (e.g. "pcsl-p1-1", "surg-p2-1", etc.).
 4. Check/Uncheck Task KPI:
    { "action": "update_task_kpi", "taskId": "<task-id>", "kpiIndex": <number>, "checked": true | false }
    * Checks or unchecks a KPI index under a specific task. "kpiIndex" is a 0-indexed number corresponding to the KPI's position.
@@ -293,10 +298,12 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     commandsArray.forEach((cmd) => {
       try {
         switch (cmd.action) {
-          case "update_metric":
-            this.updateMetricLocal(cmd.metricId, cmd.value, cmd.date);
-            results.push(`Updated metric "${cmd.metricId}" to ${cmd.value}`);
+          case "update_metric": {
+            const mappedId = this.validateAndMapMetricId(cmd.metricId);
+            this.updateMetricLocal(mappedId, cmd.value, cmd.date);
+            results.push(`Updated metric "${mappedId}" to ${cmd.value}`);
             break;
+          }
           case "add_dialogue":
             this.addDialogueLocal(cmd.serviceLineId, cmd.text, cmd.date);
             results.push(`Added dialogue entry to ${cmd.serviceLineId.toUpperCase()}`);
@@ -330,8 +337,80 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     }
   },
 
+  normalizeDate(dateString) {
+    if (!dateString || dateString.trim().toLowerCase() === "today" || dateString.trim().toLowerCase() === "now") {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    try {
+      const d = new Date(dateString);
+      if (!isNaN(d.getTime())) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (_) {}
+
+    const yyyymmddRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (yyyymmddRegex.test(dateString)) {
+      return dateString;
+    }
+
+    // Fallback to local today
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
+  validateAndMapMetricId(metricId) {
+    const validIds = [
+      "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", 
+      "pcsl-escape-rate", "pcsl-trainee-bas-ctmc-ratio", "pcsl-app-physician-ratio",
+      "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho",
+      "mh-active-duty-off-post", "mh-4707-epts",
+      "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs",
+      "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
+    ];
+
+    const lowerId = String(metricId || "").trim().toLowerCase();
+
+    if (validIds.includes(lowerId)) return lowerId;
+
+    // Legacy prompt/hallucinated ID mappings
+    const mappings = {
+      "pcsl-wait-time": "pcsl-acute",
+      "pcsl-satisfaction": "pcsl-acute",
+      "pcsl-enrollees": "pcsl-virtual",
+      "tsl-wait-time": "pcsl-acute",
+      "mscoe-clinic-wait": "mscoe-total-trainees",
+      "mscoe-physical-wait": "mscoe-total-trainees",
+      "mscoe-pt-wait": "mscoe-total-trainees"
+    };
+
+    if (mappings[lowerId]) {
+      console.warn(`DCCS Ask: Auto-mapping mismatched metric ID "${metricId}" to "${mappings[lowerId]}"`);
+      return mappings[lowerId];
+    }
+
+    // Closest match search
+    for (const valid of validIds) {
+      if (valid.includes(lowerId) || lowerId.includes(valid)) {
+        return valid;
+      }
+    }
+
+    throw new Error(`Metric ID "${metricId}" is invalid. Please use a valid ID from the context.`);
+  },
+
   updateMetricLocal(metricId, value, dateString) {
-    const date = dateString || new Date().toISOString().split("T")[0];
+    const date = this.normalizeDate(dateString);
     const val = Number(value);
     if (Number.isNaN(val)) throw new Error("Invalid metric value");
 
@@ -345,15 +424,22 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       entries.push({ date, value: val });
     }
 
+    // Chronologically sort entries to prevent layout/drawing jank
+    entries.sort((a, b) => a.date.localeCompare(b.date));
+
     store[metricId] = entries;
     Sync.saveMetricStore(store);
   },
 
   addDialogueLocal(serviceLineId, text, dateString) {
-    const date = dateString || new Date().toISOString().split("T")[0];
+    const date = this.normalizeDate(dateString);
     const entries = [...Sync.getDialogueEntries(serviceLineId)];
     
     entries.unshift({ date, text });
+    
+    // Sort reverse-chronologically so it displays correctly on the UI
+    entries.sort((a, b) => b.date.localeCompare(a.date));
+
     Sync.saveDialogueEntries(serviceLineId, entries);
   },
 
