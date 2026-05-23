@@ -37,13 +37,23 @@
     </div>
   </nav>
 
-  <section class="ask-panel" id="ask-dr-holtkamp-panel" aria-label="Ask Dr. Holtkamp about DCCS" hidden>
+  <div class="ask-backdrop" id="ask-backdrop" onclick="AskDrHoltkamp.close()"></div>
+
+  <section class="ask-panel" id="ask-dr-holtkamp-panel" aria-label="Ask Dr. Holtkamp about DCCS">
     <div class="ask-panel-header">
-      <div>
-        <div class="ask-panel-kicker">BAND-AID 6</div>
-        <h2>Ask Dr. Holtkamp</h2>
+      <div class="ask-header-title">
+        <div class="ask-avatar">★</div>
+        <div>
+          <div class="ask-panel-kicker">BAND-AID 6</div>
+          <h2>Ask Dr. Holtkamp</h2>
+        </div>
       </div>
-      <button class="ask-close" id="ask-close" type="button">Close</button>
+      <button class="ask-close" id="ask-close" type="button" aria-label="Close Assistant">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     </div>
     <div class="ask-status" id="ask-status">Loading persona...</div>
     <div class="ask-messages" id="ask-messages" aria-live="polite">
@@ -59,8 +69,15 @@
     </div>
     <form class="ask-form" id="ask-form">
       <label class="sr-only" for="ask-input">Ask a DCCS operational question</label>
-      <textarea id="ask-input" rows="3" placeholder="Ask about DCCS KPIs, goals, metrics, or service-line progress..."></textarea>
-      <button class="ask-send" id="ask-send" type="submit">Send</button>
+      <div class="ask-input-wrapper">
+        <textarea id="ask-input" placeholder="Type your DCCS question..."></textarea>
+        <button class="ask-send" id="ask-send" type="submit" disabled aria-label="Send Message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
     </form>
     <div class="ask-note">Uses the shared BAND-AID 6 persona and this page's current DCCS data. Do not enter patient information.</div>
   </section>
@@ -78,6 +95,6 @@
   <script src="js/data.js?v=20260523-v2"></script>
   <script src="js/sync.js?v=20260523-v2"></script>
   <script src="js/app.js?v=20260523-v2"></script>
-  <script src="js/ask-dr-holtkamp.js?v=20260523-v1"></script>
+  <script src="js/ask-dr-holtkamp.js?v=20260523-v3"></script>
 </body>
 </html>

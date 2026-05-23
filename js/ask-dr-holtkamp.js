@@ -21,11 +21,11 @@ The context may include only summarized dialogue or notes to reduce sensitive da
     /\b(diabetes|hypertension|cancer|infection|covid|flu|pregnan(t|cy)|fracture|sprain|ptsd|depression|anxiety)\b/i,
     /\b(should i take|do i need|what should i do about|is it normal|is it safe|how do i treat)\b/i
   ],
-
   init() {
     this.els = {
       button: document.getElementById("btn-ask-dr-holtkamp"),
       panel: document.getElementById("ask-dr-holtkamp-panel"),
+      backdrop: document.getElementById("ask-backdrop"),
       close: document.getElementById("ask-close"),
       status: document.getElementById("ask-status"),
       messages: document.getElementById("ask-messages"),
@@ -38,7 +38,7 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 
     this.history = this.loadHistory();
     this.renderHistory();
-    this.els.send.disabled = true;
+    this.updateSendButtonState();
 
     this.els.button.addEventListener("click", () => this.toggle());
     this.els.close.addEventListener("click", () => this.close());
@@ -52,11 +52,15 @@ The context may include only summarized dialogue or notes to reduce sensitive da
         this.send();
       }
     });
-    this.els.input.addEventListener("input", () => this.autoSizeInput());
+    this.els.input.addEventListener("input", () => {
+      this.autoSizeInput();
+      this.updateSendButtonState();
+    });
     this.els.panel.querySelectorAll("[data-ask-prompt]").forEach((button) => {
       button.addEventListener("click", () => {
         this.els.input.value = button.getAttribute("data-ask-prompt") || "";
         this.autoSizeInput();
+        this.updateSendButtonState();
         this.els.input.focus();
       });
     });
@@ -66,7 +70,7 @@ The context may include only summarized dialogue or notes to reduce sensitive da
     });
     document.addEventListener("click", (event) => {
       if (!this.isOpen) return;
-      if (this.els.panel.contains(event.target) || this.els.button.contains(event.target)) return;
+      if (this.els.panel.contains(event.target) || this.els.button.contains(event.target) || this.els.backdrop?.contains(event.target)) return;
       this.close();
     });
 
@@ -93,17 +97,25 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 
   open() {
     this.isOpen = true;
-    this.els.panel.hidden = false;
+    this.els.panel.classList.add("open");
+    this.els.backdrop.classList.add("open");
     this.els.button.classList.add("active");
     this.els.button.setAttribute("aria-expanded", "true");
-    setTimeout(() => this.els.input.focus(), 0);
+    setTimeout(() => this.els.input.focus(), 200);
   },
 
   close() {
     this.isOpen = false;
-    this.els.panel.hidden = true;
+    this.els.panel.classList.remove("open");
+    this.els.backdrop.classList.remove("open");
     this.els.button.classList.remove("active");
     this.els.button.setAttribute("aria-expanded", "false");
+  },
+
+  updateSendButtonState() {
+    if (!this.els.send) return;
+    const hasText = this.els.input.value.trim().length > 0;
+    this.els.send.disabled = !hasText || !this.isReady;
   },
 
   autoSizeInput() {
@@ -131,7 +143,7 @@ The context may include only summarized dialogue or notes to reduce sensitive da
     }
 
     this.isReady = true;
-    this.els.send.disabled = false;
+    this.updateSendButtonState();
     this.setStatus("Ready - using shared BAND-AID 6 persona and DCCS portal data.", "ready");
   },
 
@@ -198,17 +210,44 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 
     const body = document.createElement("div");
     body.className = "ask-message-body";
-    body.innerHTML = this.renderText(text);
+    if (role === "assistant" && text === "Thinking...") {
+      body.innerHTML = `
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+    } else {
+      body.innerHTML = this.renderText(text);
+    }
 
     item.append(label, body);
     this.els.messages.appendChild(item);
-    this.els.messages.scrollTop = this.els.messages.scrollHeight;
+    this.scrollToBottom(true);
     return body;
   },
 
   updateMessage(body, text) {
-    body.innerHTML = this.renderText(text || "Thinking...");
-    this.els.messages.scrollTop = this.els.messages.scrollHeight;
+    if (text === "Thinking...") {
+      body.innerHTML = `
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      `;
+    } else {
+      body.innerHTML = this.renderText(text);
+    }
+    this.scrollToBottom(false);
+  },
+
+  scrollToBottom(smooth = false) {
+    this.els.messages.scrollTo({
+      top: this.els.messages.scrollHeight,
+      behavior: smooth ? "smooth" : "auto"
+    });
   },
 
   renderText(text) {
@@ -239,6 +278,7 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 
     this.els.input.value = "";
     this.autoSizeInput();
+    this.updateSendButtonState();
     this.history.push({ role: "user", text: question });
     this.saveHistory();
     this.createMessage("user", question);
@@ -266,7 +306,7 @@ The context may include only summarized dialogue or notes to reduce sensitive da
       this.history.push({ role: "assistant", text: message });
       this.saveHistory();
     } finally {
-      this.els.send.disabled = !this.isReady;
+      this.updateSendButtonState();
     }
   },
 
