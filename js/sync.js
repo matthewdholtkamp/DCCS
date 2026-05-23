@@ -132,6 +132,19 @@ const Sync = {
       try { this.unsubscribe(); } catch (_) {}
     }
 
+    const hasContent = (obj) => {
+      if (!obj || typeof obj !== 'object') return false;
+      for (const k in obj) {
+        if (k === '_lastUpdated') continue;
+        const val = obj[k];
+        if (Array.isArray(val) && val.length > 0) return true;
+        if (val && typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length > 0) return true;
+        if (typeof val === 'string' && val.trim().length > 0) return true;
+        if (typeof val === 'number') return true;
+      }
+      return false;
+    };
+
     // Listen to changes across all framework data documents in the dccs_data collection
     this.unsubscribe = this.db.collection("dccs_data").onSnapshot((snapshot) => {
       let changed = false;
@@ -158,8 +171,8 @@ const Sync = {
           changed = true;
         } else if (JSON.stringify(localData) !== JSON.stringify(serverData)) {
           // Content differs but timestamps are missing/equal
-          const localHasData = Object.keys(localData).filter(k => k !== '_lastUpdated').length > 0;
-          const serverHasData = Object.keys(serverData).filter(k => k !== '_lastUpdated').length > 0;
+          const localHasData = hasContent(localData);
+          const serverHasData = hasContent(serverData);
 
           if (localHasData && !serverHasData) {
             // Local client has data but server is empty

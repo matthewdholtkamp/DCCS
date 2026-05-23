@@ -279,31 +279,31 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     if (markerIndex >= 0) {
       cleanText = text.substring(0, markerIndex).trim();
-      let commandString = text.substring(markerIndex + commandMarker.length).trim();
+      const commandString = text.substring(markerIndex + commandMarker.length).trim();
 
-      // Strip outer closing bracket of the [DCCS_COMMAND: ... ] wrapper
-      if (commandString.endsWith("]")) {
-        commandString = commandString.slice(0, -1).trim();
-      }
+      const startIdx = commandString.indexOf("[");
+      if (startIdx >= 0) {
+        const jsonCandidatePart = commandString.substring(startIdx);
+        // Find all indices of ']' in the substring
+        const bracketIndices = [];
+        let pos = jsonCandidatePart.indexOf("]");
+        while (pos !== -1) {
+          bracketIndices.push(pos);
+          pos = jsonCandidatePart.indexOf("]", pos + 1);
+        }
 
-      // Robustly clean any markdown code block formatting (like ```json ... ```)
-      let cleanedJsonStr = commandString.trim();
-      cleanedJsonStr = cleanedJsonStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+        // Try parsing from the rightmost ']' to the leftmost
+        for (let i = bracketIndices.length - 1; i >= 0; i--) {
+          const endIdx = bracketIndices[i];
+          let candidate = jsonCandidatePart.substring(0, endIdx + 1).trim();
+          // Strip markdown code block formatting (like ```json ... ```)
+          candidate = candidate.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
-      try {
-        commands = JSON.parse(cleanedJsonStr);
-      } catch (e) {
-        console.error("DCCS Ask: Substring JSON parse failed, trying regex fallback...", e);
-        // Fallback to balanced-bracket regex matching if substring parser encounters an issue
-        const commandRegex = /\[DCCS_COMMAND:\s*([\s\S]*?)\s*\]/;
-        const match = text.match(commandRegex);
-        if (match) {
-          let matchedStr = match[1].trim();
-          matchedStr = matchedStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           try {
-            commands = JSON.parse(matchedStr);
-          } catch (err) {
-            console.error("DCCS Ask: Fallback regex JSON parse failed:", err);
+            commands = JSON.parse(candidate);
+            if (commands) break; // Found valid commands!
+          } catch (_) {
+            // Try the next bracket index
           }
         }
       }
