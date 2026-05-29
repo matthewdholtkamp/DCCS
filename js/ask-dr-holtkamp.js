@@ -38,10 +38,10 @@ Available commands inside the JSON array:
    * Text should be the operational roadblock or update provided by the user.
 3. Update Task Status:
    { "action": "update_task_status", "taskId": "<task-id>", "status": "not-reviewed" | "in-progress" | "complete" }
-   * Updates the overall completion state of a task (e.g. "pcsl-p1-1", "surg-p2-1", etc.).
+    * Updates the overall completion state of a task (e.g. "pcsl-p1-1", "surg-p2-1", etc.).
 4. Check/Uncheck Task KPI:
-   { "action": "update_task_kpi", "taskId": "<task-id>", "kpiIndex": <number>, "checked": true | false }
-   * Checks or unchecks a KPI index under a specific task. "kpiIndex" is a 0-indexed number corresponding to the KPI's position.
+   { "action": "update_task_kpi", "taskId": "<task-id>", "kpiKey": "<kpi-key>", "checked": true | false }
+   * Checks or unchecks a KPI under a specific task. "kpiKey" must be the exact key string (e.g., "0", "1", "custom-0") provided in the DCCS_CONTEXT KPI list.
 
 Always confirm in a direct, command-intent voice that you have applied the requested changes, explaining what was updated, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,
   CLINICAL_REFUSAL: "I can't answer clinical or medical questions here. For medical emergencies, call 911. For non-emergency medical issues at General Leonard Wood Army Community Hospital, contact the appropriate GLWACH clinical channel. This assistant is for DCCS operations, goals, KPIs, access systems, quality, staff care, and leadership questions only.",
@@ -334,10 +334,12 @@ Always confirm in a direct, command-intent voice that you have applied the reque
             this.updateTaskStatusLocal(cmd.taskId, cmd.status);
             results.push(`Updated task "${cmd.taskId}" status to ${cmd.status}`);
             break;
-          case "update_task_kpi":
-            this.updateTaskKpiLocal(cmd.taskId, cmd.kpiIndex, cmd.checked);
-            results.push(`${cmd.checked ? "Checked" : "Unchecked"} KPI ${cmd.kpiIndex} in task "${cmd.taskId}"`);
+          case "update_task_kpi": {
+            const key = cmd.kpiKey !== undefined ? cmd.kpiKey : cmd.kpiIndex;
+            this.updateTaskKpiLocal(cmd.taskId, key, cmd.checked);
+            results.push(`${cmd.checked ? "Checked" : "Unchecked"} KPI "${key}" in task "${cmd.taskId}"`);
             break;
+          }
           default:
             console.warn("Unknown command action:", cmd.action);
         }
@@ -480,11 +482,17 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     Sync.saveTaskData(taskId, { status });
   },
 
-  updateTaskKpiLocal(taskId, kpiIndex, checked) {
-    const taskData = Sync.getTaskData(taskId);
+  updateTaskKpiLocal(taskId, kpiKey, checked) {
+    const taskData = Sync.getTaskData(taskId) || {};
     const kpis = { ...taskData.kpis };
-    kpis[kpiIndex] = !!checked;
-    Sync.saveTaskData(taskId, { kpis });
+    const kpiDates = { ...taskData.kpiDates };
+    kpis[kpiKey] = !!checked;
+    if (checked) {
+      kpiDates[kpiKey] = this.normalizeDate();
+    } else {
+      delete kpiDates[kpiKey];
+    }
+    Sync.saveTaskData(taskId, { kpis, kpiDates });
   },
 
   scrollToBottom(smooth = false) {
@@ -718,12 +726,14 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
   summarizeTask(task, saved) {
     const builtInKpis = (task.kpis || []).map((kpi, index) => ({
+      key: String(index),
       text: kpi,
       checked: !!saved.kpis?.[index],
       deleted: !!saved.deletedKpis?.[index]
     })).filter((kpi) => !kpi.deleted);
     const customKpis = Array.isArray(saved.customKpis)
       ? saved.customKpis.map((kpi, index) => ({
+          key: `custom-${index}`,
           text: kpi,
           checked: !!saved.kpis?.[`custom-${index}`],
           custom: true
