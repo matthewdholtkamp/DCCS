@@ -90,7 +90,7 @@ const App = {
     const parts = hash.split('/').filter(Boolean);
 
     // If navigating to root, exit any active mode
-    if (parts.length === 0 || hash === '/') {
+    if ((parts.length === 0 || hash === '/') && !this.togglingMode) {
       if (this.isPresentationMode) {
         this.isPresentationMode = false;
         document.body.classList.remove('presentation-mode-active');
@@ -105,6 +105,8 @@ const App = {
         if (meetBtn) meetBtn.classList.remove('active');
       }
     }
+
+    this.togglingMode = false;
 
     if (this.isPresentationMode) {
       this.renderPresentationMode(main);
@@ -1875,6 +1877,7 @@ const App = {
 
   // ===== MEETING MODE (Weekly Sync) =====
   toggleMeetingMode() {
+    this.togglingMode = true;
     // If presentation mode is active, exit it first
     if (this.isPresentationMode) {
       this.isPresentationMode = false;
@@ -2417,6 +2420,7 @@ const App = {
   // ===== PRESENTATION MODE (Command Briefing Deck) =====
   
   togglePresentationMode() {
+    this.togglingMode = true;
     // If meeting mode is active, exit it first
     if (this.isMeetingMode) {
       this.isMeetingMode = false;
