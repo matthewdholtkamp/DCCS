@@ -8,6 +8,8 @@ const AskDrHoltkamp = {
   els: {},
   DCCS_CONTEXT_RULES: `You are embedded inside the DCCS Operational Framework portal. Use the DCCS_CONTEXT block attached to the latest user message as the authoritative source for current DCCS goals, service-line status, KPI completion, metric trends, HEDIS action items, and meeting-sync context.
 
+You have access to the complete history of dialogue comments and metric data points in the context. Analyze long-term performance trends and directly correlate metric fluctuations with the operational roadblocks, decisions, or notes recorded on corresponding dates.
+
 Answer in the BAND-AID 6 voice, but stay grounded in the DCCS_CONTEXT. If the context does not contain the requested status, say that plainly and tell the user where the gap is. Do not invent metric values, completion percentages, names, or dates. Do not expose raw JSON. Summarize operationally: BLUF, what it means, what needs attention, and what you would do next.
 
 The context may include only summarized dialogue or notes to reduce sensitive data exposure. Never ask the user to enter patient information, PII, PHI, or classified/sensitive operational details into this chat.
@@ -773,7 +775,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       latest,
       previous,
       goalStatus,
-      recentEntries: entries.slice(-4)
+      recentEntries: entries
     };
   },
 
@@ -799,7 +801,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     const safeEntries = Array.isArray(entries) ? entries : [];
     return {
       entryCount: safeEntries.length,
-      recentEntries: safeEntries.slice(0, 2).map((entry) => ({
+      recentEntries: safeEntries.map((entry) => ({
         date: entry.date,
         text: this.truncate(entry.text || "", 700)
       }))
