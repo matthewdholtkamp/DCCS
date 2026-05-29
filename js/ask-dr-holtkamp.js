@@ -26,7 +26,7 @@ Available commands inside the JSON array:
 1. Update Metric Value:
    { "action": "update_metric", "metricId": "<metric-id>", "value": <number>, "date": "YYYY-MM-DD" }
    * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are:
-     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", "pcsl-escape-rate", "pcsl-trainee-bas-ctmc-ratio", "pcsl-app-physician-ratio"
+     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual"
      - Surgery (3SL): "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho"
      - Mental Health (MH): "mh-active-duty-off-post", "mh-4707-epts"
      - Emergency Department (ED): "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs"
@@ -403,7 +403,6 @@ Always confirm in a direct, command-intent voice that you have applied the reque
   validateAndMapMetricId(metricId) {
     const validIds = [
       "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", 
-      "pcsl-escape-rate", "pcsl-trainee-bas-ctmc-ratio", "pcsl-app-physician-ratio",
       "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho",
       "mh-active-duty-off-post", "mh-4707-epts",
       "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs",
