@@ -106,7 +106,7 @@ const FRAMEWORK = {
       clinics: ["Outpatient Mental Health", "Building 822 — Trainee Walk-in BH", "SUDCC", "Child & Family BHS", "Family Advocacy Program"],
       trackedMetrics: [
         { id: "mh-active-duty-off-post", name: "Active Duty Referred Off Post This Week", unit: "referrals", goal: null, direction: "neutral", period: "week", featured: true },
-        { id: "mh-4707-epts", name: "Trainees Sent for 4707 / EPTS", unit: "trainees", goal: null, direction: "neutral", period: "week", featured: true }
+        { id: "mh-brave-usage", name: "BRAVE Program Usage", unit: "sessions", goal: null, direction: "higher", period: "week", featured: true }
       ],
       tasks: [
         { id: "mh-p1-1", title: "Implement Care Ladder — BH Vector", description: "Establish BH technician-led and group therapy vectors to expand access.", loe: 1, phase: 1, status: "not-reviewed", kpis: ["Group therapy sessions established", "BH tech protocols active"] },

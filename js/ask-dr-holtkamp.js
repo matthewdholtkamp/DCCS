@@ -28,7 +28,7 @@ Available commands inside the JSON array:
    * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are:
      - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual"
      - Surgery (3SL): "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho"
-     - Mental Health (MH): "mh-active-duty-off-post", "mh-4707-epts"
+     - Mental Health (MH): "mh-active-duty-off-post", "mh-brave-usage"
      - Emergency Department (ED): "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs"
      - MSCoE Model: "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
    * Date MUST be in "YYYY-MM-DD" format. If the user doesn't specify a date, default to the current local date (today).
@@ -404,7 +404,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     const validIds = [
       "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", 
       "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho",
-      "mh-active-duty-off-post", "mh-4707-epts",
+      "mh-active-duty-off-post", "mh-brave-usage",
       "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs",
       "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
     ];
