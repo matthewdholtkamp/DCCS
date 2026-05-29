@@ -499,18 +499,29 @@ const App = {
   toggleKpi(taskId, kpiIndex) {
     const data = this.getTaskData(taskId);
     const kpis = data.kpis || {};
+    const kpiDates = data.kpiDates || {};
     kpis[kpiIndex] = !kpis[kpiIndex];
-    this.saveTaskData(taskId, { kpis });
-
-    const row = document.getElementById(`kpi-${taskId}-${kpiIndex}`);
-    const cb = row?.querySelector('.kpi-checkbox');
-    const lb = row?.querySelector('.kpi-label');
-    if (row) {
-      row.classList.toggle('checked', kpis[kpiIndex]);
-      cb?.classList.toggle('checked', kpis[kpiIndex]);
-      lb?.classList.toggle('checked', kpis[kpiIndex]);
-      if (cb) cb.textContent = kpis[kpiIndex] ? '✓' : '';
+    if (kpis[kpiIndex]) {
+      kpiDates[kpiIndex] = this.getLocalToday();
+    } else {
+      delete kpiDates[kpiIndex];
     }
+    this.saveTaskData(taskId, { kpis, kpiDates });
+    this.refreshTaskCard(taskId);
+    this.route();
+  },
+
+  changeKpiDate(taskId, kpiIndex, newDate) {
+    const data = this.getTaskData(taskId);
+    const kpiDates = data.kpiDates || {};
+    if (newDate) {
+      kpiDates[kpiIndex] = newDate;
+    } else {
+      delete kpiDates[kpiIndex];
+    }
+    this.saveTaskData(taskId, { kpiDates });
+    this.refreshTaskCard(taskId);
+    this.route();
   },
 
   toggleBuiltInKpiDeleted(taskId, kpiIndex) {
@@ -539,8 +550,9 @@ const App = {
     customKpis.splice(index, 1);
     
     const kpis = this.reindexCustomKpiChecks(data.kpis || {}, index);
+    const kpiDates = this.reindexCustomKpiChecks(data.kpiDates || {}, index);
     
-    this.saveTaskData(taskId, { customKpis, kpis });
+    this.saveTaskData(taskId, { customKpis, kpis, kpiDates });
     this.refreshTaskCard(taskId);
   },
 
@@ -589,6 +601,7 @@ const App = {
     const saved = this.getTaskData(task.id);
     const currentStatus = saved.status || task.status;
     const kpiChecks = saved.kpis || {};
+    const kpiDates = saved.kpiDates || {};
     const deletedKpis = saved.deletedKpis || {};
     const notes = saved.notes || '';
 
@@ -608,20 +621,34 @@ const App = {
           ${(task.kpis || []).map((k, i) => {
             const checked = !!kpiChecks[i];
             const deleted = !!deletedKpis[i];
+            const dateInput = checked 
+              ? `<span class="kpi-date-container" onclick="event.stopPropagation();">
+                   <span class="kpi-date-label">Completed:</span>
+                   <input class="kpi-date-picker" type="date" value="${kpiDates[i] || ''}" onchange="App.changeKpiDate('${task.id}', '${i}', this.value)" title="Change completion date">
+                 </span>`
+              : '';
             return `
               <div class="kpi-interactive ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}" id="kpi-${task.id}-${i}" onclick="App.toggleKpi('${task.id}', '${i}')">
                 <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
                 <div class="kpi-label ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}">${this.escapeHtml(k)}</div>
+                ${dateInput}
                 <button class="kpi-action-btn" type="button" onclick="event.stopPropagation(); App.toggleBuiltInKpiDeleted('${task.id}', '${i}')" title="${deleted ? 'Restore framework KPI' : 'Line out framework KPI'}">${deleted ? 'Restore' : 'Line out'}</button>
               </div>`;
           }).join('')}
           ${(saved.customKpis || []).map((k, i) => {
             const idx = `custom-${i}`;
             const checked = !!kpiChecks[idx];
+            const dateInput = checked 
+              ? `<span class="kpi-date-container" onclick="event.stopPropagation();">
+                   <span class="kpi-date-label">Completed:</span>
+                   <input class="kpi-date-picker" type="date" value="${kpiDates[idx] || ''}" onchange="App.changeKpiDate('${task.id}', '${idx}', this.value)" title="Change completion date">
+                 </span>`
+              : '';
             return `
               <div class="kpi-interactive custom-kpi ${checked ? 'checked' : ''}" id="kpi-${task.id}-${idx}" onclick="App.toggleKpi('${task.id}', '${idx}')">
                 <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
                 <div class="kpi-label ${checked ? 'checked' : ''}">${this.escapeHtml(k)}</div>
+                ${dateInput}
                 <button class="kpi-action-btn danger" type="button" onclick="event.stopPropagation(); App.deleteCustomKpi('${task.id}', ${i})" title="Delete custom KPI permanently">Delete</button>
               </div>`;
           }).join('')}
@@ -2623,6 +2650,108 @@ const App = {
   renderTimelineRibbon() {
     const phases = FRAMEWORK.phases;
     const currentIdx = this.getCurrentPhaseIndex();
+    const slideIndex = this.presentationActiveIndex;
+    const completedKpis = [];
+
+    // Phase date boundaries for coordinate mapping
+    const bounds = [
+      { start: new Date('2025-08-01'), end: new Date('2026-03-01') },
+      { start: new Date('2026-03-01'), end: new Date('2026-08-10') },
+      { start: new Date('2026-08-10'), end: new Date('2027-07-31') }
+    ];
+
+    // Helper to process task KPIs
+    const processTask = (task, slAbbr) => {
+      const saved = this.getTaskData(task.id);
+      const kpiChecks = saved.kpis || {};
+      const kpiDates = saved.kpiDates || {};
+      const deletedKpis = saved.deletedKpis || {};
+      
+      const isExec = slideIndex === 0;
+      const majorIndices = task.majorKpiIndices || [];
+
+      // Built-in KPIs
+      (task.kpis || []).forEach((kpiText, i) => {
+        if (deletedKpis[i]) return;
+        if (kpiChecks[i] && kpiDates[i]) {
+          const isMajor = majorIndices.includes(i);
+          if (!isExec || isMajor) {
+            completedKpis.push({
+              title: kpiText,
+              date: new Date(kpiDates[i]),
+              dateStr: kpiDates[i],
+              sl: slAbbr,
+              taskId: task.id
+            });
+          }
+        }
+      });
+
+      // Custom KPIs
+      (saved.customKpis || []).forEach((kpiText, i) => {
+        const idx = `custom-${i}`;
+        if (kpiChecks[idx] && kpiDates[idx]) {
+          if (!isExec) {
+            completedKpis.push({
+              title: kpiText,
+              date: new Date(kpiDates[idx]),
+              dateStr: kpiDates[idx],
+              sl: slAbbr,
+              taskId: task.id
+            });
+          }
+        }
+      });
+    };
+
+    if (slideIndex === 0) {
+      FRAMEWORK.serviceLines.forEach(sl => {
+        (sl.tasks || []).forEach(t => processTask(t, sl.abbr || sl.name));
+      });
+      FRAMEWORK.crossCuttingTasks.forEach(t => processTask(t, 'CC'));
+    } else {
+      const activeSL = FRAMEWORK.serviceLines[slideIndex - 1];
+      if (activeSL) {
+        (activeSL.tasks || []).forEach(t => processTask(t, activeSL.abbr || activeSL.name));
+      }
+    }
+
+    const kpiDotsByPhase = { 1: [], 2: [], 3: [] };
+
+    completedKpis.forEach(kpi => {
+      const time = kpi.date.getTime();
+      if (isNaN(time)) return;
+
+      let phaseId = null;
+      let offsetPct = 0;
+
+      for (let pIdx = 0; pIdx < bounds.length; pIdx++) {
+        const b = bounds[pIdx];
+        if (time >= b.start.getTime() && time <= b.end.getTime()) {
+          phaseId = pIdx + 1;
+          const range = b.end.getTime() - b.start.getTime();
+          offsetPct = ((time - b.start.getTime()) / range) * 100;
+          break;
+        }
+      }
+
+      if (!phaseId) {
+        if (time < bounds[0].start.getTime()) {
+          phaseId = 1;
+          offsetPct = 0;
+        } else {
+          phaseId = 3;
+          offsetPct = 100;
+        }
+      }
+
+      kpiDotsByPhase[phaseId].push({
+        title: kpi.title,
+        sl: kpi.sl,
+        dateStr: kpi.dateStr,
+        offsetPct: Math.max(0, Math.min(100, offsetPct))
+      });
+    });
 
     const phaseSegments = phases.map((phase, i) => {
       const isComplete = i < currentIdx;
@@ -2640,11 +2769,25 @@ const App = {
 
       const nowMarker = isActive ? '<span class="tl-now-marker">▼ NOW</span>' : '';
 
+      const dots = kpiDotsByPhase[phase.id] || [];
+      const kpiDotsHtml = dots.map(dot => {
+        const slClass = (dot.sl || '').toLowerCase().replace('/', '').replace(' ', '-');
+        const formattedDate = new Date(dot.dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `
+          <span class="timeline-kpi-dot ${slClass}" 
+                style="left: ${dot.offsetPct}%;" 
+                title="[${this.escapeHtml(dot.sl)}] ${this.escapeHtml(dot.title)} — Completed ${this.escapeHtml(formattedDate)}">
+          </span>
+        `;
+      }).join('');
+
       return `
         <div class="tl-segment ${segClass}">
           <div class="tl-line-row">
             <span class="tl-dot"></span>
-            <span class="tl-line"></span>
+            <span class="tl-line" style="position: relative;">
+              ${kpiDotsHtml}
+            </span>
             ${dpMarker}
             ${i === phases.length - 1 ? '<span class="tl-dot tl-dot-end"></span>' : ''}
           </div>
