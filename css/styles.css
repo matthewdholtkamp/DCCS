@@ -2,35 +2,54 @@
 
 /* ===== CSS VARIABLES ===== */
 :root {
-  --bg-primary: #0a0b09; /* Deeper tactical black/charcoal base */
-  --bg-secondary: #111310; /* Dark secondary background */
-  --bg-card: #181b17; /* Elevated card background - distinct from bg-primary */
-  --bg-card-hover: #20241e; /* Elevated card background on hover */
-  --bg-glass: rgba(255,255,255,0.03);
-  --border-subtle: rgba(255,255,255,0.08); /* Crisp outlines for structure */
-  --border-accent: rgba(255,184,28,0.3); /* Army Gold border accent */
+  --bg-primary: #ffffff; /* Pure white content background */
+  --bg-secondary: #f4f5f2; /* Light tactical gray/green secondary bg */
+  --bg-card: #ffffff; /* Pure white card background */
+  --bg-card-hover: #f9faf8; /* Light card background on hover */
+  --bg-glass: rgba(0,0,0,0.03); /* Light glassmorphism */
+  --border-subtle: rgba(0,0,0,0.08); /* Dark subtle border for white cards */
+  --border-accent: rgba(255,184,28,0.4); /* Gold border accent */
   --gold: #FFB81C; /* Official Army Gold */
-  --gold-light: #f6ca63;
-  --gold-glow: rgba(255,184,28,0.16);
-  --amber: #c9951a;
+  --gold-light: #c9951a; /* Gold hover state - slightly darker gold for white bg */
+  --gold-glow: transparent; /* No glows */
+  --amber: #b07e14;
   --army-green: #313a2d;
   --army-green-light: #46523f;
-  --blue: #236192; /* Army Blue */
-  --blue-glow: rgba(35,97,146,0.3);
-  --emerald: #7aac6a;
-  --emerald-glow: rgba(122,172,106,0.3);
-  --red: #c0392b;
-  --text-primary: #ffffff; /* Pure white text like army.mil */
-  --text-secondary: #cccccc; /* Neutral gray text */
-  --text-muted: #8c928b; /* Olive-tinted gray text for tactical feel */
-  --text-gold: #FFB81C;
+  --blue: #1c4f78; /* Darker blue for contrast on white */
+  --blue-glow: transparent;
+  --emerald: #3d6032; /* Darker emerald for contrast on white */
+  --emerald-glow: transparent;
+  --red: #a9291b; /* Darker red for contrast on white */
+  --text-primary: #000000; /* Pure black text for readability on white */
+  --text-secondary: #222222; /* Neutral dark gray text */
+  --text-muted: #5e645d; /* Darker muted olive-tinted gray text */
+  --text-gold: #b07e14; /* Darker gold for text on white to pass contrast checks */
   --radius: 8px;
   --radius-lg: 10px;
-  --shadow: 0 8px 24px rgba(0,0,0,0.5); /* Stronger shadow for elevation */
-  --shadow-glow: 0 0 0 1px rgba(255,184,28,0.22);
+  --shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.02); /* Clean, modern shadow for light cards */
+  --shadow-glow: none; /* No glows */
   --transition: all 0.18s ease;
   --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ===== LOCAL DARK-THEME OVERRIDES FOR FIXED LAYOUTS ===== */
+.nav,
+.sidebar,
+.ask-panel,
+dialog.military-modal {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0b09;
+  --bg-card: #121311;
+  --bg-card-hover: #1b1d1a;
+  --bg-glass: rgba(255,255,255,0.03);
+  --border-subtle: rgba(255,255,255,0.12);
+  --border-accent: rgba(255,184,28,0.3);
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted: #8c928b;
+  --shadow: 0 8px 24px rgba(0,0,0,0.5);
+  --shadow-glow: 0 0 0 1px rgba(255,184,28,0.22);
 }
 
 /* ===== RESET & BASE ===== */
@@ -53,11 +72,33 @@ h1, h2, h3, h4, h5, h6,
 }
 a { color: var(--gold); text-decoration: none; transition: var(--transition); }
 a:hover { color: var(--gold-light); }
+
+/* Main Content Links (High Contrast) */
+.main a {
+  color: #c9951a;
+  text-decoration: underline;
+}
+.main a:hover {
+  color: #a37510;
+}
 button,
 summary,
 input,
 textarea {
   font-family: inherit;
+}
+
+/* Base Form Overrides in Content Area */
+.main input,
+.main textarea,
+.main select {
+  background: #ffffff !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+.main input::placeholder,
+.main textarea::placeholder {
+  color: var(--text-muted) !important;
 }
 button:focus-visible,
 a:focus-visible,
@@ -95,7 +136,7 @@ textarea:focus-visible {
 /* ===== NAVIGATION ===== */
 .nav {
   position: fixed; top:0; left:0; right:0; z-index: 100;
-  background: rgba(16,16,14,0.96); backdrop-filter: blur(12px);
+  background: var(--bg-primary); backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 2rem; height: 64px;
   display: flex; align-items: center; justify-content: space-between;
@@ -573,7 +614,7 @@ textarea:focus-visible {
 .sidebar {
   position: fixed; top: 64px; left: 0; bottom: 0; z-index: 50;
   width: 292px; padding: 1.25rem 1rem; overflow-y: auto;
-  background: rgba(18, 19, 17, 0.96); backdrop-filter: blur(10px);
+  background: var(--bg-primary); backdrop-filter: blur(10px);
   border-right: 1px solid var(--border-subtle);
 }
 .sidebar-title {
@@ -668,7 +709,7 @@ textarea:focus-visible {
   padding: 9px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: rgba(0,0,0,0.28);
+  background: var(--bg-secondary);
   color: var(--text-muted);
   opacity: 0.58;
   text-align: center;
@@ -704,9 +745,9 @@ textarea:focus-visible {
 .landing-transition-chip {
   min-width: 86px;
   padding: 6px 8px;
-  border: 1px dashed rgba(255,255,255,0.14);
+  border: 1px dashed var(--border-subtle);
   border-radius: 999px;
-  background: rgba(0,0,0,0.18);
+  background: var(--bg-secondary);
   color: var(--text-muted);
   text-align: center;
 }
@@ -776,7 +817,7 @@ textarea:focus-visible {
 .dropdown-trigger.open .dropdown-chevron { transform: rotate(90deg); }
 .dropdown-content {
   max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease;
-  padding: 0 16px; background: rgba(0, 0, 0, 0.18);
+  padding: 0 16px; background: var(--bg-secondary);
   border: 1px solid var(--border-subtle); border-top: none; border-radius: 0 0 var(--radius) var(--radius);
 }
 .dropdown-content.open { max-height: 2000px; padding: 16px; }
@@ -1099,7 +1140,7 @@ textarea:focus-visible {
   padding: 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
-  background: rgba(0,0,0,0.18);
+  background: var(--bg-secondary);
 }
 .dialogue-entry-header {
   display: flex;
@@ -1395,17 +1436,22 @@ textarea:focus-visible {
   border-color: var(--border-accent);
 }
 .kpi-add-form button {
-  background: var(--army-green);
-  border: none;
+  background: var(--gold);
+  border: 1px solid var(--gold);
   border-radius: 6px;
-  color: #fff;
+  color: #000000;
   cursor: pointer;
   font: inherit;
   font-size: 0.75rem;
   font-weight: 700;
   padding: 6px 12px;
+  box-shadow: none;
+  transition: var(--transition);
 }
-.kpi-add-form button:hover { background: var(--army-green-light); }
+.kpi-add-form button:hover {
+  background: var(--gold-light);
+  border-color: var(--gold-light);
+}
 
 /* Task notes area */
 .task-notes-area {
@@ -1512,6 +1558,16 @@ textarea:focus-visible {
   border-radius: var(--radius);
   padding: 1rem;
   transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+/* Card Gold Top Accent */
+.metric-card,
+.task-card,
+.meeting-card,
+.exec-spotlight-card,
+.exec-sl-card {
+  border-top: 3px solid var(--gold) !important;
+  overflow: hidden;
 }
 
 .metric-card:hover {
@@ -1712,9 +1768,9 @@ textarea:focus-visible {
   min-height: 150px;
   margin: 0.9rem 0;
   padding: 0.25rem;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: rgba(0,0,0,0.18);
+  background: var(--bg-secondary);
 }
 
 .metric-group-chart-shell {
@@ -1841,19 +1897,21 @@ textarea:focus-visible {
 .metric-entry-form button {
   min-height: 34px;
   padding: 7px 12px;
-  border: 0;
+  border: 1px solid var(--gold);
   border-radius: 8px;
-  background: var(--army-green-light);
-  color: #fff;
+  background: var(--gold);
+  color: #000000;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
+  box-shadow: none;
   transition: var(--transition);
 }
 
 .metric-entry-form button:hover {
-  background: var(--army-green);
+  background: var(--gold-light);
+  border-color: var(--gold-light);
 }
 
 .metric-group-entry-form {
@@ -1903,19 +1961,21 @@ textarea:focus-visible {
 .metric-group-entry-form button {
   min-height: 34px;
   padding: 7px 12px;
-  border: 0;
+  border: 1px solid var(--gold);
   border-radius: 8px;
-  background: var(--army-green-light);
-  color: #fff;
+  background: var(--gold);
+  color: #000000;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 700;
+  box-shadow: none;
   transition: var(--transition);
 }
 
 .metric-group-entry-form button:hover {
-  background: var(--army-green);
+  background: var(--gold-light);
+  border-color: var(--gold-light);
 }
 
 .metric-group-entry-form input:focus-visible,
@@ -1970,7 +2030,7 @@ textarea:focus-visible {
 .metric-expanded-log th,
 .metric-expanded-log td {
   padding: 7px 9px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   font-size: 0.74rem;
   text-align: left;
@@ -2073,9 +2133,9 @@ textarea:focus-visible {
 .metric-expanded-chart {
   min-width: 0;
   padding: 0.75rem;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: rgba(0,0,0,0.22);
+  background: var(--bg-secondary);
 }
 
 .metric-expanded-summary {
@@ -2086,7 +2146,7 @@ textarea:focus-visible {
   padding: 1rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: rgba(0,0,0,0.18);
+  background: var(--bg-secondary);
 }
 
 .metric-expanded-summary .metric-badge {
@@ -2417,13 +2477,14 @@ dialog.military-modal::backdrop {
 }
 .military-modal-btn.confirm {
   background: var(--gold);
-  color: var(--bg-primary);
+  color: #000000;
   border: 1px solid var(--gold);
+  box-shadow: none;
 }
 .military-modal-btn.confirm:hover {
   background: var(--gold-light);
   border-color: var(--gold-light);
-  box-shadow: 0 0 10px rgba(200, 168, 78, 0.4);
+  box-shadow: none;
 }
 .military-modal-btn.cancel {
   background: transparent;
@@ -2594,7 +2655,7 @@ dialog.military-modal::backdrop {
   align-items: center;
   justify-content: space-between;
   padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .meeting-metric-row:last-child {
   border-bottom: none;
@@ -3300,9 +3361,9 @@ body.presentation-mode-active .main {
 }
 
 .presentation-tab.active {
-  background: rgba(255, 184, 28, 0.12);
-  color: var(--gold);
-  border-color: var(--border-accent);
+  background: var(--gold) !important;
+  color: #000000 !important;
+  border-color: var(--gold) !important;
 }
 
 .presentation-tab:hover:not(.active) {
@@ -3618,8 +3679,8 @@ body.presentation-mode-active .main {
 }
 
 .presentation-chart-container {
-  background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(255,255,255,0.05);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   display: flex;
