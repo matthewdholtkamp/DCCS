@@ -3201,10 +3201,11 @@ body.presentation-mode-active .main {
   gap: 10px;
   padding: 10px 14px;
   margin-top: 4px;
-  background: rgba(122,172,106,0.08);
-  border: 1px solid rgba(122,172,106,0.2);
+  background: var(--bg-primary);
+  border: 1px solid rgba(122,172,106,0.15);
   border-radius: 6px;
-  border-left: 3px solid var(--emerald);
+  border-left: 3.5px solid var(--emerald);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
 }
 
 .exec-spotlight-icon {
@@ -3248,8 +3249,9 @@ body.presentation-mode-active .main {
   gap: 8px;
   padding: 6px 10px;
   border-radius: 5px;
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.01);
 }
 
 .exec-milestone-item.dp {
@@ -3422,7 +3424,7 @@ body.presentation-mode-active .main {
 }
 
 .slide-panel {
-  background: var(--bg-card);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
@@ -3433,6 +3435,7 @@ body.presentation-mode-active .main {
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
 }
 
 .slide-panel-title {
@@ -3480,19 +3483,35 @@ body.presentation-mode-active .main {
   gap: 8px;
   font-size: 0.95rem;
   line-height: 1.35;
-  padding: 6px 8px;
-  border-radius: 5px;
-  border-left: 3px solid transparent;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-left: 3.5px solid transparent;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.01);
+  margin-bottom: 6px;
+  transition: var(--transition);
 }
-
+.slide-list-item:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.15);
+}
 .slide-list-item.accomplishment {
   border-left-color: var(--emerald);
-  background: rgba(122,172,106,0.04);
+  background: var(--bg-primary);
 }
-
+.slide-list-item.accomplishment:hover {
+  border-color: rgba(61, 96, 50, 0.25);
+  background: rgba(61, 96, 50, 0.01);
+}
 .slide-list-item.way-forward {
   border-left-color: var(--gold);
-  background: rgba(255,184,28,0.03);
+  background: var(--bg-primary);
+}
+.slide-list-item.way-forward:hover {
+  border-color: rgba(255, 184, 28, 0.3);
+  background: rgba(255, 184, 28, 0.01);
 }
 
 .slide-list-item-icon {
@@ -3567,16 +3586,19 @@ body.presentation-mode-active .main {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  background: var(--bg-card);
+  background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   cursor: pointer;
   transition: var(--transition);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.015);
 }
 
 .exec-sl-card:hover {
-  border-color: var(--border-accent);
-  background: rgba(255,184,28,0.04);
+  border-color: var(--gold);
+  background: rgba(255,184,28,0.03);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
 }
 
 .exec-sl-abbr {
@@ -3717,12 +3739,14 @@ body.presentation-mode-active .main {
 }
 
 .presentation-chart-container {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+  margin-bottom: 8px;
 }
 
 .presentation-chart-title {
@@ -3802,10 +3826,13 @@ body.presentation-mode-active .main {
 .dialogue-log-readonly::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 .dialogue-item-readonly {
-  padding: 6px 8px;
-  background: rgba(255,255,255,0.015);
-  border-radius: 5px;
-  border-left: 2px solid rgba(255,184,28,0.2);
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  border-left: 3.5px solid var(--gold);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.01);
+  margin-bottom: 6px;
 }
 
 .dialogue-item-readonly:last-child { border-bottom: none; }

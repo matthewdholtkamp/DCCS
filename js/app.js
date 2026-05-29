@@ -3147,7 +3147,7 @@ const App = {
           <div style="display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;min-width:480px;">
             ${sl.traineeCareFlow.map((step, i) => `
               ${i > 0 ? '<div style="align-self:center;font-size:0.75rem;color:var(--gold);padding:0 2px;">→</div>' : ''}
-              <div style="flex:1;padding:5px 6px;border:1px solid var(--border-subtle);border-radius:5px;background:rgba(255,255,255,0.02);min-width:80px;">
+              <div style="flex:1;padding:5px 6px;border:1px solid var(--border-subtle);border-radius:5px;background:var(--bg-primary);min-width:80px;box-shadow:0 1px 3px rgba(0,0,0,0.01);">
                 <div style="font-size:0.72rem;font-weight:700;color:var(--gold);margin-bottom:1px;">${step.step}. ${this.escapeHtml(step.name)}</div>
                 <div style="font-size:0.62rem;color:var(--text-muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${this.escapeHtml(step.description)}</div>
               </div>
