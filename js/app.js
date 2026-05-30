@@ -2050,7 +2050,7 @@ const App = {
           <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 0 0;">${this.escapeHtml(this.serviceLineFunction(sl))}</p>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:12px;">
-          <button type="button" class="meeting-brief-btn" onclick="window.App.generateAIPanelBrief('${sl.id}')">
+          <button type="button" class="meeting-brief-btn" onclick="event.stopPropagation(); window.App.generateAIPanelBrief('${sl.id}')">
             ⚡ AI Brief
           </button>
           <div>
@@ -2193,6 +2193,11 @@ const App = {
     
     console.log(`[AI Brief] AskDrHoltkamp is ready: ${window.AskDrHoltkamp.isReady}, is open: ${window.AskDrHoltkamp.isOpen}`);
     const prompt = `Give me a concise 1/2 page executive sync brief specifically for the ${sl.name} (${sl.abbr || ''}). Summarize the BLUF, key metric highlights, and the most critical roadblocks.`;
+    
+    if (!window.AskDrHoltkamp.els || !window.AskDrHoltkamp.els.input) {
+      console.warn("[AI Brief] AskDrHoltkamp elements not initialized. Initializing now...");
+      window.AskDrHoltkamp.init();
+    }
     
     if (!window.AskDrHoltkamp.isOpen) {
       console.log("[AI Brief] Panel is closed. Opening panel...");
