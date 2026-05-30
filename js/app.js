@@ -2202,8 +2202,41 @@ const App = {
       window.AskDrHoltkamp.autoSizeInput();
       
       if (!window.AskDrHoltkamp.isReady) {
-        console.warn("generateAIPanelBrief: AskDrHoltkamp is not ready yet. Please wait for dependencies to load.");
-        window.AskDrHoltkamp.updateSendButtonState();
+        console.warn("generateAIPanelBrief: AskDrHoltkamp is not ready yet. Scheduling auto-send on readiness.");
+        
+        // Append a user-friendly initialization indicator in the chat message block
+        const messagesEl = window.AskDrHoltkamp.els.messages;
+        if (messagesEl) {
+          const infoMsg = document.createElement("div");
+          infoMsg.className = "ask-message assistant";
+          infoMsg.innerHTML = `
+            <div class="ask-message-label">Dr. Holtkamp persona</div>
+            <div class="ask-message-body">
+              <em>Initializing connection to the Band-Aid 6 persona... The sync brief will generate automatically as soon as the connection is ready.</em>
+            </div>
+          `;
+          messagesEl.appendChild(infoMsg);
+          window.AskDrHoltkamp.scrollToBottom(true);
+        }
+        
+        // Poll for readiness every 250ms, auto-sending once loaded
+        const checkInterval = setInterval(() => {
+          if (window.AskDrHoltkamp.isReady) {
+            clearInterval(checkInterval);
+            
+            // Clean up the initialization notice before sending
+            const messagesEl = window.AskDrHoltkamp.els.messages;
+            if (messagesEl && messagesEl.lastChild && messagesEl.lastChild.innerHTML.includes("Initializing connection")) {
+              messagesEl.removeChild(messagesEl.lastChild);
+            }
+            
+            window.AskDrHoltkamp.updateSendButtonState();
+            window.AskDrHoltkamp.send();
+          }
+        }, 250);
+        
+        // Stop checking after 10 seconds to avoid infinite resource consumption
+        setTimeout(() => clearInterval(checkInterval), 10000);
         return;
       }
       
