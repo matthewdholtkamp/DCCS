@@ -654,7 +654,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
   },
 
   buildDccsContext(question) {
-    const includeNotes = /\b(dialogue|note|notes|roadblock|barrier|issue|sync|decision|update|meeting|hedis)\b/i.test(question);
+    const includeNotes = true;
     const metricStore = this.getMetricStore();
     const taskStore = this.getTaskStore();
     const hedisStore = this.getHedisStore();
@@ -689,10 +689,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       })),
       crossCuttingTasks: FRAMEWORK.crossCuttingTasks.map((task) => this.summarizeTask(task, taskStore[task.id] || {})),
       safety: {
-        notesIncluded: includeNotes,
-        notesPolicy: includeNotes
-          ? "Only brief operational notes/dialogue excerpts are included. Patient information should never be entered."
-          : "Dialogue and notes omitted unless the question asks for them."
+        notesIncluded: true,
+        notesPolicy: "Only brief operational notes/dialogue excerpts are included. Patient information should never be entered."
       }
     };
 
