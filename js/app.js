@@ -2178,31 +2178,35 @@ const App = {
   },
 
   generateAIPanelBrief(slId) {
+    console.log(`[AI Brief] Button clicked for service line ID: "${slId}"`);
     const sl = FRAMEWORK.serviceLines.find(s => s.id === slId);
     if (!sl) {
-      console.error(`generateAIPanelBrief: Service line "${slId}" not found.`);
+      console.error(`[AI Brief] Service line "${slId}" not found in FRAMEWORK.`);
       return;
     }
     
     if (!window.AskDrHoltkamp) {
-      console.error("generateAIPanelBrief: window.AskDrHoltkamp is not defined.");
+      console.error("[AI Brief] window.AskDrHoltkamp is not defined.");
       alert("Ask Dr. Holtkamp assistant is not loaded yet. Please refresh or try again in a moment.");
       return;
     }
     
+    console.log(`[AI Brief] AskDrHoltkamp is ready: ${window.AskDrHoltkamp.isReady}, is open: ${window.AskDrHoltkamp.isOpen}`);
     const prompt = `Give me a concise 1/2 page executive sync brief specifically for the ${sl.name} (${sl.abbr || ''}). Summarize the BLUF, key metric highlights, and the most critical roadblocks.`;
     
     if (!window.AskDrHoltkamp.isOpen) {
+      console.log("[AI Brief] Panel is closed. Opening panel...");
       window.AskDrHoltkamp.open();
     }
     
     const inputEl = window.AskDrHoltkamp.els.input;
     if (inputEl) {
+      console.log("[AI Brief] Input element found. Setting prompt value...");
       inputEl.value = prompt;
       window.AskDrHoltkamp.autoSizeInput();
       
       if (!window.AskDrHoltkamp.isReady) {
-        console.warn("generateAIPanelBrief: AskDrHoltkamp is not ready yet. Scheduling auto-send on readiness.");
+        console.warn("[AI Brief] AskDrHoltkamp is not ready yet. Scheduling auto-send on readiness.");
         
         // Append a user-friendly initialization indicator in the chat message block
         const messagesEl = window.AskDrHoltkamp.els.messages;
@@ -2221,7 +2225,9 @@ const App = {
         
         // Poll for readiness every 250ms, auto-sending once loaded
         const checkInterval = setInterval(() => {
+          console.log("[AI Brief] Checking if AskDrHoltkamp is ready...");
           if (window.AskDrHoltkamp.isReady) {
+            console.log("[AI Brief] AskDrHoltkamp is ready now! Triggering send...");
             clearInterval(checkInterval);
             
             // Clean up the initialization notice before sending
@@ -2236,16 +2242,24 @@ const App = {
         }, 250);
         
         // Stop checking after 10 seconds to avoid infinite resource consumption
-        setTimeout(() => clearInterval(checkInterval), 10000);
+        setTimeout(() => {
+          if (checkInterval) {
+            console.error("[AI Brief] Auto-send timed out after 10 seconds. AskDrHoltkamp never became ready.");
+            clearInterval(checkInterval);
+          }
+        }, 10000);
         return;
       }
       
       window.AskDrHoltkamp.updateSendButtonState();
       try {
+        console.log("[AI Brief] Triggering window.AskDrHoltkamp.send()...");
         window.AskDrHoltkamp.send();
       } catch (err) {
-        console.error("Failed to send brief automatically:", err);
+        console.error("[AI Brief] Failed to send brief automatically:", err);
       }
+    } else {
+      console.error("[AI Brief] AskDrHoltkamp input element (els.input) not found.");
     }
   },
 
@@ -3438,6 +3452,10 @@ const App = {
 
 window.App = App;
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => App.init());
+// Initialize on DOM ready or immediately if already loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => App.init());
+} else {
+  App.init();
+}
 

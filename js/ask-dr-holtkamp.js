@@ -851,4 +851,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 };
 
 window.AskDrHoltkamp = AskDrHoltkamp;
-document.addEventListener("DOMContentLoaded", () => AskDrHoltkamp.init());
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => AskDrHoltkamp.init());
+} else {
+  AskDrHoltkamp.init();
+}
