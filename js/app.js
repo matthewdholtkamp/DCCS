@@ -2050,7 +2050,7 @@ const App = {
           <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 0 0;">${this.escapeHtml(this.serviceLineFunction(sl))}</p>
         </div>
         <div style="text-align:right; display:flex; align-items:center; gap:12px;">
-          <button type="button" class="meeting-brief-btn" onclick="App.generateAIPanelBrief('${sl.id}')">
+          <button type="button" class="meeting-brief-btn" onclick="window.App.generateAIPanelBrief('${sl.id}')">
             ⚡ AI Brief
           </button>
           <div>
@@ -2179,21 +2179,39 @@ const App = {
 
   generateAIPanelBrief(slId) {
     const sl = FRAMEWORK.serviceLines.find(s => s.id === slId);
-    if (!sl) return;
+    if (!sl) {
+      console.error(`generateAIPanelBrief: Service line "${slId}" not found.`);
+      return;
+    }
     
-    if (window.AskDrHoltkamp) {
-      if (!window.AskDrHoltkamp.isOpen) {
-        window.AskDrHoltkamp.open();
+    if (!window.AskDrHoltkamp) {
+      console.error("generateAIPanelBrief: window.AskDrHoltkamp is not defined.");
+      alert("Ask Dr. Holtkamp assistant is not loaded yet. Please refresh or try again in a moment.");
+      return;
+    }
+    
+    const prompt = `Give me a concise 1/2 page executive sync brief specifically for the ${sl.name} (${sl.abbr || ''}). Summarize the BLUF, key metric highlights, and the most critical roadblocks.`;
+    
+    if (!window.AskDrHoltkamp.isOpen) {
+      window.AskDrHoltkamp.open();
+    }
+    
+    const inputEl = window.AskDrHoltkamp.els.input;
+    if (inputEl) {
+      inputEl.value = prompt;
+      window.AskDrHoltkamp.autoSizeInput();
+      
+      if (!window.AskDrHoltkamp.isReady) {
+        console.warn("generateAIPanelBrief: AskDrHoltkamp is not ready yet. Please wait for dependencies to load.");
+        window.AskDrHoltkamp.updateSendButtonState();
+        return;
       }
       
-      const prompt = `Give me a concise 1/2 page executive sync brief specifically for the ${sl.name} (${sl.abbr || ''}). Summarize the BLUF, key metric highlights, and the most critical roadblocks.`;
-      
-      const inputEl = window.AskDrHoltkamp.els.input;
-      if (inputEl) {
-        inputEl.value = prompt;
-        window.AskDrHoltkamp.autoSizeInput();
-        window.AskDrHoltkamp.updateSendButtonState();
+      window.AskDrHoltkamp.updateSendButtonState();
+      try {
         window.AskDrHoltkamp.send();
+      } catch (err) {
+        console.error("Failed to send brief automatically:", err);
       }
     }
   },
@@ -3384,6 +3402,8 @@ const App = {
   },
 
 };
+
+window.App = App;
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', () => App.init());
