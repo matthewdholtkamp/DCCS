@@ -2741,6 +2741,21 @@ dialog.military-modal::backdrop {
   background: var(--gold-light);
   box-shadow: 0 0 8px rgba(200, 168, 78, 0.3);
 }
+.meeting-brief-btn {
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.meeting-brief-btn:hover {
+  background: rgba(200, 168, 78, 0.1);
+  box-shadow: 0 0 8px rgba(200, 168, 78, 0.2);
+}
 
 .meeting-phase-tasks {
   margin-bottom: 1.5rem;
@@ -3121,6 +3136,42 @@ body.presentation-mode-active .main {
   border: 1px solid var(--bg-primary);
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
   transition: var(--transition);
+}
+
+/* ---- Dynamic Timeline Today Marker ---- */
+.timeline-today-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 6;
+  white-space: nowrap;
+}
+.timeline-today-arrow {
+  font-size: 0.65rem;
+  color: var(--gold);
+  line-height: 1;
+  margin-bottom: -1px;
+  animation: now-pulse 2s ease-in-out infinite;
+}
+.timeline-today-line {
+  width: 2px;
+  height: 16px;
+  background-color: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+  animation: now-pulse 2s ease-in-out infinite;
+}
+.timeline-today-text {
+  font-size: 0.55rem;
+  font-weight: 900;
+  font-family: var(--font-display);
+  color: var(--text-gold);
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+  animation: now-pulse 2s ease-in-out infinite;
 }
 
 .timeline-kpi-dot:hover {

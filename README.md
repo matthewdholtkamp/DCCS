@@ -33,6 +33,10 @@ npx serve .. -l 8000
 
 Hosted on GitHub Pages. Push to `main` branch to deploy.
 
+## Roadmap & Next Steps
+
+*   [ ] **AI Predictive Trend Line Forecasting**: Integrate a predictive regression model inside the chat assistant or client-side SVG graphing tool. Users will be able to ask the chatbot: *"Forecast when PCSL virtual appointments will hit our 15% target based on recent trend lines,"* and the AI will compute and overlay a dashed forecasting vector directly onto the corresponding SVG metric chart.
+
 ---
 
 **LTC Matthew D. Holtkamp** — DCCS / MSCoE Command Surgeon  

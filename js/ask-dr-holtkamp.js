@@ -50,8 +50,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
   CLINICAL_PATTERNS: [
     /\b(pain|ache|hurts?|sore|swollen|bleeding|numb|dizzy|nausea|vomit|fever|rash|cough|sore throat|headache|migraine|chest pain|shortness of breath|symptoms?)\b/i,
-    /\b(diagnos(e|is)|treat(ment)?|medication|medicine|dose|dosage|prescription|antibiotic|vaccine|surgery|lab result|x-?ray|mri|ct scan)\b/i,
-    /\b(diabetes|hypertension|cancer|infection|covid|flu|pregnan(t|cy)|fracture|sprain|ptsd|depression|anxiety)\b/i,
+    /\b(diagnos(e|is)|treat(ment)?|medication|medicine|dose|dosage|prescription|antibiotic|vaccine|lab result|x-?ray|mri|ct scan)\b/i,
+    /\b(cancer|infection|covid|flu|pregnan(t|cy)|fracture|sprain|ptsd)\b/i,
     /\b(should i take|do i need|what should i do about|is it normal|is it safe|how do i treat)\b/i
   ],
   init() {

@@ -2049,9 +2049,14 @@ const App = {
           <h2 style="font-family:var(--font-display); font-size:1.5rem; color:var(--gold); margin:0; text-transform:uppercase;">${this.escapeHtml(sl.name)} Sync</h2>
           <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 0 0;">${this.escapeHtml(this.serviceLineFunction(sl))}</p>
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${this.escapeHtml(sl.leader)}</div>
-          <div style="font-size:0.7rem; color:var(--text-muted);">${this.escapeHtml(sl.role || 'Service Line Leader')}</div>
+        <div style="text-align:right; display:flex; align-items:center; gap:12px;">
+          <button type="button" class="meeting-brief-btn" onclick="App.generateAIPanelBrief('${sl.id}')">
+            ⚡ AI Brief
+          </button>
+          <div>
+            <div style="font-size:0.85rem; font-weight:700; color:var(--text-primary);">${this.escapeHtml(sl.leader)}</div>
+            <div style="font-size:0.7rem; color:var(--text-muted);">${this.escapeHtml(sl.role || 'Service Line Leader')}</div>
+          </div>
         </div>
       </div>
       
@@ -2170,6 +2175,27 @@ const App = {
         }
       }
     });
+  },
+
+  generateAIPanelBrief(slId) {
+    const sl = FRAMEWORK.serviceLines.find(s => s.id === slId);
+    if (!sl) return;
+    
+    if (window.AskDrHoltkamp) {
+      if (!window.AskDrHoltkamp.isOpen) {
+        window.AskDrHoltkamp.open();
+      }
+      
+      const prompt = `Give me a concise 1/2 page executive sync brief specifically for the ${sl.name} (${sl.abbr || ''}). Summarize the BLUF, key metric highlights, and the most critical roadblocks.`;
+      
+      const inputEl = window.AskDrHoltkamp.els.input;
+      if (inputEl) {
+        inputEl.value = prompt;
+        window.AskDrHoltkamp.autoSizeInput();
+        window.AskDrHoltkamp.updateSendButtonState();
+        window.AskDrHoltkamp.send();
+      }
+    }
   },
 
   renderMeetingTasksCard(sl) {
@@ -2767,7 +2793,24 @@ const App = {
       const dpDone = dp.status === 'complete';
       const dpMarker = `<span class="tl-dp ${dpDone ? 'done' : ''}" title="${this.escapeHtml(dp.name)} — ${this.escapeHtml(dp.date)}">${dpDone ? '◆' : '◇'}</span>`;
 
-      const nowMarker = isActive ? '<span class="tl-now-marker">▼ NOW</span>' : '';
+      // Calculate Today offset percentage for active phase segment
+      let todayMarkerHtml = '';
+      if (isActive) {
+        const today = new Date();
+        const b = bounds[i];
+        if (today.getTime() >= b.start.getTime() && today.getTime() <= b.end.getTime()) {
+          const range = b.end.getTime() - b.start.getTime();
+          const todayOffset = ((today.getTime() - b.start.getTime()) / range) * 100;
+          const formattedToday = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          todayMarkerHtml = `
+            <div class="timeline-today-marker" style="left: ${todayOffset.toFixed(1)}%;" title="Today: ${formattedToday}">
+              <div class="timeline-today-arrow">▼</div>
+              <div class="timeline-today-line"></div>
+              <div class="timeline-today-text">TODAY</div>
+            </div>
+          `;
+        }
+      }
 
       const dots = kpiDotsByPhase[phase.id] || [];
       const kpiDotsHtml = dots.map(dot => {
@@ -2787,11 +2830,11 @@ const App = {
             <span class="tl-dot"></span>
             <span class="tl-line" style="position: relative;">
               ${kpiDotsHtml}
+              ${todayMarkerHtml}
             </span>
             ${dpMarker}
             ${i === phases.length - 1 ? '<span class="tl-dot tl-dot-end"></span>' : ''}
           </div>
-          ${nowMarker}
           <div class="tl-label">
             <span class="tl-phase-name">Phase ${phase.id}: ${this.escapeHtml(phase.name)}</span>
             <span class="tl-phase-date">${this.escapeHtml(phase.dateRange)}</span>
