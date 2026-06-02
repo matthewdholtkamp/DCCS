@@ -4038,3 +4038,120 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
     height: auto;
   }
 }
+
+/* ===== EMERGENCY DEPARTMENT — Chart.js Panels ===== */
+.er-chartjs-section {
+  margin-top: 1rem;
+}
+
+.er-chart-panel {
+  background: var(--bg-card);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.er-chart-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.er-chart-panel-header h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.er-chart-controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.er-chart-toggle {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.er-chart-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--gold);
+}
+
+.er-chart-badge {
+  background: #4b5320;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  font-family: var(--font-display);
+}
+
+.er-chart-canvas-wrap {
+  position: relative;
+  height: 360px;
+  margin-bottom: 0.5rem;
+}
+
+.er-chart-canvas-wrap canvas {
+  max-height: 100%;
+}
+
+.er-chart-footnote {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+
+.er-chart-footnote b {
+  font-weight: 700;
+}
+
+.er-chart-insight {
+  margin-top: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(75, 83, 32, 0.06);
+  border-left: 4px solid #4b5320;
+  border-radius: 2px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+.er-chart-insight strong {
+  color: #4b5320;
+}
+
+/* Presentation mode adjustments */
+.presentation-container .er-chart-canvas-wrap {
+  height: 220px;
+}
+
+.presentation-container .er-chart-insight {
+  font-size: 0.7rem;
+  padding: 0.5rem 0.65rem;
+}
