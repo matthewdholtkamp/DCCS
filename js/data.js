@@ -155,11 +155,7 @@ const FRAMEWORK = {
       id: "mscoe", name: "MSCoE Surgeon / Trainee Care Model", abbr: "MSCoE", leader: "LTC Holtkamp",
       icon: "shield",
       clinics: ["TOMS (3 Brigades, 12 Providers)", "CTMC", "Brigade Surgeon Cells (x3)", "H2F (Holistic Health & Fitness)", "Executive Medicine"],
-      trackedMetrics: [
-        { id: "mscoe-total-trainees", name: "Total Trainees This Week", unit: "trainees", goal: null, direction: "neutral", period: "week", featured: true },
-        { id: "mscoe-self-care", name: "Self Care Trainees This Week", unit: "trainees", goal: null, direction: "neutral", period: "week", featured: true },
-        { id: "mscoe-adtmc-medic-care", name: "ADTMC (Medic Care) This Week", unit: "trainees", goal: null, direction: "neutral", period: "week", featured: true }
-      ],
+      trackedMetrics: [],
       traineeCareFlow: [
         { step: 1, name: "BAS / TOMS", description: "Basic meds, medic + ADTMC algorithms, minimal ancillary. Trainee PCM.", capacity: "Avg 22 pts/day/provider" },
         { step: 2, name: "CTMC", description: "Labs, radiology, PT, pharmacy, school physicals (Airborne, etc). Next level up from BAS.", capacity: "Max 150 pts/day (200 w/ ADTMC)" },

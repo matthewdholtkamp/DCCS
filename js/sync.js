@@ -367,6 +367,15 @@ const Sync = {
       const store = { ...this.getMetricStore() };
       let hasChanges = false;
 
+      const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
+      erPatients.sort((a, b) => {
+        const dd = (a.date || '').localeCompare(b.date || '');
+        if (dd) return dd;
+        const ah = a.time ? a.time.hour * 60 + a.time.minute : 0;
+        const bh = b.time ? b.time.hour * 60 + b.time.minute : 0;
+        return ah - bh;
+      });
+
       const checkAndUpdate = (key, newData) => {
         const current = store[key] || [];
         if (JSON.stringify(current) !== JSON.stringify(newData)) {
@@ -381,6 +390,7 @@ const Sync = {
       checkAndUpdate("er-esi-3", erEsi3);
       checkAndUpdate("er-esi-4-5", erEsi45);
       checkAndUpdate("er-lwobs", erLwobs);
+      checkAndUpdate("er-patients", erPatients);
 
       if (hasChanges) {
         console.log("DCCS Sync: Detected updates in ER metrics, saving to store...");
