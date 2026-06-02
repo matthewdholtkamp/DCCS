@@ -496,6 +496,66 @@ const App = {
     return next;
   },
 
+  renderKpiDateControl(taskId, kpiIndex, dateValue = '') {
+    return `<span class="kpi-date-container" onclick="event.stopPropagation();">
+      <span class="kpi-date-label">Completed:</span>
+      <input class="kpi-date-picker" type="date" value="${this.escapeHtml(dateValue)}" onchange="App.changeKpiDate('${taskId}', '${kpiIndex}', this.value)" title="Change completion date">
+    </span>`;
+  },
+
+  updateTaskKpiRow(taskId, kpiIndex, checked, dateValue = '') {
+    const row = document.getElementById(`kpi-${taskId}-${kpiIndex}`);
+    if (!row) return;
+
+    const windowScroll = { x: window.scrollX, y: window.scrollY };
+    const scrollParents = [];
+    for (let parent = row.parentElement; parent; parent = parent.parentElement) {
+      if (parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) {
+        scrollParents.push({ element: parent, left: parent.scrollLeft, top: parent.scrollTop });
+      }
+    }
+    const restoreScrollPosition = () => {
+      scrollParents.forEach(({ element, left, top }) => {
+        element.scrollLeft = left;
+        element.scrollTop = top;
+      });
+      window.scrollTo(windowScroll.x, windowScroll.y);
+    };
+    const restoreSettledScrollPosition = () => {
+      restoreScrollPosition();
+      requestAnimationFrame(restoreScrollPosition);
+    };
+
+    const checkbox = row.querySelector('.kpi-checkbox');
+    const label = row.querySelector('.kpi-label');
+    let dateContainer = row.querySelector('.kpi-date-container');
+
+    row.classList.toggle('checked', checked);
+    checkbox?.classList.toggle('checked', checked);
+    label?.classList.toggle('checked', checked);
+    if (checkbox) checkbox.textContent = checked ? '✓' : '';
+
+    if (!checked) {
+      dateContainer?.remove();
+      restoreSettledScrollPosition();
+      return;
+    }
+
+    if (!dateContainer) {
+      const actionButton = row.querySelector('.kpi-action-btn');
+      if (actionButton) {
+        actionButton.insertAdjacentHTML('beforebegin', this.renderKpiDateControl(taskId, kpiIndex, dateValue));
+      } else {
+        row.insertAdjacentHTML('beforeend', this.renderKpiDateControl(taskId, kpiIndex, dateValue));
+      }
+      dateContainer = row.querySelector('.kpi-date-container');
+    }
+
+    const dateInput = dateContainer?.querySelector('.kpi-date-picker');
+    if (dateInput) dateInput.value = dateValue;
+    restoreSettledScrollPosition();
+  },
+
   toggleKpi(taskId, kpiIndex) {
     const data = this.getTaskData(taskId);
     const kpis = data.kpis || {};
@@ -507,8 +567,7 @@ const App = {
       delete kpiDates[kpiIndex];
     }
     this.saveTaskData(taskId, { kpis, kpiDates });
-    this.refreshTaskCard(taskId);
-    this.route();
+    this.updateTaskKpiRow(taskId, kpiIndex, kpis[kpiIndex], kpiDates[kpiIndex] || '');
   },
 
   changeKpiDate(taskId, kpiIndex, newDate) {
@@ -520,8 +579,7 @@ const App = {
       delete kpiDates[kpiIndex];
     }
     this.saveTaskData(taskId, { kpiDates });
-    this.refreshTaskCard(taskId);
-    this.route();
+    this.updateTaskKpiRow(taskId, kpiIndex, true, kpiDates[kpiIndex] || '');
   },
 
   toggleBuiltInKpiDeleted(taskId, kpiIndex) {
@@ -622,10 +680,7 @@ const App = {
             const checked = !!kpiChecks[i];
             const deleted = !!deletedKpis[i];
             const dateInput = checked 
-              ? `<span class="kpi-date-container" onclick="event.stopPropagation();">
-                   <span class="kpi-date-label">Completed:</span>
-                   <input class="kpi-date-picker" type="date" value="${kpiDates[i] || ''}" onchange="App.changeKpiDate('${task.id}', '${i}', this.value)" title="Change completion date">
-                 </span>`
+              ? this.renderKpiDateControl(task.id, i, kpiDates[i] || '')
               : '';
             return `
               <div class="kpi-interactive ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}" id="kpi-${task.id}-${i}" onclick="App.toggleKpi('${task.id}', '${i}')">
@@ -639,10 +694,7 @@ const App = {
             const idx = `custom-${i}`;
             const checked = !!kpiChecks[idx];
             const dateInput = checked 
-              ? `<span class="kpi-date-container" onclick="event.stopPropagation();">
-                   <span class="kpi-date-label">Completed:</span>
-                   <input class="kpi-date-picker" type="date" value="${kpiDates[idx] || ''}" onchange="App.changeKpiDate('${task.id}', '${idx}', this.value)" title="Change completion date">
-                 </span>`
+              ? this.renderKpiDateControl(task.id, idx, kpiDates[idx] || '')
               : '';
             return `
               <div class="kpi-interactive custom-kpi ${checked ? 'checked' : ''}" id="kpi-${task.id}-${idx}" onclick="App.toggleKpi('${task.id}', '${idx}')">
@@ -2290,6 +2342,7 @@ const App = {
             const saved = this.getTaskData(task.id);
             const currentStatus = saved.status || task.status;
             const kpiChecks = saved.kpis || {};
+            const kpiDates = saved.kpiDates || {};
             const deletedKpis = saved.deletedKpis || {};
             const notes = saved.notes || '';
             const isCrossCutting = !sl.tasks?.some(t => t.id === task.id);
@@ -2310,20 +2363,28 @@ const App = {
                   ${(task.kpis || []).map((k, i) => {
                     const checked = !!kpiChecks[i];
                     const deleted = !!deletedKpis[i];
+                    const dateInput = checked
+                      ? this.renderKpiDateControl(task.id, i, kpiDates[i] || '')
+                      : '';
                     if (deleted) return '';
                     return `
                       <div class="kpi-interactive ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}" id="kpi-${task.id}-${i}" onclick="App.toggleKpi('${task.id}', '${i}')">
                         <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
                         <div class="kpi-label ${checked ? 'checked' : ''} ${deleted ? 'soft-deleted' : ''}">${this.escapeHtml(k)}</div>
+                        ${dateInput}
                       </div>`;
                   }).join('')}
                   ${(saved.customKpis || []).map((k, i) => {
                     const idx = `custom-${i}`;
                     const checked = !!kpiChecks[idx];
+                    const dateInput = checked
+                      ? this.renderKpiDateControl(task.id, idx, kpiDates[idx] || '')
+                      : '';
                     return `
                       <div class="kpi-interactive custom-kpi ${checked ? 'checked' : ''}" id="kpi-${task.id}-${idx}" onclick="App.toggleKpi('${task.id}', '${idx}')">
                         <div class="kpi-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</div>
                         <div class="kpi-label ${checked ? 'checked' : ''}">${this.escapeHtml(k)}</div>
+                        ${dateInput}
                       </div>`;
                   }).join('')}
                 </div>
@@ -3463,4 +3524,3 @@ if (document.readyState === 'loading') {
 } else {
   App.init();
 }
-

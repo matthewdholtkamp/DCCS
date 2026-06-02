@@ -1425,7 +1425,7 @@ textarea:focus-visible {
   background: var(--army-green); border-color: var(--army-green-light); color: #fff;
 }
 .kpi-label { font-size: 0.8rem; color: var(--text-secondary); flex: 1; }
-.kpi-label.checked { text-decoration: line-through; color: var(--text-muted); }
+.kpi-label.checked { text-decoration: none; }
 .kpi-interactive.custom-kpi .kpi-label { color: var(--gold-light); }
 .kpi-label.soft-deleted {
   text-decoration: line-through;
@@ -2413,6 +2413,17 @@ textarea:focus-visible {
   .kpi-label {
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+  .kpi-date-container {
+    width: calc(100% - 26px);
+    margin-left: 26px;
+    flex-wrap: wrap;
+  }
+  .kpi-date-picker {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
   .kpi-action-btn {
     margin-left: 26px;
