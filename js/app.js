@@ -3891,52 +3891,89 @@ const App = {
   drawEmergencyCharts(prefix) {
     const p = prefix || '';
     const allData = this.getERDailyData();
-    if (!allData.length) return;
+    console.log(`DCCS drawEmergencyCharts: prefix='${p}', data length=${allData.length}`);
+    if (!allData.length) {
+      console.warn("DCCS drawEmergencyCharts: No data to draw charts!");
+      return;
+    }
 
     const trendToggle = document.getElementById(p ? null : 'erTrendToggle');
     const showTrend = trendToggle ? trendToggle.checked : true;
+    console.log(`DCCS drawEmergencyCharts: showTrend=${showTrend}`);
 
     // --- Full History ---
     const fullCanvasId = p + 'er-full-history';
     const fullCanvas = document.getElementById(fullCanvasId);
+    console.log(`DCCS drawEmergencyCharts: fullCanvas found?`, !!fullCanvas);
     if (fullCanvas) {
+      console.log(`DCCS fullCanvas dims: clientWidth=${fullCanvas.clientWidth}, clientHeight=${fullCanvas.clientHeight}`);
       this._destroyErChart(fullCanvasId);
       const labels   = allData.map(d => this.fmtShortDateStr(d.date));
       const datasets = this.buildERTrendDatasets(allData, showTrend, 7);
       const options  = this.buildERChartOptions(showTrend, 'Date');
 
-      this._erCharts[fullCanvasId] = new Chart(
-        fullCanvas.getContext('2d'),
-        { type: 'line', data: { labels, datasets }, options }
-      );
+      try {
+        if (typeof Chart === 'undefined') {
+          throw new ReferenceError("Chart.js library (Chart class) is not loaded or is undefined.");
+        }
+        this._erCharts[fullCanvasId] = new Chart(
+          fullCanvas.getContext('2d'),
+          { type: 'line', data: { labels, datasets }, options }
+        );
+        console.log("DCCS drawEmergencyCharts: successfully created full history chart.");
+      } catch (err) {
+        console.error("DCCS Chart.js full history creation error:", err);
+        const insight = document.getElementById(p + 'er-full-insight') || document.getElementById('erFullInsight');
+        if (insight) {
+          insight.innerHTML = `<div style="color:#c1272d;background:rgba(193,39,45,0.06);padding:10px;border-left:4px solid #c1272d;margin-top:10px;font-family:monospace;"><strong>Chart Rendering Error (Full History):</strong> ${err.message}<br><pre style="font-size:11px;margin-top:5px;white-space:pre-wrap;overflow-x:auto;">${err.stack}</pre></div>`;
+        }
+      }
 
       // Update badge and insight
       const badge = document.getElementById(p ? null : 'erFullBadge');
       if (badge) badge.textContent = allData.length + ' Day' + (allData.length === 1 ? '' : 's');
       const insight = document.getElementById(p + 'er-full-insight') || document.getElementById('erFullInsight');
-      if (insight) insight.innerHTML = this.generateERFullHistoryInsight(allData);
+      if (insight && !insight.innerHTML.includes('Chart Rendering Error')) {
+        insight.innerHTML = this.generateERFullHistoryInsight(allData);
+      }
     }
 
     // --- Last 30 ---
     const last30 = allData.slice(-30);
     const l30CanvasId = p + 'er-last30';
     const l30Canvas = document.getElementById(l30CanvasId);
+    console.log(`DCCS drawEmergencyCharts: l30Canvas found?`, !!l30Canvas);
     if (l30Canvas) {
+      console.log(`DCCS l30Canvas dims: clientWidth=${l30Canvas.clientWidth}, clientHeight=${l30Canvas.clientHeight}`);
       this._destroyErChart(l30CanvasId);
       const labels   = last30.map(d => this.fmtShortDateStr(d.date));
       const datasets = this.buildERTrendDatasets(last30, showTrend, 7);
       const options  = this.buildERChartOptions(showTrend, 'Date');
       options.scales.x.ticks.maxTicksLimit = 30;
 
-      this._erCharts[l30CanvasId] = new Chart(
-        l30Canvas.getContext('2d'),
-        { type: 'line', data: { labels, datasets }, options }
-      );
+      try {
+        if (typeof Chart === 'undefined') {
+          throw new ReferenceError("Chart.js library (Chart class) is not loaded or is undefined.");
+        }
+        this._erCharts[l30CanvasId] = new Chart(
+          l30Canvas.getContext('2d'),
+          { type: 'line', data: { labels, datasets }, options }
+        );
+        console.log("DCCS drawEmergencyCharts: successfully created last 30 days chart.");
+      } catch (err) {
+        console.error("DCCS Chart.js last 30 days creation error:", err);
+        const insight = document.getElementById(p + 'er-last30-insight') || document.getElementById('erLast30Insight');
+        if (insight) {
+          insight.innerHTML = `<div style="color:#c1272d;background:rgba(193,39,45,0.06);padding:10px;border-left:4px solid #c1272d;margin-top:10px;font-family:monospace;"><strong>Chart Rendering Error (Last 30 Days):</strong> ${err.message}<br><pre style="font-size:11px;margin-top:5px;white-space:pre-wrap;overflow-x:auto;">${err.stack}</pre></div>`;
+        }
+      }
 
       const badge = document.getElementById(p ? null : 'erLast30Badge');
       if (badge) badge.textContent = last30.length + ' Day' + (last30.length === 1 ? '' : 's');
       const insight = document.getElementById(p + 'er-last30-insight') || document.getElementById('erLast30Insight');
-      if (insight) insight.innerHTML = this.generateERLast30Insight(last30);
+      if (insight && !insight.innerHTML.includes('Chart Rendering Error')) {
+        insight.innerHTML = this.generateERLast30Insight(last30);
+      }
     }
   },
 
