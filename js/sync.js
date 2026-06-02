@@ -10,7 +10,8 @@ const Sync = {
     tasks: {},
     metrics: {},
     hedis: {},
-    dialogue: {}
+    dialogue: {},
+    er_data: {}
   },
 
   setStatus(newStatus) {
@@ -92,6 +93,7 @@ const Sync = {
       this.cache.metrics = JSON.parse(localStorage.getItem('dccs-metric-entries') || '{}');
       this.cache.hedis = JSON.parse(localStorage.getItem('dccs-hedis-data') || '{}');
       this.cache.dialogue = JSON.parse(localStorage.getItem('dccs-dialogue-entries') || '{}');
+      this.cache.er_data = JSON.parse(localStorage.getItem('dccs-er-data') || '{}');
     } catch (e) {
       console.error("Failed to load local backup data:", e);
     }
@@ -172,6 +174,9 @@ const Sync = {
           // Server data is newer
           this.cache[id] = serverData;
           changed = true;
+          if (id === 'er_data') {
+            this.processERData(serverData);
+          }
         } else if (JSON.stringify(localData) !== JSON.stringify(serverData)) {
           // Content differs but timestamps are missing/equal
           const localHasData = hasContent(localData);
@@ -184,6 +189,9 @@ const Sync = {
             // Revert/align to server representation
             this.cache[id] = serverData;
             changed = true;
+            if (id === 'er_data') {
+              this.processERData(serverData);
+            }
           }
         }
       });
@@ -196,6 +204,7 @@ const Sync = {
         if (this.cache.metrics) localStorage.setItem('dccs-metric-entries', JSON.stringify(this.cache.metrics));
         if (this.cache.hedis) localStorage.setItem('dccs-hedis-data', JSON.stringify(this.cache.hedis));
         if (this.cache.dialogue) localStorage.setItem('dccs-dialogue-entries', JSON.stringify(this.cache.dialogue));
+        if (this.cache.er_data) localStorage.setItem('dccs-er-data', JSON.stringify(this.cache.er_data));
 
         // Re-render current active view in App
         if (window.App && typeof App.route === "function") {
@@ -295,15 +304,22 @@ const Sync = {
   async syncERMetrics() {
     try {
       let data = null;
-      // 1. Try local sibling path first (useful for offline / local testing)
-      try {
-        const response = await fetch("../ER/data.json");
-        if (response.ok) {
-          data = await response.json();
-          console.log("DCCS Sync: Successfully fetched ER data from local sibling path.");
+      if (this.cache.er_data && Array.isArray(this.cache.er_data.allData) && this.cache.er_data.allData.length > 0) {
+        data = this.cache.er_data;
+        console.log("DCCS Sync: Using ER data from cached Firestore er_data doc.");
+      }
+
+      if (!data) {
+        // 1. Try local sibling path first (useful for offline / local testing)
+        try {
+          const response = await fetch("../ER/data.json");
+          if (response.ok) {
+            data = await response.json();
+            console.log("DCCS Sync: Successfully fetched ER data from local sibling path.");
+          }
+        } catch (err) {
+          console.log("DCCS Sync: Local sibling fetch failed, trying public fallback...", err);
         }
-      } catch (err) {
-        console.log("DCCS Sync: Local sibling fetch failed, trying public fallback...", err);
       }
 
       // 2. If local fails, try public GitHub Pages URL
@@ -324,85 +340,91 @@ const Sync = {
         return;
       }
 
-      const erTotalCensus = [];
-      const erTotalTrainees = [];
-      const erEsi12 = [];
-      const erEsi3 = [];
-      const erEsi45 = [];
-      const erLwobs = [];
-
-      data.allData.forEach(row => {
-        const date = row.date;
-        if (!date) return;
-
-        if (row.census !== undefined && row.census !== null) {
-          erTotalCensus.push({ date, value: Number(row.census) });
-        }
-        if (row.trainees !== undefined && row.trainees !== null) {
-          erTotalTrainees.push({ date, value: Number(row.trainees) });
-        }
-        if (row.cat1 !== undefined && row.cat1 !== null) {
-          erEsi12.push({ date, value: Number(row.cat1) });
-        }
-        if (row.cat23 !== undefined && row.cat23 !== null) {
-          erEsi3.push({ date, value: Number(row.cat23) });
-        }
-        if (row.cat45 !== undefined && row.cat45 !== null) {
-          erEsi45.push({ date, value: Number(row.cat45) });
-        }
-        if (row.lwobs !== undefined && row.lwobs !== null) {
-          erLwobs.push({ date, value: Number(row.lwobs) });
-        }
-      });
-
-      // Sort arrays chronologically
-      const sortFn = (a, b) => a.date.localeCompare(b.date);
-      erTotalCensus.sort(sortFn);
-      erTotalTrainees.sort(sortFn);
-      erEsi12.sort(sortFn);
-      erEsi3.sort(sortFn);
-      erEsi45.sort(sortFn);
-      erLwobs.sort(sortFn);
-
-      const store = { ...this.getMetricStore() };
-      let hasChanges = false;
-
-      const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
-      erPatients.sort((a, b) => {
-        const dd = (a.date || '').localeCompare(b.date || '');
-        if (dd) return dd;
-        const ah = a.time ? a.time.hour * 60 + a.time.minute : 0;
-        const bh = b.time ? b.time.hour * 60 + b.time.minute : 0;
-        return ah - bh;
-      });
-
-      const checkAndUpdate = (key, newData) => {
-        const current = store[key] || [];
-        if (JSON.stringify(current) !== JSON.stringify(newData)) {
-          store[key] = newData;
-          hasChanges = true;
-        }
-      };
-
-      checkAndUpdate("er-total-census", erTotalCensus);
-      checkAndUpdate("er-total-trainees", erTotalTrainees);
-      checkAndUpdate("er-esi-1-2", erEsi12);
-      checkAndUpdate("er-esi-3", erEsi3);
-      checkAndUpdate("er-esi-4-5", erEsi45);
-      checkAndUpdate("er-lwobs", erLwobs);
-      checkAndUpdate("er-patients", erPatients);
-
-      if (hasChanges) {
-        console.log("DCCS Sync: Detected updates in ER metrics, saving to store...");
-        await this.saveMetricStore(store);
-        if (window.App && typeof App.route === "function") {
-          App.route();
-        }
-      } else {
-        console.log("DCCS Sync: ER metrics are already up to date.");
-      }
+      await this.processERData(data);
     } catch (e) {
       console.error("DCCS Sync: Error executing ER metrics sync:", e);
+    }
+  },
+
+  async processERData(data) {
+    if (!data || !Array.isArray(data.allData)) return;
+
+    const erTotalCensus = [];
+    const erTotalTrainees = [];
+    const erEsi12 = [];
+    const erEsi3 = [];
+    const erEsi45 = [];
+    const erLwobs = [];
+
+    data.allData.forEach(row => {
+      const date = row.date;
+      if (!date) return;
+
+      if (row.census !== undefined && row.census !== null) {
+        erTotalCensus.push({ date, value: Number(row.census) });
+      }
+      if (row.trainees !== undefined && row.trainees !== null) {
+        erTotalTrainees.push({ date, value: Number(row.trainees) });
+      }
+      if (row.cat1 !== undefined && row.cat1 !== null) {
+        erEsi12.push({ date, value: Number(row.cat1) });
+      }
+      if (row.cat23 !== undefined && row.cat23 !== null) {
+        erEsi3.push({ date, value: Number(row.cat23) });
+      }
+      if (row.cat45 !== undefined && row.cat45 !== null) {
+        erEsi45.push({ date, value: Number(row.cat45) });
+      }
+      if (row.lwobs !== undefined && row.lwobs !== null) {
+        erLwobs.push({ date, value: Number(row.lwobs) });
+      }
+    });
+
+    // Sort arrays chronologically
+    const sortFn = (a, b) => a.date.localeCompare(b.date);
+    erTotalCensus.sort(sortFn);
+    erTotalTrainees.sort(sortFn);
+    erEsi12.sort(sortFn);
+    erEsi3.sort(sortFn);
+    erEsi45.sort(sortFn);
+    erLwobs.sort(sortFn);
+
+    const store = { ...this.getMetricStore() };
+    let hasChanges = false;
+
+    const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
+    erPatients.sort((a, b) => {
+      const dd = (a.date || '').localeCompare(b.date || '');
+      if (dd) return dd;
+      const ah = a.time ? a.time.hour * 60 + a.time.minute : 0;
+      const bh = b.time ? b.time.hour * 60 + b.time.minute : 0;
+      return ah - bh;
+    });
+
+    const checkAndUpdate = (key, newData) => {
+      const current = store[key] || [];
+      if (JSON.stringify(current) !== JSON.stringify(newData)) {
+        store[key] = newData;
+        hasChanges = true;
+      }
+    };
+
+    checkAndUpdate("er-total-census", erTotalCensus);
+    checkAndUpdate("er-total-trainees", erTotalTrainees);
+    checkAndUpdate("er-esi-1-2", erEsi12);
+    checkAndUpdate("er-esi-3", erEsi3);
+    checkAndUpdate("er-esi-4-5", erEsi45);
+    checkAndUpdate("er-lwobs", erLwobs);
+    checkAndUpdate("er-patients", erPatients);
+
+    if (hasChanges) {
+      console.log("DCCS Sync: Detected updates in ER metrics, saving to store...");
+      await this.saveMetricStore(store);
+      if (window.App && typeof App.route === "function") {
+        App.route();
+      }
+    } else {
+      console.log("DCCS Sync: ER metrics are already up to date.");
     }
   },
 
