@@ -4370,15 +4370,17 @@ const App = {
     // Buckets
     const bucketSet = new Set();
     filtered.forEach(pat => bucketSet.add(this.uvBucketKey(pat.date, gran)));
-    const stepMs = gran==='day' ? 24*60*60*1000 : gran==='week' ? 7*24*60*60*1000 : null;
-    let cursor = this.uvBucketKey(new Date(loTs), gran);
-    const endKey = this.uvBucketKey(new Date(hiTs), gran);
-    if (gran === 'month') {
-      let c = new Date(cursor);
-      const end = new Date(endKey);
-      while (c <= end) { bucketSet.add(c.getTime()); c = new Date(c.getFullYear(), c.getMonth()+1, 1); }
-    } else {
-      while (cursor <= endKey) { bucketSet.add(cursor); cursor += stepMs; }
+    let c = new Date(this.uvBucketKey(new Date(loTs), gran));
+    const end = new Date(this.uvBucketKey(new Date(hiTs), gran));
+    while (c <= end) {
+      bucketSet.add(c.getTime());
+      if (gran === 'day') {
+        c.setDate(c.getDate() + 1);
+      } else if (gran === 'week') {
+        c.setDate(c.getDate() + 7);
+      } else if (gran === 'month') {
+        c = new Date(c.getFullYear(), c.getMonth() + 1, 1);
+      }
     }
     const buckets = Array.from(bucketSet).sort((a,b)=>a-b);
     const bucketIndex = {};
