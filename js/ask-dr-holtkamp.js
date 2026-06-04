@@ -46,7 +46,7 @@ Available commands inside the JSON array:
    * Checks or unchecks a KPI under a specific task. "kpiKey" must be the exact key string (e.g., "0", "1", "custom-0") provided in the DCCS_CONTEXT KPI list.
 
 Always confirm in a direct, command-intent voice that you have applied the requested changes, explaining what was updated, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,
-  CLINICAL_REFUSAL: "I can't answer clinical or medical questions here. For medical emergencies, call 911. For non-emergency medical issues at General Leonard Wood Army Community Hospital, contact the appropriate GLWACH clinical channel. This assistant is for DCCS operations, goals, KPIs, access systems, quality, staff care, and leadership questions only.",
+  CLINICAL_REFUSAL: "I can't answer clinical or medical questions here. For medical emergencies, call 911. For non-emergency medical issues at General Leonard Wood Community Hospital, contact the appropriate GLWACH clinical channel. This assistant is for DCCS operations, goals, KPIs, access systems, quality, staff care, and leadership questions only.",
 
   CLINICAL_PATTERNS: [
     /\b(pain|ache|hurts?|sore|swollen|bleeding|numb|dizzy|nausea|vomit|fever|rash|cough|sore throat|headache|migraine|chest pain|shortness of breath|symptoms?)\b/i,
