@@ -42,6 +42,7 @@ const FRAMEWORK = {
         { id: "pcsl-acute", name: "Acute Appointments (Goal: <24hr)", unit: "hours", goal: 24, direction: "lower" },
         { id: "pcsl-followup", name: "Follow-up Appointments (Goal: <7 days)", unit: "days", goal: 7, direction: "lower" },
         { id: "pcsl-medic", name: "Medic Clinic Encounters", unit: "per week", goal: null, direction: "higher" },
+        { id: "pcsl-sickcall", name: "Sick Call Patients", unit: "per week", goal: null, direction: "higher" },
         { id: "pcsl-nursing", name: "Nursing-Led Encounters", unit: "per week", goal: null, direction: "higher" },
         { id: "pcsl-virtual", name: "Number of Virtual Appointments by Week", unit: "per week", goal: null, direction: "higher" }
       ],

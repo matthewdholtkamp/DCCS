@@ -28,7 +28,7 @@ Available commands inside the JSON array:
 1. Update Metric Value:
    { "action": "update_metric", "metricId": "<metric-id>", "value": <number>, "date": "YYYY-MM-DD" }
    * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are:
-     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual"
+     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-sickcall", "pcsl-nursing", "pcsl-virtual"
      - Surgery (3SL): "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho"
      - Mental Health (MH): "mh-active-duty-off-post", "mh-brave-usage"
      - Emergency Department (ED): "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs"
@@ -406,7 +406,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
   validateAndMapMetricId(metricId) {
     const validIds = [
-      "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-nursing", "pcsl-virtual", 
+      "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-sickcall", "pcsl-nursing", "pcsl-virtual", 
       "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho",
       "mh-active-duty-off-post", "mh-brave-usage",
       "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs",
@@ -423,6 +423,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       "pcsl-satisfaction": "pcsl-acute",
       "pcsl-enrollees": "pcsl-virtual",
       "tsl-wait-time": "pcsl-acute",
+      "pcsl-sick-call": "pcsl-sickcall",
       "mscoe-clinic-wait": "mscoe-total-trainees",
       "mscoe-physical-wait": "mscoe-total-trainees",
       "mscoe-pt-wait": "mscoe-total-trainees"
