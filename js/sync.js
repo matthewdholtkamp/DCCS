@@ -75,8 +75,8 @@ const Sync = {
       firebase.initializeApp(firebaseConfig);
       this.db = firebase.firestore();
       
-      // Enable Firestore offline persistence if available
-      this.db.enablePersistence().catch((err) => {
+      // Enable Firestore offline persistence if available (multi-tab sync enabled)
+      this.db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
         console.warn("Firestore persistence failed to enable:", err.code);
       });
 
