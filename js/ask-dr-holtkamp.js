@@ -27,13 +27,8 @@ Format the command block exactly as:
 Available commands inside the JSON array:
 1. Update Metric Value:
    { "action": "update_metric", "metricId": "<metric-id>", "value": <number>, "date": "YYYY-MM-DD" }
-   * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are:
-     - PCSL: "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-sickcall", "pcsl-nursing", "pcsl-virtual"
-     - Surgery (3SL): "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho"
-     - Mental Health (MH): "mh-active-duty-off-post", "mh-brave-usage"
-     - Emergency Department (ED): "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs"
-     - MSCoE Model: "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
-   * Date MUST be in "YYYY-MM-DD" format. If the user doesn't specify a date, default to the current local date (today).
+    * Updates or inserts a value for a metric. "metricId" must match the ID from the context. Valid IDs are: [VALID_METRIC_IDS].
+    * Date MUST be in "YYYY-MM-DD" format. If the user doesn't specify a date, default to the current local date (today).
 2. Add Weekly Dialogue / Roadblock Entry:
    { "action": "add_dialogue", "serviceLineId": "<service-line-id>", "text": "<entry-text>", "date": "YYYY-MM-DD" }
    * Appends a new dialogue comment to the service line ("pcsl", "surgery", "mental-health", "emergency", "mscoe").
@@ -251,12 +246,12 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     return body;
   },
 
-  updateMessage(body, text) {
-    this.processIncomingText(body, text);
+  updateMessage(body, text, execute = false) {
+    this.processIncomingText(body, text, execute);
     this.scrollToBottom(false);
   },
 
-  processIncomingText(body, text) {
+  processIncomingText(body, text, execute = false) {
     if (text === "Thinking...") {
       body.innerHTML = `
         <div class="typing-indicator">
@@ -277,31 +272,34 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     if (markerIndex >= 0) {
       cleanText = text.substring(0, markerIndex).trim();
-      const commandString = text.substring(markerIndex + commandMarker.length).trim();
+      
+      if (execute) {
+        const commandString = text.substring(markerIndex + commandMarker.length).trim();
 
-      const startIdx = commandString.indexOf("[");
-      if (startIdx >= 0) {
-        const jsonCandidatePart = commandString.substring(startIdx);
-        // Find all indices of ']' in the substring
-        const bracketIndices = [];
-        let pos = jsonCandidatePart.indexOf("]");
-        while (pos !== -1) {
-          bracketIndices.push(pos);
-          pos = jsonCandidatePart.indexOf("]", pos + 1);
-        }
+        const startIdx = commandString.indexOf("[");
+        if (startIdx >= 0) {
+          const jsonCandidatePart = commandString.substring(startIdx);
+          // Find all indices of ']' in the substring
+          const bracketIndices = [];
+          let pos = jsonCandidatePart.indexOf("]");
+          while (pos !== -1) {
+            bracketIndices.push(pos);
+            pos = jsonCandidatePart.indexOf("]", pos + 1);
+          }
 
-        // Try parsing from the rightmost ']' to the leftmost
-        for (let i = bracketIndices.length - 1; i >= 0; i--) {
-          const endIdx = bracketIndices[i];
-          let candidate = jsonCandidatePart.substring(0, endIdx + 1).trim();
-          // Strip markdown code block formatting (like ```json ... ```)
-          candidate = candidate.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+          // Try parsing from the rightmost ']' to the leftmost
+          for (let i = bracketIndices.length - 1; i >= 0; i--) {
+            const endIdx = bracketIndices[i];
+            let candidate = jsonCandidatePart.substring(0, endIdx + 1).trim();
+            // Strip markdown code block formatting (like ```json ... ```)
+            candidate = candidate.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
-          try {
-            commands = JSON.parse(candidate);
-            if (commands) break; // Found valid commands!
-          } catch (_) {
-            // Try the next bracket index
+            try {
+              commands = JSON.parse(candidate);
+              if (commands) break; // Found valid commands!
+            } catch (_) {
+              // Try the next bracket index
+            }
           }
         }
       }
@@ -309,8 +307,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     body.innerHTML = this.renderText(cleanText);
 
-    // If we have parsed commands, execute them!
-    if (commands) {
+    // If we have parsed commands and execute is true, execute them!
+    if (execute && commands) {
       this.executeCommands(commands, body);
     }
   },
@@ -326,20 +324,40 @@ Always confirm in a direct, command-intent voice that you have applied the reque
             const mappedId = this.validateAndMapMetricId(cmd.metricId);
             this.updateMetricLocal(mappedId, cmd.value, cmd.date);
             results.push(`Updated metric "${mappedId}" to ${cmd.value}`);
+            if (window.App) {
+              if (typeof window.App.refreshMetricDisplay === "function") {
+                window.App.refreshMetricDisplay(mappedId);
+              }
+              const groupDef = window.App.getMetricGroupForSeries(mappedId);
+              if (groupDef && typeof window.App.refreshMetricGroupDisplay === "function") {
+                window.App.refreshMetricGroupDisplay(groupDef.group.id);
+              }
+            }
             break;
           }
           case "add_dialogue":
             this.addDialogueLocal(cmd.serviceLineId, cmd.text, cmd.date);
             results.push(`Added dialogue entry to ${cmd.serviceLineId.toUpperCase()}`);
+            if (window.App && typeof window.App.updateDialogueList === "function") {
+              window.App.updateDialogueList(cmd.serviceLineId, Sync.getDialogueEntries(cmd.serviceLineId));
+            }
             break;
           case "update_task_status":
             this.updateTaskStatusLocal(cmd.taskId, cmd.status);
             results.push(`Updated task "${cmd.taskId}" status to ${cmd.status}`);
+            if (window.App && typeof window.App.refreshTaskCard === "function") {
+              window.App.refreshTaskCard(cmd.taskId);
+            }
             break;
           case "update_task_kpi": {
             const key = cmd.kpiKey !== undefined ? cmd.kpiKey : cmd.kpiIndex;
             this.updateTaskKpiLocal(cmd.taskId, key, cmd.checked);
             results.push(`${cmd.checked ? "Checked" : "Unchecked"} KPI "${key}" in task "${cmd.taskId}"`);
+            if (window.App && typeof window.App.updateTaskKpiRow === "function") {
+              const saved = Sync.getTaskData(cmd.taskId) || {};
+              const dateVal = saved.kpiDates?.[key] || '';
+              window.App.updateTaskKpiRow(cmd.taskId, key, !!cmd.checked, dateVal);
+            }
             break;
           }
           default:
@@ -356,10 +374,6 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       systemLog.className = "ask-system-log";
       systemLog.innerHTML = results.map(r => `<div>✓ ${r}</div>`).join("");
       body.appendChild(systemLog);
-
-      if (window.App && typeof window.App.route === "function") {
-        window.App.route();
-      }
     }
   },
 
@@ -404,14 +418,31 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     return `${year}-${month}-${day}`;
   },
 
+  getValidMetricIds() {
+    const ids = [];
+    if (typeof FRAMEWORK !== 'undefined' && Array.isArray(FRAMEWORK.serviceLines)) {
+      FRAMEWORK.serviceLines.forEach(sl => {
+        if (Array.isArray(sl.trackedMetrics)) {
+          sl.trackedMetrics.forEach(m => {
+            if (m && m.id) ids.push(m.id);
+          });
+        }
+        if (Array.isArray(sl.metricGroups)) {
+          sl.metricGroups.forEach(g => {
+            if (Array.isArray(g.series)) {
+              g.series.forEach(s => {
+                if (s && s.id) ids.push(s.id);
+              });
+            }
+          });
+        }
+      });
+    }
+    return ids;
+  },
+
   validateAndMapMetricId(metricId) {
-    const validIds = [
-      "pcsl-acute", "pcsl-followup", "pcsl-medic", "pcsl-sickcall", "pcsl-nursing", "pcsl-virtual", 
-      "surgery-total", "surgery-obgyn", "surgery-general", "surgery-ortho",
-      "mh-active-duty-off-post", "mh-brave-usage",
-      "er-total-census", "er-total-trainees", "er-esi-1-2", "er-esi-3", "er-esi-4-5", "er-lwobs",
-      "mscoe-total-trainees", "mscoe-self-care", "mscoe-adtmc-medic-care"
-    ];
+    const validIds = this.getValidMetricIds();
 
     const lowerId = String(metricId || "").trim().toLowerCase();
 
@@ -423,10 +454,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       "pcsl-satisfaction": "pcsl-acute",
       "pcsl-enrollees": "pcsl-virtual",
       "tsl-wait-time": "pcsl-acute",
-      "pcsl-sick-call": "pcsl-sickcall",
-      "mscoe-clinic-wait": "mscoe-total-trainees",
-      "mscoe-physical-wait": "mscoe-total-trainees",
-      "mscoe-pt-wait": "mscoe-total-trainees"
+      "pcsl-sick-call": "pcsl-sickcall"
     };
 
     if (mappings[lowerId]) {
@@ -479,10 +507,14 @@ Always confirm in a direct, command-intent voice that you have applied the reque
   },
 
   updateTaskStatusLocal(taskId, status) {
-    if (!["not-reviewed", "in-progress", "complete"].includes(status)) {
+    let canonicalStatus = status;
+    if (canonicalStatus === "not-started") {
+      canonicalStatus = "not-reviewed";
+    }
+    if (!["not-reviewed", "in-progress", "complete"].includes(canonicalStatus)) {
       throw new Error("Invalid task status");
     }
-    Sync.saveTaskData(taskId, { status });
+    Sync.saveTaskData(taskId, { status: canonicalStatus });
   },
 
   updateTaskKpiLocal(taskId, kpiKey, checked) {
@@ -572,7 +604,8 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     const fallbackModel = cfg.FALLBACK_MODEL || "gemini-2.5-flash";
     const temperature = typeof cfg.TEMPERATURE === "number" ? cfg.TEMPERATURE : 0.4;
     const thinkingBudget = typeof cfg.THINKING_BUDGET === "number" ? cfg.THINKING_BUDGET : -1;
-    const systemPrompt = `${window.BANDAID_PERSONA_PROMPT}\n\n${this.DCCS_CONTEXT_RULES}`;
+    const validMetricIdsList = this.getValidMetricIds().map(id => `"${id}"`).join(", ");
+    const systemPrompt = `${window.BANDAID_PERSONA_PROMPT}\n\n${this.DCCS_CONTEXT_RULES.replace("[VALID_METRIC_IDS]", validMetricIdsList)}`;
     const contextBlock = this.buildDccsContext(question);
     const recentHistory = this.history.slice(-10).map((message) => ({
       role: message.role === "user" ? "user" : "model",
@@ -611,7 +644,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     if (!contentType.includes("text/event-stream") || !response.body) {
       const data = await response.json();
       const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("") || "";
-      this.updateMessage(assistantBody, text || "No response text returned.");
+      this.updateMessage(assistantBody, text || "No response text returned.", true);
       return text || "No response text returned.";
     }
 
@@ -638,7 +671,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
             const text = json?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("") || "";
             if (text) {
               reply += text;
-              this.updateMessage(assistantBody, reply);
+              this.updateMessage(assistantBody, reply, false);
             }
           } catch (_) {
             // Ignore partial or non-JSON SSE chunks.
@@ -649,7 +682,9 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     if (!reply) {
       reply = "No response text returned.";
-      this.updateMessage(assistantBody, reply);
+      this.updateMessage(assistantBody, reply, false);
+    } else {
+      this.updateMessage(assistantBody, reply, true);
     }
     return reply;
   },
@@ -749,7 +784,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       description: task.description,
       phase: task.phase,
       lineOfEffort: task.loe,
-      status: saved.status || task.status || "not-reviewed",
+      status: (saved.status === "not-started" ? "not-reviewed" : saved.status) || (task.status === "not-started" ? "not-reviewed" : task.status) || "not-reviewed",
       kpiProgress: `${completed}/${visibleKpis.length}`,
       kpis: visibleKpis,
       notes: saved.notes ? this.truncate(saved.notes, 600) : undefined

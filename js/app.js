@@ -81,10 +81,147 @@ const App = {
         e.target.classList.remove('input-error');
       }
     }, true);
+    // Focus guard: apply stale patches when elements lose focus
+    document.addEventListener('blur', (e) => {
+      setTimeout(() => this.applyStalePatches(), 50);
+    }, true);
     this.route();
   },
 
+  applyRemoteChange(docId, data, changedKeys = null) {
+    if (!this._pendingPatches) {
+      this._pendingPatches = [];
+    }
+    this._pendingPatches.push({ docId, data, changedKeys });
+    if (!this._rafScheduled) {
+      this._rafScheduled = true;
+      requestAnimationFrame(() => this.flushPendingPatches());
+    }
+  },
+
+  flushPendingPatches() {
+    this._rafScheduled = false;
+    const patches = this._pendingPatches || [];
+    this._pendingPatches = [];
+
+    if (!this._stalePatches) {
+      this._stalePatches = {};
+    }
+
+    const windowScroll = { x: window.scrollX, y: window.scrollY };
+
+    patches.forEach(({ docId, data, changedKeys }) => {
+      if (!changedKeys || changedKeys.length === 0) return;
+
+      if (docId === 'tasks') {
+        changedKeys.forEach(taskId => {
+          const card = document.getElementById(`task-${taskId}`);
+          if (!card) return;
+
+          if (card.contains(document.activeElement)) {
+            this._stalePatches[`task-${taskId}`] = { type: 'task', id: taskId };
+            return;
+          }
+          this.refreshTaskCard(taskId);
+        });
+      } else if (docId === 'metrics') {
+        changedKeys.forEach(metricId => {
+          const groupDef = this.getMetricGroupForSeries(metricId);
+          if (groupDef) {
+            const groupEl = document.getElementById(`metric-group-section-${groupDef.group.id}`);
+            if (groupEl) {
+              if (groupEl.contains(document.activeElement)) {
+                this._stalePatches[`metric-group-section-${groupDef.group.id}`] = { type: 'metric-group', id: groupDef.group.id };
+                return;
+              }
+              this.refreshMetricGroupDisplay(groupDef.group.id);
+            }
+          } else {
+            const mDef = this.getMetricDefinition(metricId);
+            if (mDef) {
+              const displayEl = document.getElementById(`metric-display-${metricId}`);
+              if (displayEl) {
+                if (displayEl.contains(document.activeElement)) {
+                  this._stalePatches[`metric-display-${metricId}`] = { type: 'metric', id: metricId };
+                  return;
+                }
+                this.refreshMetricDisplay(metricId);
+              }
+            }
+          }
+        });
+      } else if (docId === 'hedis') {
+        changedKeys.forEach(slId => {
+          const section = document.getElementById(`hedis-section-${slId}`);
+          if (!section) return;
+
+          if (section.contains(document.activeElement)) {
+            this._stalePatches[`hedis-section-${slId}`] = { type: 'hedis', id: slId };
+            return;
+          }
+          this.refreshHedisSection(slId);
+        });
+      } else if (docId === 'dialogue') {
+        changedKeys.forEach(slId => {
+          const list = document.getElementById(`dialogue-list-${slId}`);
+          if (list) {
+            if (list.contains(document.activeElement)) {
+              this._stalePatches[`dialogue-list-${slId}`] = { type: 'dialogue', id: slId };
+              return;
+            }
+            this.updateDialogueList(slId, Sync.getDialogueEntries(slId));
+          }
+
+          const meetingList = document.getElementById(`meeting-dialogue-list-${slId}`);
+          if (meetingList) {
+            if (meetingList.contains(document.activeElement)) {
+              this._stalePatches[`meeting-dialogue-list-${slId}`] = { type: 'meeting-dialogue', id: slId };
+              return;
+            }
+            meetingList.innerHTML = this.renderMeetingDialogueList({ id: slId }, Sync.getDialogueEntries(slId));
+          }
+        });
+      }
+    });
+
+    window.scrollTo(windowScroll.x, windowScroll.y);
+  },
+
+  applyStalePatches() {
+    if (!this._stalePatches || Object.keys(this._stalePatches).length === 0) return;
+
+    Object.entries(this._stalePatches).forEach(([elId, patch]) => {
+      const el = document.getElementById(elId);
+      if (el && el.contains(document.activeElement)) {
+        return;
+      }
+
+      delete this._stalePatches[elId];
+
+      if (patch.type === 'task') {
+        this.refreshTaskCard(patch.id);
+      } else if (patch.type === 'metric-group') {
+        this.refreshMetricGroupDisplay(patch.id);
+      } else if (patch.type === 'metric') {
+        this.refreshMetricDisplay(patch.id);
+      } else if (patch.type === 'hedis') {
+        this.refreshHedisSection(patch.id);
+      } else if (patch.type === 'dialogue') {
+        this.updateDialogueList(patch.id, Sync.getDialogueEntries(patch.id));
+      } else if (patch.type === 'meeting-dialogue') {
+        const meetingList = document.getElementById(`meeting-dialogue-list-${patch.id}`);
+        if (meetingList) {
+          meetingList.innerHTML = this.renderMeetingDialogueList({ id: patch.id }, Sync.getDialogueEntries(patch.id));
+        }
+      }
+    });
+  },
+
   route() {
+    if (window.DCCS_DEBUG) window.DCCS_DEBUG.routeCalls++;
+    if (this._erCharts) {
+      Object.keys(this._erCharts).forEach(id => this._destroyErChart(id));
+    }
     const hash = location.hash.slice(1) || '/';
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
@@ -623,7 +760,7 @@ const App = {
     document.querySelectorAll(`[data-status-task="${taskId}"]`).forEach(btn => {
       btn.className = 'status-option';
       if (btn.dataset.statusValue === status) {
-        btn.classList.add('active-' + status);
+        btn.classList.add(status === 'not-reviewed' ? 'active-not-started' : 'active-' + status);
       }
     });
     const badge = document.getElementById(`badge-${taskId}`);
@@ -661,7 +798,10 @@ const App = {
 
   renderTaskCard(task) {
     const saved = this.getTaskData(task.id);
-    const currentStatus = saved.status || task.status;
+    let currentStatus = saved.status || task.status;
+    if (currentStatus === 'not-started') {
+      currentStatus = 'not-reviewed';
+    }
     const kpiChecks = saved.kpis || {};
     const kpiDates = saved.kpiDates || {};
     const deletedKpis = saved.deletedKpis || {};
@@ -722,7 +862,7 @@ const App = {
             <div class="status-selector">
               <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
               <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
-              <button class="status-option ${currentStatus === 'not-started' ? 'active-not-started' : ''}" data-status-task="${task.id}" data-status-value="not-started" onclick="App.setTaskStatus('${task.id}','not-started')">○ Not Started</button>
+              <button class="status-option ${currentStatus === 'not-reviewed' ? 'active-not-started' : ''}" data-status-task="${task.id}" data-status-value="not-reviewed" onclick="App.setTaskStatus('${task.id}','not-reviewed')">○ Not Started</button>
             </div>
             <button class="task-notes-toggle ${notes ? 'open' : ''}" id="notes-btn-${task.id}" onclick="App.toggleNotes('${task.id}')">
               ✎ ${notes ? 'View Notes' : 'Add Notes'}
@@ -2352,7 +2492,10 @@ const App = {
           </div>
           ${allTasks.map(task => {
             const saved = this.getTaskData(task.id);
-            const currentStatus = saved.status || task.status;
+            let currentStatus = saved.status || task.status;
+            if (currentStatus === 'not-started') {
+              currentStatus = 'not-reviewed';
+            }
             const kpiChecks = saved.kpis || {};
             const kpiDates = saved.kpiDates || {};
             const deletedKpis = saved.deletedKpis || {};
@@ -2406,7 +2549,7 @@ const App = {
                   <div class="status-selector" style="display:flex; gap:4px;">
                     <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
                     <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
-                    <button class="status-option ${currentStatus === 'not-started' ? 'active-not-started' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="not-started" onclick="App.setTaskStatus('${task.id}','not-started')">○ Not Started</button>
+                    <button class="status-option ${currentStatus === 'not-reviewed' ? 'active-not-started' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="not-reviewed" onclick="App.setTaskStatus('${task.id}','not-reviewed')">○ Not Started</button>
                   </div>
                   <button class="meeting-task-notes-toggle ${notes ? 'open' : ''}" style="background:transparent; border:none; color:var(--gold-light); font-size:0.7rem; cursor:pointer; padding:0; margin-top:6px; display:inline-block;" id="notes-btn-${task.id}" onclick="App.toggleNotes('${task.id}')">
                     ✎ ${notes ? 'Notes' : '+ Note'}
@@ -3362,7 +3505,10 @@ const App = {
 
     allTasks.forEach(task => {
       const saved = this.getTaskData(task.id);
-      const currentStatus = saved.status || task.status;
+      let currentStatus = saved.status || task.status;
+      if (currentStatus === 'not-started') {
+        currentStatus = 'not-reviewed';
+      }
       if (currentStatus === 'complete') {
         accomplishments.push(task);
       } else {
@@ -4210,6 +4356,7 @@ const App = {
     const hi = document.getElementById('uvSliderHi');
     if (!lo || !hi) return;
  
+    let debounceTimer = null;
     const onInput = () => {
       let l = parseInt(lo.value, 10);
       let h = parseInt(hi.value, 10);
@@ -4219,7 +4366,11 @@ const App = {
       this.uvState.loIdx = l;
       this.uvState.hiIdx = h;
       this.uvUpdateDateLabels();
-      this.renderUnitVolumeChart();
+      
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.renderUnitVolumeChart();
+      }, 150);
     };
     lo.addEventListener('input', onInput);
     hi.addEventListener('input', onInput);
