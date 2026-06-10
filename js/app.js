@@ -760,7 +760,7 @@ const App = {
     document.querySelectorAll(`[data-status-task="${taskId}"]`).forEach(btn => {
       btn.className = 'status-option';
       if (btn.dataset.statusValue === status) {
-        btn.classList.add('active-' + status);
+        btn.classList.add(status === 'not-reviewed' ? 'active-not-started' : 'active-' + status);
       }
     });
     const badge = document.getElementById(`badge-${taskId}`);
@@ -798,7 +798,10 @@ const App = {
 
   renderTaskCard(task) {
     const saved = this.getTaskData(task.id);
-    const currentStatus = saved.status || task.status;
+    let currentStatus = saved.status || task.status;
+    if (currentStatus === 'not-started') {
+      currentStatus = 'not-reviewed';
+    }
     const kpiChecks = saved.kpis || {};
     const kpiDates = saved.kpiDates || {};
     const deletedKpis = saved.deletedKpis || {};
@@ -859,7 +862,7 @@ const App = {
             <div class="status-selector">
               <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
               <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
-              <button class="status-option ${currentStatus === 'not-started' ? 'active-not-started' : ''}" data-status-task="${task.id}" data-status-value="not-started" onclick="App.setTaskStatus('${task.id}','not-started')">○ Not Started</button>
+              <button class="status-option ${currentStatus === 'not-reviewed' ? 'active-not-started' : ''}" data-status-task="${task.id}" data-status-value="not-reviewed" onclick="App.setTaskStatus('${task.id}','not-reviewed')">○ Not Started</button>
             </div>
             <button class="task-notes-toggle ${notes ? 'open' : ''}" id="notes-btn-${task.id}" onclick="App.toggleNotes('${task.id}')">
               ✎ ${notes ? 'View Notes' : 'Add Notes'}
@@ -2489,7 +2492,10 @@ const App = {
           </div>
           ${allTasks.map(task => {
             const saved = this.getTaskData(task.id);
-            const currentStatus = saved.status || task.status;
+            let currentStatus = saved.status || task.status;
+            if (currentStatus === 'not-started') {
+              currentStatus = 'not-reviewed';
+            }
             const kpiChecks = saved.kpis || {};
             const kpiDates = saved.kpiDates || {};
             const deletedKpis = saved.deletedKpis || {};
@@ -2543,7 +2549,7 @@ const App = {
                   <div class="status-selector" style="display:flex; gap:4px;">
                     <button class="status-option ${currentStatus === 'complete' ? 'active-complete' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="complete" onclick="App.setTaskStatus('${task.id}','complete')">✓ Complete</button>
                     <button class="status-option ${currentStatus === 'in-progress' ? 'active-in-progress' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="in-progress" onclick="App.setTaskStatus('${task.id}','in-progress')">◉ In Progress</button>
-                    <button class="status-option ${currentStatus === 'not-started' ? 'active-not-started' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="not-started" onclick="App.setTaskStatus('${task.id}','not-started')">○ Not Started</button>
+                    <button class="status-option ${currentStatus === 'not-reviewed' ? 'active-not-started' : ''}" style="font-size:0.65rem; padding:3px 6px;" data-status-task="${task.id}" data-status-value="not-reviewed" onclick="App.setTaskStatus('${task.id}','not-reviewed')">○ Not Started</button>
                   </div>
                   <button class="meeting-task-notes-toggle ${notes ? 'open' : ''}" style="background:transparent; border:none; color:var(--gold-light); font-size:0.7rem; cursor:pointer; padding:0; margin-top:6px; display:inline-block;" id="notes-btn-${task.id}" onclick="App.toggleNotes('${task.id}')">
                     ✎ ${notes ? 'Notes' : '+ Note'}
@@ -3499,7 +3505,10 @@ const App = {
 
     allTasks.forEach(task => {
       const saved = this.getTaskData(task.id);
-      const currentStatus = saved.status || task.status;
+      let currentStatus = saved.status || task.status;
+      if (currentStatus === 'not-started') {
+        currentStatus = 'not-reviewed';
+      }
       if (currentStatus === 'complete') {
         accomplishments.push(task);
       } else {

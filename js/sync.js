@@ -413,6 +413,9 @@ const Sync = {
 
   // ===== WRITER INTERFACES =====
   async saveTaskData(taskId, data) {
+    if (data && data.status === 'not-started') {
+      data.status = 'not-reviewed';
+    }
     const tasks = { ...this.getTaskStore() };
     tasks[taskId] = { ...tasks[taskId], ...data };
     tasks._lastUpdated = Date.now();
@@ -698,9 +701,17 @@ const Sync = {
 
   // ===== READER INTERFACES =====
   getTaskStore() {
-    return (this.cache.tasks && Object.keys(this.cache.tasks).length > 0) 
+    const store = (this.cache.tasks && Object.keys(this.cache.tasks).length > 0) 
       ? this.cache.tasks 
       : JSON.parse(localStorage.getItem('dccs-task-data') || '{}');
+    
+    // Normalize legacy 'not-started' to 'not-reviewed' on read
+    for (const taskId in store) {
+      if (store[taskId] && store[taskId].status === 'not-started') {
+        store[taskId].status = 'not-reviewed';
+      }
+    }
+    return store;
   },
 
   getTaskData(taskId) {

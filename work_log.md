@@ -46,3 +46,14 @@
   - Configured Firestore cache persistence to run with `{ synchronizeTabs: true }` in [sync.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/sync.js) to fix multi-tab sync issues.
   - Audited the entire write pipeline to ensure all network operations write only modified sub-keys or subcollections instead of serializing the entire store.
   - Confirmed notes input fields use the existing 600ms debounce timer to prevent write storms.
+
+## Phase 5: Ask Dr. Holtkamp Integration
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Added CSS styles for a fixed floating "Ask Dr. Holtkamp" launcher button visible only in presentation mode.
+  - Added button markup in `index.html` and updated cache-busters query parameters to `v=20260610-v1`.
+  - Implemented `getValidMetricIds()` in `js/ask-dr-holtkamp.js` to dynamically fetch valid metric IDs from `FRAMEWORK` config.
+  - Replaced the hardcoded lists of metric IDs in `validateAndMapMetricId` and system prompts with the dynamically generated metric ID list.
+  - Normalized task status from `not-started` to `not-reviewed` inside the task card status selectors, task status update functions, task serialization contexts, and `Sync.getTaskStore()`.
+  - Implemented one-shot execution of AI commands by checking the `execute` flag inside `processIncomingText` and calling it only when the SSE stream ends or non-streaming responses are loaded.
