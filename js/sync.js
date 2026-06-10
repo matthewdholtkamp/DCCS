@@ -1,7 +1,19 @@
-// DCCS Operational Framework — Real-Time Firebase Sync Layer
-// SECURITY: Firebase config keys below are PUBLIC identifiers, not secrets.
-// Access control is enforced by Firestore Security Rules on the server.
-// Ensure rules restrict writes to authenticated users only in production.
+// Debug counters gated behind ?debug=1
+const isDebug = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
+window.DCCS_DEBUG = window.DCCS_DEBUG || {
+  routeCalls: 0,
+  firestoreWrites: 0,
+  snapshotFires: 0
+};
+if (isDebug) {
+  if (!window.DCCS_DEBUG._intervalStarted) {
+    window.DCCS_DEBUG._intervalStarted = true;
+    setInterval(() => {
+      console.log(`[DCCS Debug] Route calls: ${window.DCCS_DEBUG.routeCalls} | Writes: ${window.DCCS_DEBUG.firestoreWrites} | Snapshots: ${window.DCCS_DEBUG.snapshotFires}`);
+    }, 30000);
+  }
+}
+
 const Sync = {
   db: null,
   enabled: false,
@@ -120,6 +132,7 @@ const Sync = {
 
   async uploadDocument(id, data) {
     if (!this.enabled || !this.db) return;
+    window.DCCS_DEBUG.firestoreWrites++;
     try {
       await this.db.collection("dccs_data").doc(id).set(data);
     } catch (e) {
@@ -152,6 +165,7 @@ const Sync = {
 
     // Listen to changes across all framework data documents in the dccs_data collection
     this.unsubscribe = this.db.collection("dccs_data").onSnapshot((snapshot) => {
+      window.DCCS_DEBUG.snapshotFires++;
       let changed = false;
 
       // Skip snapshot updates during client-side optimistic writes to avoid layout jank
@@ -226,6 +240,7 @@ const Sync = {
     localStorage.setItem('dccs-task-data', JSON.stringify(tasks));
 
     if (this.enabled && this.db) {
+      window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
         await this.db.collection("dccs_data").doc("tasks").set(tasks, { merge: true });
@@ -245,6 +260,7 @@ const Sync = {
     localStorage.setItem('dccs-metric-entries', JSON.stringify(allMetrics));
 
     if (this.enabled && this.db) {
+      window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
         await this.db.collection("dccs_data").doc("metrics").set(allMetrics, { merge: true });
@@ -267,6 +283,7 @@ const Sync = {
     localStorage.setItem('dccs-hedis-data', JSON.stringify(hedis));
 
     if (this.enabled && this.db) {
+      window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
         await this.db.collection("dccs_data").doc("hedis").set(hedis, { merge: true });
@@ -288,6 +305,7 @@ const Sync = {
     localStorage.setItem('dccs-dialogue-entries', JSON.stringify(dialogue));
 
     if (this.enabled && this.db) {
+      window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
         await this.db.collection("dccs_data").doc("dialogue").set(dialogue, { merge: true });

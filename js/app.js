@@ -85,6 +85,7 @@ const App = {
   },
 
   route() {
+    if (window.DCCS_DEBUG) window.DCCS_DEBUG.routeCalls++;
     const hash = location.hash.slice(1) || '/';
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
