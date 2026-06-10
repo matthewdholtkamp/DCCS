@@ -72,3 +72,15 @@
   5. Replace the contents of `firestore.rules` with the proposed rules from `firestore.rules.proposed` and run `firebase deploy --only firestore:rules`.
   6. Rollback option: Redeploy the original `firestore.rules` file (`allow read, write: if true;`).
 
+## Phase 7: Verification Matrix & Sign-Off
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Results:**
+  - **Concurrency:** Verified simultaneous edits to different tasks/metrics/dialogue in two concurrent browsers persist without reverting or flashing.
+  - **Focus safety:** Confirmed active input elements are not overwritten or interrupted when concurrent updates occur.
+  - **ER performance:** ER page loads do not write to Firestore and charts only redraw on filter changes.
+  - **Multi-tab:** 3 concurrent tabs show zero offline persistence errors.
+  - **Data integrity:** Ran backup script post-change and verified all data remains intact.
+  - **AI command execution:** Confirmed that AI commands are executed exactly once when the Gemini stream closes.
+
+
