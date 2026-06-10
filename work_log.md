@@ -19,4 +19,13 @@
   - Implemented `App.applyRemoteChange(id, data, changedKeys)` in [app.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/app.js) to perform scoped element refreshes via `requestAnimationFrame`.
   - Added a Focus Guard using `document.activeElement` check; pending changes to active elements are deferred to `this._stalePatches` and applied on element `blur`.
   - Replaced trailing `App.route()` inside `executeCommands` in [ask-dr-holtkamp.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/ask-dr-holtkamp.js) with targeted refresh calls.
-
+## Phase 2: Granular Writes & Collection Listeners
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Implemented granular writes in [sync.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/sync.js) using deep-merge sets for `tasks` and `hedis` documents.
+  - Moved `metrics` data to subcollection `dccs_data/metrics/series/{metricId}` and added dynamic change detection in `saveMetricStore()`.
+  - Moved `dialogue` entries to subcollection `dccs_data/dialogue/entries/{autoId}` and implemented batch diffing to add/update/delete dialogue documents dynamically inside `saveDialogueEntries()`.
+  - Implemented client-side conflict resolution (`pendingWrites` Set tracking) where server snapshot updates respect in-progress local writes.
+  - Implemented `runMigrationV2` one-time database migration that transactionally copies legacy metrics and dialogue arrays into subcollections upon initialization.
+  - Set up independent subcollection listeners for metrics and dialogue in `subscribe()`.

@@ -18,6 +18,10 @@ const Sync = {
   db: null,
   enabled: false,
   unsubscribe: null,
+  _metricsUnsubscribe: null,
+  _dialogueUnsubscribe: null,
+  _dialogueDocs: {},
+  pendingWrites: new Set(),
   cache: {
     tasks: {},
     metrics: {},
@@ -87,8 +91,13 @@ const Sync = {
         this.setStatus('offline');
       });
       
-      // Subscribe to real-time updates
-      this.subscribe();
+      // Run V2 migration, then subscribe
+      this.runMigrationV2().then(() => {
+        this.subscribe();
+      }).catch(err => {
+        console.error("DCCS Sync: V2 migration failed, stopping sync initialization:", err);
+        this.disableSync();
+      });
     } catch (e) {
       console.warn("Firebase failed to initialize. Falling back to local storage.", e);
       this.enabled = false;
@@ -114,12 +123,16 @@ const Sync = {
   disableSync() {
     this.enabled = false;
     if (this.unsubscribe) {
-      try {
-        this.unsubscribe();
-      } catch (err) {
-        console.warn("Error unsubscribing from Firestore snapshot:", err);
-      }
+      try { this.unsubscribe(); } catch (_) {}
       this.unsubscribe = null;
+    }
+    if (this._metricsUnsubscribe) {
+      try { this._metricsUnsubscribe(); } catch (_) {}
+      this._metricsUnsubscribe = null;
+    }
+    if (this._dialogueUnsubscribe) {
+      try { this._dialogueUnsubscribe(); } catch (_) {}
+      this._dialogueUnsubscribe = null;
     }
     this.setStatus('offline');
     this.loadLocalBackup();
@@ -149,96 +162,63 @@ const Sync = {
     if (this.unsubscribe) {
       try { this.unsubscribe(); } catch (_) {}
     }
+    if (this._metricsUnsubscribe) {
+      try { this._metricsUnsubscribe(); } catch (_) {}
+    }
+    if (this._dialogueUnsubscribe) {
+      try { this._dialogueUnsubscribe(); } catch (_) {}
+    }
 
-    const hasContent = (obj) => {
-      if (!obj || typeof obj !== 'object') return false;
-      for (const k in obj) {
-        if (k === '_lastUpdated') continue;
-        const val = obj[k];
-        if (Array.isArray(val) && val.length > 0) return true;
-        if (val && typeof val === 'object' && !Array.isArray(val) && Object.keys(val).length > 0) return true;
-        if (typeof val === 'string' && val.trim().length > 0) return true;
-        if (typeof val === 'number') return true;
-      }
-      return false;
-    };
-
-    // Listen to changes across all framework data documents in the dccs_data collection
+    // 1. Original listener for tasks, hedis, and er_data
     this.unsubscribe = this.db.collection("dccs_data").onSnapshot((snapshot) => {
       window.DCCS_DEBUG.snapshotFires++;
 
-      // Skip snapshot updates during client-side optimistic writes to avoid layout jank
-      if (snapshot.metadata.hasPendingWrites) {
-        return;
-      }
-
       snapshot.forEach((doc) => {
         const id = doc.id;
+        if (id !== 'tasks' && id !== 'hedis' && id !== 'er_data') {
+          return;
+        }
+
         const serverData = doc.data() || {};
         const localData = this.cache[id] || {};
-
-        const serverTime = serverData._lastUpdated || 0;
-        const localTime = localData._lastUpdated || 0;
 
         let docChanged = false;
         let changedKeys = [];
 
-        const findChangedKeys = () => {
-          const keys = [];
-          const allKeys = new Set([...Object.keys(serverData), ...Object.keys(localData)]);
-          for (const k of allKeys) {
-            if (k === '_lastUpdated') continue;
-            if (JSON.stringify(serverData[k]) !== JSON.stringify(localData[k])) {
-              keys.push(k);
-            }
+        const allKeys = new Set([...Object.keys(serverData), ...Object.keys(localData)]);
+        for (const k of allKeys) {
+          if (k === '_lastUpdated') continue;
+          
+          const itemPath = `${id}/${k}`;
+          if (this.pendingWrites.has(itemPath)) {
+            continue; // local pending write wins
           }
-          return keys;
-        };
 
-        if (localTime > serverTime) {
-          // Local data is newer (e.g. edited while offline or waiting for sync)
-          this.uploadDocument(id, localData);
-        } else if (serverTime > localTime) {
-          // Server data is newer
-          changedKeys = findChangedKeys();
-          this.cache[id] = serverData;
-          docChanged = true;
-          if (id === 'er_data') {
-            this.processERData(serverData);
-          }
-        } else if (JSON.stringify(localData) !== JSON.stringify(serverData)) {
-          // Content differs but timestamps are missing/equal
-          const localHasData = hasContent(localData);
-          const serverHasData = hasContent(serverData);
-
-          if (localHasData && !serverHasData) {
-            // Local client has data but server is empty
-            this.uploadDocument(id, localData);
-          } else {
-            // Revert/align to server representation
-            changedKeys = findChangedKeys();
-            this.cache[id] = serverData;
+          if (JSON.stringify(serverData[k]) !== JSON.stringify(localData[k])) {
+            if (!this.cache[id]) this.cache[id] = {};
+            this.cache[id][k] = serverData[k];
+            changedKeys.push(k);
             docChanged = true;
-            if (id === 'er_data') {
-              this.processERData(serverData);
-            }
           }
         }
 
         if (docChanged) {
-          // Update local backup for this doc only
+          this.cache[id]._lastUpdated = serverData._lastUpdated || Date.now();
+          
+          if (id === 'er_data') {
+            this.processERData(serverData);
+          }
+
           const storageKeys = {
             tasks: 'dccs-task-data',
-            metrics: 'dccs-metric-entries',
             hedis: 'dccs-hedis-data',
-            dialogue: 'dccs-dialogue-entries',
             er_data: 'dccs-er-data'
           };
           if (storageKeys[id]) {
-            localStorage.setItem(storageKeys[id], JSON.stringify(serverData));
+            localStorage.setItem(storageKeys[id], JSON.stringify(this.cache[id]));
           }
           if (window.App && typeof App.applyRemoteChange === "function") {
-            App.applyRemoteChange(id, serverData, changedKeys);
+            App.applyRemoteChange(id, this.cache[id], changedKeys);
           }
         }
       });
@@ -248,6 +228,187 @@ const Sync = {
       console.warn("Firestore subscription failed/lost, reverting to local backups:", error);
       this.disableSync();
     });
+
+    // 2. Metrics subcollection listener
+    this._metricsUnsubscribe = this.db.collection("dccs_data").doc("metrics").collection("series").onSnapshot((snapshot) => {
+      window.DCCS_DEBUG.snapshotFires++;
+      
+      let changedKeys = [];
+      snapshot.forEach(doc => {
+        const metricId = doc.id;
+        const serverDoc = doc.data() || {};
+        const serverEntries = serverDoc.entries || [];
+        
+        const itemPath = `metrics/${metricId}`;
+        if (this.pendingWrites.has(itemPath)) {
+          return;
+        }
+        
+        const localEntries = this.cache.metrics[metricId] || [];
+        if (JSON.stringify(serverEntries) !== JSON.stringify(localEntries)) {
+          this.cache.metrics[metricId] = serverEntries;
+          changedKeys.push(metricId);
+        }
+      });
+      
+      if (changedKeys.length > 0) {
+        localStorage.setItem('dccs-metric-entries', JSON.stringify(this.cache.metrics));
+        if (window.App && typeof App.applyRemoteChange === "function") {
+          App.applyRemoteChange('metrics', this.cache.metrics, changedKeys);
+        }
+      }
+    }, (error) => {
+      console.warn("Metrics subcollection snapshot listener failed:", error);
+    });
+
+    // 3. Dialogue subcollection listener
+    this._dialogueUnsubscribe = this.db.collection("dccs_data").doc("dialogue").collection("entries").onSnapshot((snapshot) => {
+      window.DCCS_DEBUG.snapshotFires++;
+      
+      if (!this._dialogueDocs) {
+        this._dialogueDocs = {};
+      }
+      
+      snapshot.docChanges().forEach(change => {
+        const doc = change.doc;
+        if (change.type === 'removed') {
+          delete this._dialogueDocs[doc.id];
+        } else {
+          this._dialogueDocs[doc.id] = { id: doc.id, ...doc.data() };
+        }
+      });
+      
+      const compiled = {};
+      Object.values(this._dialogueDocs).forEach(entry => {
+        const slId = entry.serviceLineId;
+        if (!slId) return;
+        if (!compiled[slId]) compiled[slId] = [];
+        compiled[slId].push({ date: entry.date, text: entry.text, id: entry.id });
+      });
+      
+      let changedServiceLines = [];
+      const slIds = new Set([...Object.keys(compiled), ...Object.keys(this.cache.dialogue)]);
+      
+      slIds.forEach(slId => {
+        const serverEntries = compiled[slId] || [];
+        serverEntries.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        
+        const localEntries = this.cache.dialogue[slId] || [];
+        
+        const serverCompare = serverEntries.map(e => ({ date: e.date, text: e.text }));
+        const localCompare = localEntries.map(e => ({ date: e.date, text: e.text }));
+        
+        if (JSON.stringify(serverCompare) !== JSON.stringify(localCompare)) {
+          this.cache.dialogue[slId] = serverEntries;
+          changedServiceLines.push(slId);
+        }
+      });
+      
+      if (changedServiceLines.length > 0) {
+        localStorage.setItem('dccs-dialogue-entries', JSON.stringify(this.cache.dialogue));
+        if (window.App && typeof App.applyRemoteChange === "function") {
+          App.applyRemoteChange('dialogue', this.cache.dialogue, changedServiceLines);
+        }
+      }
+    }, (error) => {
+      console.warn("Dialogue subcollection snapshot listener failed:", error);
+    });
+  },
+
+  async runMigrationV2() {
+    if (!this.enabled || !this.db) return;
+    try {
+      const metaDoc = await this.db.collection("dccs_data").doc("_meta").get();
+      const metaData = metaDoc.exists ? metaDoc.data() : {};
+      if (metaData.migratedV2 === true) {
+        console.log("DCCS Sync: V2 migration already performed.");
+        return;
+      }
+
+      console.log("DCCS Sync: Checking for V2 migration...");
+      const legacyMetricsDoc = await this.db.collection("dccs_data").doc("metrics").get();
+      const legacyDialogueDoc = await this.db.collection("dccs_data").doc("dialogue").get();
+
+      const legacyMetrics = legacyMetricsDoc.exists ? legacyMetricsDoc.data() : {};
+      const legacyDialogue = legacyDialogueDoc.exists ? legacyDialogueDoc.data() : {};
+
+      const metricsSnapshot = await this.db.collection("dccs_data").doc("metrics").collection("series").get();
+      const dialogueSnapshot = await this.db.collection("dccs_data").doc("dialogue").collection("entries").get();
+
+      const metricsEmpty = metricsSnapshot.empty;
+      const dialogueEmpty = dialogueSnapshot.empty;
+
+      if (!metricsEmpty || !dialogueEmpty) {
+        console.log("DCCS Sync: V2 subcollections are not empty. Setting migratedV2 flag directly.");
+        await this.db.collection("dccs_data").doc("_meta").set({ migratedV2: true }, { merge: true });
+        return;
+      }
+
+      console.log("DCCS Sync: Starting one-time V2 migration...");
+
+      let expectedMetricsCount = 0;
+      let migratedMetricsCount = 0;
+      for (const [metricId, entries] of Object.entries(legacyMetrics)) {
+        if (metricId === '_lastUpdated') continue;
+        if (Array.isArray(entries)) {
+          expectedMetricsCount++;
+        }
+      }
+
+      let expectedDialogueCount = 0;
+      let migratedDialogueCount = 0;
+      for (const [slId, entries] of Object.entries(legacyDialogue)) {
+        if (slId === '_lastUpdated') continue;
+        if (Array.isArray(entries)) {
+          expectedDialogueCount += entries.length;
+        }
+      }
+
+      console.log(`DCCS Sync: Migrating ${expectedMetricsCount} metrics series and ${expectedDialogueCount} dialogue entries...`);
+
+      const batch = this.db.batch();
+      for (const [metricId, entries] of Object.entries(legacyMetrics)) {
+        if (metricId === '_lastUpdated') continue;
+        if (Array.isArray(entries)) {
+          const docRef = this.db.collection("dccs_data").doc("metrics").collection("series").doc(metricId);
+          batch.set(docRef, { entries, _ts: firebase.firestore.FieldValue.serverTimestamp() });
+          migratedMetricsCount++;
+        }
+      }
+
+      for (const [slId, entries] of Object.entries(legacyDialogue)) {
+        if (slId === '_lastUpdated') continue;
+        if (Array.isArray(entries)) {
+          entries.forEach(entry => {
+            const docRef = this.db.collection("dccs_data").doc("dialogue").collection("entries").doc();
+            batch.set(docRef, {
+              serviceLineId: slId,
+              date: entry.date || "",
+              text: entry.text || "",
+              _ts: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            migratedDialogueCount++;
+          });
+        }
+      }
+
+      if (migratedMetricsCount !== expectedMetricsCount || migratedDialogueCount !== expectedDialogueCount) {
+        console.error("DCCS Sync Migration error: Counts mismatch!", {
+          expectedMetricsCount, migratedMetricsCount,
+          expectedDialogueCount, migratedDialogueCount
+        });
+        throw new Error("Migration count mismatch! Halting database migration to prevent data loss.");
+      }
+
+      await batch.commit();
+      console.log("DCCS Sync: Migration batch committed successfully.");
+
+      await this.db.collection("dccs_data").doc("_meta").set({ migratedV2: true }, { merge: true });
+      console.log("DCCS Sync: V2 migration completed successfully.");
+    } catch (e) {
+      console.error("DCCS Sync V2 Migration failed:", e);
+      throw e;
+    }
   },
 
   // ===== WRITER INTERFACES =====
@@ -262,10 +423,19 @@ const Sync = {
       window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("tasks").set(tasks, { merge: true });
+        const itemPath = `tasks/${taskId}`;
+        this.pendingWrites.add(itemPath);
+
+        await this.db.collection("dccs_data").doc("tasks").set(
+          { [taskId]: { ...data, _ts: firebase.firestore.FieldValue.serverTimestamp() } },
+          { merge: true }
+        );
+
+        this.pendingWrites.delete(itemPath);
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write task:", e);
+        this.pendingWrites.delete(`tasks/${taskId}`);
         this.disableSync();
       }
     } else {
@@ -274,7 +444,16 @@ const Sync = {
   },
 
   async saveMetricStore(allMetrics) {
-    allMetrics._lastUpdated = Date.now();
+    // Find which metricId changed
+    let changedMetricId = null;
+    for (const key of Object.keys(allMetrics)) {
+      if (key === '_lastUpdated') continue;
+      if (JSON.stringify(allMetrics[key]) !== JSON.stringify(this.cache.metrics[key])) {
+        changedMetricId = key;
+        break;
+      }
+    }
+
     this.cache.metrics = allMetrics;
     localStorage.setItem('dccs-metric-entries', JSON.stringify(allMetrics));
 
@@ -282,10 +461,24 @@ const Sync = {
       window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("metrics").set(allMetrics, { merge: true });
+        if (changedMetricId) {
+          const itemPath = `metrics/${changedMetricId}`;
+          this.pendingWrites.add(itemPath);
+
+          const docRef = this.db.collection("dccs_data").doc("metrics").collection("series").doc(changedMetricId);
+          await docRef.set({
+            entries: allMetrics[changedMetricId],
+            _ts: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          this.pendingWrites.delete(itemPath);
+        }
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write metrics:", e);
+        if (changedMetricId) {
+          this.pendingWrites.delete(`metrics/${changedMetricId}`);
+        }
         this.disableSync();
       }
     } else {
@@ -305,10 +498,19 @@ const Sync = {
       window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("hedis").set(hedis, { merge: true });
+        const itemPath = `hedis/${slId}`;
+        this.pendingWrites.add(itemPath);
+
+        await this.db.collection("dccs_data").doc("hedis").set(
+          { [slId]: { ...update, _ts: firebase.firestore.FieldValue.serverTimestamp() } },
+          { merge: true }
+        );
+
+        this.pendingWrites.delete(itemPath);
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write HEDIS:", e);
+        this.pendingWrites.delete(`hedis/${slId}`);
         this.disableSync();
       }
     } else {
@@ -317,17 +519,48 @@ const Sync = {
   },
 
   async saveDialogueEntries(slId, entries) {
-    const dialogue = { ...this.getDialogueStore() };
-    dialogue[slId] = entries;
-    dialogue._lastUpdated = Date.now();
-    this.cache.dialogue = dialogue;
-    localStorage.setItem('dccs-dialogue-entries', JSON.stringify(dialogue));
+    this.cache.dialogue[slId] = entries;
+    localStorage.setItem('dccs-dialogue-entries', JSON.stringify(this.cache.dialogue));
 
     if (this.enabled && this.db) {
       window.DCCS_DEBUG.firestoreWrites++;
       this.setStatus('syncing');
       try {
-        await this.db.collection("dccs_data").doc("dialogue").set(dialogue, { merge: true });
+        const collectionRef = this.db.collection("dccs_data").doc("dialogue").collection("entries");
+        const existingDocs = Object.values(this._dialogueDocs || {}).filter(d => d.serviceLineId === slId);
+        const newIds = new Set(entries.map(e => e.id).filter(Boolean));
+
+        const batch = this.db.batch();
+
+        existingDocs.forEach(doc => {
+          if (!newIds.has(doc.id)) {
+            batch.delete(collectionRef.doc(doc.id));
+          }
+        });
+
+        entries.forEach(entry => {
+          if (!entry.id) {
+            const docRef = collectionRef.doc();
+            entry.id = docRef.id; // optimistic local ID assignment
+            batch.set(docRef, {
+              serviceLineId: slId,
+              date: entry.date || "",
+              text: entry.text || "",
+              _ts: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          } else {
+            const existing = this._dialogueDocs[entry.id];
+            if (existing && (existing.text !== entry.text || existing.date !== entry.date)) {
+              batch.update(collectionRef.doc(entry.id), {
+                date: entry.date,
+                text: entry.text,
+                _ts: firebase.firestore.FieldValue.serverTimestamp()
+              });
+            }
+          }
+        });
+
+        await batch.commit();
         this.setStatus('synced');
       } catch (e) {
         console.error("Firestore failed to write dialogue entries:", e);
