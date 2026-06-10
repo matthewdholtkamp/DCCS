@@ -81,7 +81,140 @@ const App = {
         e.target.classList.remove('input-error');
       }
     }, true);
+    // Focus guard: apply stale patches when elements lose focus
+    document.addEventListener('blur', (e) => {
+      setTimeout(() => this.applyStalePatches(), 50);
+    }, true);
     this.route();
+  },
+
+  applyRemoteChange(docId, data, changedKeys = null) {
+    if (!this._pendingPatches) {
+      this._pendingPatches = [];
+    }
+    this._pendingPatches.push({ docId, data, changedKeys });
+    if (!this._rafScheduled) {
+      this._rafScheduled = true;
+      requestAnimationFrame(() => this.flushPendingPatches());
+    }
+  },
+
+  flushPendingPatches() {
+    this._rafScheduled = false;
+    const patches = this._pendingPatches || [];
+    this._pendingPatches = [];
+
+    if (!this._stalePatches) {
+      this._stalePatches = {};
+    }
+
+    const windowScroll = { x: window.scrollX, y: window.scrollY };
+
+    patches.forEach(({ docId, data, changedKeys }) => {
+      if (!changedKeys || changedKeys.length === 0) return;
+
+      if (docId === 'tasks') {
+        changedKeys.forEach(taskId => {
+          const card = document.getElementById(`task-${taskId}`);
+          if (!card) return;
+
+          if (card.contains(document.activeElement)) {
+            this._stalePatches[`task-${taskId}`] = { type: 'task', id: taskId };
+            return;
+          }
+          this.refreshTaskCard(taskId);
+        });
+      } else if (docId === 'metrics') {
+        changedKeys.forEach(metricId => {
+          const groupDef = this.getMetricGroupForSeries(metricId);
+          if (groupDef) {
+            const groupEl = document.getElementById(`metric-group-section-${groupDef.group.id}`);
+            if (groupEl) {
+              if (groupEl.contains(document.activeElement)) {
+                this._stalePatches[`metric-group-section-${groupDef.group.id}`] = { type: 'metric-group', id: groupDef.group.id };
+                return;
+              }
+              this.refreshMetricGroupDisplay(groupDef.group.id);
+            }
+          } else {
+            const mDef = this.getMetricDefinition(metricId);
+            if (mDef) {
+              const displayEl = document.getElementById(`metric-display-${metricId}`);
+              if (displayEl) {
+                if (displayEl.contains(document.activeElement)) {
+                  this._stalePatches[`metric-display-${metricId}`] = { type: 'metric', id: metricId };
+                  return;
+                }
+                this.refreshMetricDisplay(metricId);
+              }
+            }
+          }
+        });
+      } else if (docId === 'hedis') {
+        changedKeys.forEach(slId => {
+          const section = document.getElementById(`hedis-section-${slId}`);
+          if (!section) return;
+
+          if (section.contains(document.activeElement)) {
+            this._stalePatches[`hedis-section-${slId}`] = { type: 'hedis', id: slId };
+            return;
+          }
+          this.refreshHedisSection(slId);
+        });
+      } else if (docId === 'dialogue') {
+        changedKeys.forEach(slId => {
+          const list = document.getElementById(`dialogue-list-${slId}`);
+          if (list) {
+            if (list.contains(document.activeElement)) {
+              this._stalePatches[`dialogue-list-${slId}`] = { type: 'dialogue', id: slId };
+              return;
+            }
+            this.updateDialogueList(slId, Sync.getDialogueEntries(slId));
+          }
+
+          const meetingList = document.getElementById(`meeting-dialogue-list-${slId}`);
+          if (meetingList) {
+            if (meetingList.contains(document.activeElement)) {
+              this._stalePatches[`meeting-dialogue-list-${slId}`] = { type: 'meeting-dialogue', id: slId };
+              return;
+            }
+            meetingList.innerHTML = this.renderMeetingDialogueList({ id: slId }, Sync.getDialogueEntries(slId));
+          }
+        });
+      }
+    });
+
+    window.scrollTo(windowScroll.x, windowScroll.y);
+  },
+
+  applyStalePatches() {
+    if (!this._stalePatches || Object.keys(this._stalePatches).length === 0) return;
+
+    Object.entries(this._stalePatches).forEach(([elId, patch]) => {
+      const el = document.getElementById(elId);
+      if (el && el.contains(document.activeElement)) {
+        return;
+      }
+
+      delete this._stalePatches[elId];
+
+      if (patch.type === 'task') {
+        this.refreshTaskCard(patch.id);
+      } else if (patch.type === 'metric-group') {
+        this.refreshMetricGroupDisplay(patch.id);
+      } else if (patch.type === 'metric') {
+        this.refreshMetricDisplay(patch.id);
+      } else if (patch.type === 'hedis') {
+        this.refreshHedisSection(patch.id);
+      } else if (patch.type === 'dialogue') {
+        this.updateDialogueList(patch.id, Sync.getDialogueEntries(patch.id));
+      } else if (patch.type === 'meeting-dialogue') {
+        const meetingList = document.getElementById(`meeting-dialogue-list-${patch.id}`);
+        if (meetingList) {
+          meetingList.innerHTML = this.renderMeetingDialogueList({ id: patch.id }, Sync.getDialogueEntries(patch.id));
+        }
+      }
+    });
   },
 
   route() {

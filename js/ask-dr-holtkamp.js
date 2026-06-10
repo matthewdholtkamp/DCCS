@@ -326,20 +326,40 @@ Always confirm in a direct, command-intent voice that you have applied the reque
             const mappedId = this.validateAndMapMetricId(cmd.metricId);
             this.updateMetricLocal(mappedId, cmd.value, cmd.date);
             results.push(`Updated metric "${mappedId}" to ${cmd.value}`);
+            if (window.App) {
+              if (typeof window.App.refreshMetricDisplay === "function") {
+                window.App.refreshMetricDisplay(mappedId);
+              }
+              const groupDef = window.App.getMetricGroupForSeries(mappedId);
+              if (groupDef && typeof window.App.refreshMetricGroupDisplay === "function") {
+                window.App.refreshMetricGroupDisplay(groupDef.group.id);
+              }
+            }
             break;
           }
           case "add_dialogue":
             this.addDialogueLocal(cmd.serviceLineId, cmd.text, cmd.date);
             results.push(`Added dialogue entry to ${cmd.serviceLineId.toUpperCase()}`);
+            if (window.App && typeof window.App.updateDialogueList === "function") {
+              window.App.updateDialogueList(cmd.serviceLineId, Sync.getDialogueEntries(cmd.serviceLineId));
+            }
             break;
           case "update_task_status":
             this.updateTaskStatusLocal(cmd.taskId, cmd.status);
             results.push(`Updated task "${cmd.taskId}" status to ${cmd.status}`);
+            if (window.App && typeof window.App.refreshTaskCard === "function") {
+              window.App.refreshTaskCard(cmd.taskId);
+            }
             break;
           case "update_task_kpi": {
             const key = cmd.kpiKey !== undefined ? cmd.kpiKey : cmd.kpiIndex;
             this.updateTaskKpiLocal(cmd.taskId, key, cmd.checked);
             results.push(`${cmd.checked ? "Checked" : "Unchecked"} KPI "${key}" in task "${cmd.taskId}"`);
+            if (window.App && typeof window.App.updateTaskKpiRow === "function") {
+              const saved = Sync.getTaskData(cmd.taskId) || {};
+              const dateVal = saved.kpiDates?.[key] || '';
+              window.App.updateTaskKpiRow(cmd.taskId, key, !!cmd.checked, dateVal);
+            }
             break;
           }
           default:
@@ -356,10 +376,6 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       systemLog.className = "ask-system-log";
       systemLog.innerHTML = results.map(r => `<div>✓ ${r}</div>`).join("");
       body.appendChild(systemLog);
-
-      if (window.App && typeof window.App.route === "function") {
-        window.App.route();
-      }
     }
   },
 

@@ -166,7 +166,6 @@ const Sync = {
     // Listen to changes across all framework data documents in the dccs_data collection
     this.unsubscribe = this.db.collection("dccs_data").onSnapshot((snapshot) => {
       window.DCCS_DEBUG.snapshotFires++;
-      let changed = false;
 
       // Skip snapshot updates during client-side optimistic writes to avoid layout jank
       if (snapshot.metadata.hasPendingWrites) {
@@ -181,13 +180,29 @@ const Sync = {
         const serverTime = serverData._lastUpdated || 0;
         const localTime = localData._lastUpdated || 0;
 
+        let docChanged = false;
+        let changedKeys = [];
+
+        const findChangedKeys = () => {
+          const keys = [];
+          const allKeys = new Set([...Object.keys(serverData), ...Object.keys(localData)]);
+          for (const k of allKeys) {
+            if (k === '_lastUpdated') continue;
+            if (JSON.stringify(serverData[k]) !== JSON.stringify(localData[k])) {
+              keys.push(k);
+            }
+          }
+          return keys;
+        };
+
         if (localTime > serverTime) {
           // Local data is newer (e.g. edited while offline or waiting for sync)
           this.uploadDocument(id, localData);
         } else if (serverTime > localTime) {
           // Server data is newer
+          changedKeys = findChangedKeys();
           this.cache[id] = serverData;
-          changed = true;
+          docChanged = true;
           if (id === 'er_data') {
             this.processERData(serverData);
           }
@@ -201,30 +216,34 @@ const Sync = {
             this.uploadDocument(id, localData);
           } else {
             // Revert/align to server representation
+            changedKeys = findChangedKeys();
             this.cache[id] = serverData;
-            changed = true;
+            docChanged = true;
             if (id === 'er_data') {
               this.processERData(serverData);
             }
           }
         }
+
+        if (docChanged) {
+          // Update local backup for this doc only
+          const storageKeys = {
+            tasks: 'dccs-task-data',
+            metrics: 'dccs-metric-entries',
+            hedis: 'dccs-hedis-data',
+            dialogue: 'dccs-dialogue-entries',
+            er_data: 'dccs-er-data'
+          };
+          if (storageKeys[id]) {
+            localStorage.setItem(storageKeys[id], JSON.stringify(serverData));
+          }
+          if (window.App && typeof App.applyRemoteChange === "function") {
+            App.applyRemoteChange(id, serverData, changedKeys);
+          }
+        }
       });
 
       this.setStatus('synced');
-
-      if (changed) {
-        // Update local backups
-        if (this.cache.tasks) localStorage.setItem('dccs-task-data', JSON.stringify(this.cache.tasks));
-        if (this.cache.metrics) localStorage.setItem('dccs-metric-entries', JSON.stringify(this.cache.metrics));
-        if (this.cache.hedis) localStorage.setItem('dccs-hedis-data', JSON.stringify(this.cache.hedis));
-        if (this.cache.dialogue) localStorage.setItem('dccs-dialogue-entries', JSON.stringify(this.cache.dialogue));
-        if (this.cache.er_data) localStorage.setItem('dccs-er-data', JSON.stringify(this.cache.er_data));
-
-        // Re-render current active view in App
-        if (window.App && typeof App.route === "function") {
-          App.route();
-        }
-      }
     }, (error) => {
       console.warn("Firestore subscription failed/lost, reverting to local backups:", error);
       this.disableSync();
