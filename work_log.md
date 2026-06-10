@@ -57,3 +57,18 @@
   - Replaced the hardcoded lists of metric IDs in `validateAndMapMetricId` and system prompts with the dynamically generated metric ID list.
   - Normalized task status from `not-started` to `not-reviewed` inside the task card status selectors, task status update functions, task serialization contexts, and `Sync.getTaskStore()`.
   - Implemented one-shot execution of AI commands by checking the `execute` flag inside `processIncomingText` and calling it only when the SSE stream ends or non-streaming responses are loaded.
+
+## Phase 6: Security Preparation
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Added dynamically-loaded Anonymous Authentication implementation in `js/sync.js` gated by `window.DCCS_AUTH_ENABLED === true`.
+  - Created a hardened rules configuration file `firestore.rules.proposed` requiring `request.auth != null`.
+- **Manual Go-Live Sequence (for BTC/DCCS Administrator review):**
+  1. Open the Firebase Console for the project.
+  2. Navigate to Authentication -> Sign-in Method -> enable the "Anonymous" provider.
+  3. Set `window.DCCS_AUTH_ENABLED = true;` in the application configuration.
+  4. Verify that the anonymous sign-in succeeds and the application synchronizes correctly.
+  5. Replace the contents of `firestore.rules` with the proposed rules from `firestore.rules.proposed` and run `firebase deploy --only firestore:rules`.
+  6. Rollback option: Redeploy the original `firestore.rules` file (`allow read, write: if true;`).
+

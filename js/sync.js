@@ -91,8 +91,32 @@ const Sync = {
         this.setStatus('offline');
       });
       
+      const loadAuthScript = () => {
+        return new Promise((resolve, reject) => {
+          if (typeof firebase.auth === 'function') {
+            resolve();
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js";
+          script.onload = resolve;
+          script.onerror = () => reject(new Error("Failed to load firebase-auth-compat.js"));
+          document.head.appendChild(script);
+        });
+      };
+
       // Run V2 migration, then subscribe
-      this.runMigrationV2().then(() => {
+      this.runMigrationV2().then(async () => {
+        if (window.DCCS_AUTH_ENABLED === true) {
+          console.log("DCCS Sync: Auth enabled, signing in anonymously...");
+          try {
+            await loadAuthScript();
+            await firebase.auth().signInAnonymously();
+            console.log("DCCS Sync: Anonymous auth successful.");
+          } catch (authError) {
+            console.error("DCCS Sync: Anonymous auth failed (proceeding offline/gracefully):", authError);
+          }
+        }
         this.subscribe();
       }).catch(err => {
         console.error("DCCS Sync: V2 migration failed, stopping sync initialization:", err);
