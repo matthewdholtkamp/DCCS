@@ -29,3 +29,12 @@
   - Implemented client-side conflict resolution (`pendingWrites` Set tracking) where server snapshot updates respect in-progress local writes.
   - Implemented `runMigrationV2` one-time database migration that transactionally copies legacy metrics and dialogue arrays into subcollections upon initialization.
   - Set up independent subcollection listeners for metrics and dialogue in `subscribe()`.
+
+## Phase 3: ER Pipeline Isolation & In-Memory Charts
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Removed Firestore write calls from `processERData()` in [sync.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/sync.js), switching to in-memory-only updates of `this.cache.metrics`.
+  - Implemented background-fetch optimization with djb2 hashing in `syncERMetrics()` to avoid parsing the 104KB JSON on every navigation.
+  - Added full Chart.js cleanups (`_destroyErChart`) on navigation changes inside `App.route()` in [app.js](file:///Users/matthewholtkamp/Desktop/Research%20AI/DCCS/js/app.js) to avoid memory leaks.
+  - Debounced slider-driven re-computations in `uvWireSlider()` by 150ms to prevent dragging performance lag.

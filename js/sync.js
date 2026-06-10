@@ -572,51 +572,55 @@ const Sync = {
   },
 
   async syncERMetrics() {
+    let cached = null;
     try {
-      let data = null;
-      if (this.cache.er_data && Array.isArray(this.cache.er_data.allData) && this.cache.er_data.allData.length > 0) {
-        data = this.cache.er_data;
-        console.log("DCCS Sync: Using ER data from cached Firestore er_data doc.");
-      }
+      cached = JSON.parse(localStorage.getItem('dccs-er-data') || 'null');
+    } catch (_) {}
 
-      if (!data) {
-        // 1. Try local sibling path first (useful for offline / local testing)
-        try {
-          const response = await fetch("../ER/data.json");
-          if (response.ok) {
-            data = await response.json();
-            console.log("DCCS Sync: Successfully fetched ER data from local sibling path.");
-          }
-        } catch (err) {
-          console.log("DCCS Sync: Local sibling fetch failed, trying public fallback...", err);
-        }
-      }
-
-      // 2. If local fails, try public GitHub Pages URL
-      if (!data) {
-        try {
-          const response = await fetch("https://matthewdholtkamp.github.io/ER/data.json");
-          if (response.ok) {
-            data = await response.json();
-            console.log("DCCS Sync: Successfully fetched ER data from public URL.");
-          }
-        } catch (err) {
-          console.error("DCCS Sync: Public fallback fetch failed.", err);
-        }
-      }
-
-      if (!data || !Array.isArray(data.allData)) {
-        console.warn("DCCS Sync: No valid ER data found to synchronize.");
-        return;
-      }
-
-      await this.processERData(data);
-    } catch (e) {
-      console.error("DCCS Sync: Error executing ER metrics sync:", e);
+    if (cached && cached.data) {
+      console.log("DCCS Sync: Loaded cached ER data from localStorage.");
+      this.processERData(cached.data);
     }
+
+    const djb2Hash = (str) => {
+      let hash = 5381;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash) + str.charCodeAt(i);
+        hash = hash & hash;
+      }
+      return hash.toString(16);
+    };
+
+    const fetchAndCache = async (url) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+      const text = await response.text();
+      const hash = djb2Hash(text);
+      if (!cached || cached.hash !== hash) {
+        console.log(`DCCS Sync: ER data updated from ${url}`);
+        const data = JSON.parse(text);
+        localStorage.setItem('dccs-er-data', JSON.stringify({ hash, data }));
+        this.processERData(data);
+      } else {
+        console.log(`DCCS Sync: ER data unchanged at ${url}`);
+      }
+      return true;
+    };
+
+    setTimeout(async () => {
+      try {
+        await fetchAndCache("../ER/data.json");
+      } catch (err) {
+        try {
+          await fetchAndCache("https://matthewdholtkamp.github.io/ER/data.json");
+        } catch (err2) {
+          console.warn("DCCS Sync: Background ER fetch failed completely.", err2);
+        }
+      }
+    }, 100);
   },
 
-  async processERData(data) {
+  processERData(data) {
     if (!data || !Array.isArray(data.allData)) return;
 
     const erTotalCensus = [];
@@ -650,7 +654,6 @@ const Sync = {
       }
     });
 
-    // Sort arrays chronologically
     const sortFn = (a, b) => a.date.localeCompare(b.date);
     erTotalCensus.sort(sortFn);
     erTotalTrainees.sort(sortFn);
@@ -659,7 +662,7 @@ const Sync = {
     erEsi45.sort(sortFn);
     erLwobs.sort(sortFn);
 
-    const store = { ...this.getMetricStore() };
+    const store = this.cache.metrics || {};
     let hasChanges = false;
 
     const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
@@ -688,13 +691,8 @@ const Sync = {
     checkAndUpdate("er-patients", erPatients);
 
     if (hasChanges) {
-      console.log("DCCS Sync: Detected updates in ER metrics, saving to store...");
-      await this.saveMetricStore(store);
-      if (window.App && typeof App.route === "function") {
-        App.route();
-      }
-    } else {
-      console.log("DCCS Sync: ER metrics are already up to date.");
+      console.log("DCCS Sync: Updated in-memory ER metrics.");
+      localStorage.setItem('dccs-metric-entries', JSON.stringify(store));
     }
   },
 

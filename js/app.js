@@ -219,6 +219,9 @@ const App = {
 
   route() {
     if (window.DCCS_DEBUG) window.DCCS_DEBUG.routeCalls++;
+    if (this._erCharts) {
+      Object.keys(this._erCharts).forEach(id => this._destroyErChart(id));
+    }
     const hash = location.hash.slice(1) || '/';
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
@@ -4344,6 +4347,7 @@ const App = {
     const hi = document.getElementById('uvSliderHi');
     if (!lo || !hi) return;
  
+    let debounceTimer = null;
     const onInput = () => {
       let l = parseInt(lo.value, 10);
       let h = parseInt(hi.value, 10);
@@ -4353,7 +4357,11 @@ const App = {
       this.uvState.loIdx = l;
       this.uvState.hiIdx = h;
       this.uvUpdateDateLabels();
-      this.renderUnitVolumeChart();
+      
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.renderUnitVolumeChart();
+      }, 150);
     };
     lo.addEventListener('input', onInput);
     hi.addEventListener('input', onInput);
