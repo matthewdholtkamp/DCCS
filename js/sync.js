@@ -146,18 +146,6 @@ const Sync = {
             console.error("DCCS Sync: Anonymous auth failed (proceeding offline/gracefully):", authError);
           }
         }
-      // Run V2 migration, then subscribe
-      this.runMigrationV2().then(async () => {
-        if (window.DCCS_AUTH_ENABLED === true) {
-          console.log("DCCS Sync: Auth enabled, signing in anonymously...");
-          try {
-            await loadAuthScript();
-            await firebase.auth().signInAnonymously();
-            console.log("DCCS Sync: Anonymous auth successful.");
-          } catch (authError) {
-            console.error("DCCS Sync: Anonymous auth failed (proceeding offline/gracefully):", authError);
-          }
-        }
         this.subscribe();
       }).catch(err => {
         console.warn("DCCS Sync: V2 migration failed. Defending with legacy mode fallback:", err);
