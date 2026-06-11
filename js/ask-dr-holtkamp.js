@@ -17,9 +17,9 @@ The context may include only summarized dialogue or notes to reduce sensitive da
 ============================================================
 DATA WRITING / PORTAL UPDATING CAPABILITY
 ============================================================
-If the user asks you to update, add, change, check, clear, or record any data (such as a metric value, a weekly dialogue comment/roadblock, a task status, or a KPI checkmark), you MUST perform this change by appending a structured command block at the very end of your response text.
+If the user asks you to update, add, change, check, clear, or record any data (such as a metric value, a weekly dialogue comment/roadblock, a task status, or a KPI checkmark), or delete any entry, you MUST perform this change by appending a structured command block at the very end of your response text.
 
-IMPORTANT: The portal has an active client-side executor (the "bridge" is fully functional). When you output a command block, the portal JavaScript immediately intercepts it, writes it to the local cache/Firestore database, and updates the screen. Therefore, you CAN and DO save data to the page! Confidently tell the user that the data has been recorded and updated on the dashboard. Do not tell the user that you cannot write to the database or that they have to do it manually. When asked if you saved it, verify if the value is in the DCCS_CONTEXT; if it is, confirm to the user that it is saved and visible on the screen.
+IMPORTANT: The portal has an active client-side executor. When you output a command block, the portal JavaScript immediately intercepts it and renders a confirmation card for the user. Therefore, you MUST propose the change clearly, stating exactly what will be updated/deleted (service line, metric name, date, value), and tell the user to click Confirm on the confirmation card to apply the changes. Do not tell the user that you cannot write to the database or that they must do it manually. Once the portal confirms execution (via the checkmark system log), the dashboard is updated.
 
 Format the command block exactly as:
 [DCCS_COMMAND: <JSON_ARRAY_OF_COMMANDS>]
@@ -39,8 +39,16 @@ Available commands inside the JSON array:
 4. Check/Uncheck Task KPI:
    { "action": "update_task_kpi", "taskId": "<task-id>", "kpiKey": "<kpi-key>", "checked": true | false }
    * Checks or unchecks a KPI under a specific task. "kpiKey" must be the exact key string (e.g., "0", "1", "custom-0") provided in the DCCS_CONTEXT KPI list.
+5. Delete Metric Entry:
+   { "action": "delete_metric_entry", "metricId": "<metric-id>", "date": "YYYY-MM-DD" }
+   * Deletes the entry on the specified date from a metric.
+6. Delete Dialogue Entry:
+   { "action": "delete_dialogue_entry", "serviceLineId": "<service-line-id>", "date": "YYYY-MM-DD", "textMatch": "<substring>" }
+   * Deletes the dialogue comment/entry matching the date and containing the textMatch substring.
 
-Always confirm in a direct, command-intent voice that you have applied the requested changes, explaining what was updated, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,
+If the target is ambiguous (no/unknown metric, multiple plausible matches, missing date or value), ASK a clarifying question and emit NO command block. Never emit a delete affecting more than one entry without listing each.
+
+Always explain what changes or deletes you are proposing, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,
   CLINICAL_REFUSAL: "I can't answer clinical or medical questions here. For medical emergencies, call 911. For non-emergency medical issues at General Leonard Wood Community Hospital, contact the appropriate GLWACH clinical channel. This assistant is for DCCS operations, goals, KPIs, access systems, quality, staff care, and leadership questions only.",
 
   CLINICAL_PATTERNS: [
@@ -307,17 +315,17 @@ Always confirm in a direct, command-intent voice that you have applied the reque
 
     body.innerHTML = this.renderText(cleanText);
 
-    // If we have parsed commands and execute is true, execute them!
+    // Instead of auto-executing, route through the confirmation card!
     if (execute && commands) {
-      this.executeCommands(commands, body);
+      this.renderConfirmationCard(commands, body);
     }
   },
 
-  executeCommands(commands, body) {
+  async executeCommands(commands, body) {
     const commandsArray = Array.isArray(commands) ? commands : [commands];
     const results = [];
 
-    commandsArray.forEach((cmd) => {
+    for (const cmd of commandsArray) {
       try {
         switch (cmd.action) {
           case "update_metric": {
@@ -360,6 +368,88 @@ Always confirm in a direct, command-intent voice that you have applied the reque
             }
             break;
           }
+          case "delete_metric_entry": {
+            const mappedId = this.validateAndMapMetricId(cmd.metricId);
+            const date = this.normalizeDate(cmd.date);
+            const store = { ...Sync.getMetricStore() };
+            const entries = Array.isArray(store[mappedId]) ? [...store[mappedId]] : [];
+            const index = entries.findIndex(e => this.normalizeDate(e.date) === date);
+            if (index < 0) {
+              throw new Error(`Entry on date ${date} not found for metric "${mappedId}"`);
+            }
+            entries.splice(index, 1);
+            store[mappedId] = entries;
+            Sync.saveMetricSeries([mappedId], store);
+
+            results.push(`Deleted entry on date ${date} from metric "${mappedId}"`);
+            if (window.App) {
+              if (typeof window.App.refreshMetricDisplay === "function") {
+                window.App.refreshMetricDisplay(mappedId);
+              }
+              const groupDef = window.App.getMetricGroupForSeries(mappedId);
+              if (groupDef && typeof window.App.refreshMetricGroupDisplay === "function") {
+                window.App.refreshMetricGroupDisplay(groupDef.group.id);
+              }
+            }
+            break;
+          }
+          case "delete_dialogue_entry": {
+            const slId = cmd.serviceLineId;
+            const date = this.normalizeDate(cmd.date);
+            const matchText = (cmd.textMatch || "").toLowerCase().trim();
+            
+            const entries = Sync.getDialogueEntries(slId) || [];
+            const candidates = entries.filter(e => {
+              const matchesDate = this.normalizeDate(e.date) === date;
+              const matchesText = !matchText || (e.text || "").toLowerCase().includes(matchText);
+              return matchesDate && matchesText;
+            });
+
+            if (candidates.length === 0) {
+              throw new Error(`No dialogue entry found on date ${date} matching "${cmd.textMatch || ''}"`);
+            } else if (candidates.length > 1) {
+              const listMsg = candidates.map(c => `"${c.text.substring(0, 30)}..."`).join(", ");
+              throw new Error(`Ambiguous delete: matched ${candidates.length} entries (${listMsg}). Please refine your search text.`);
+            }
+
+            const target = candidates[0];
+            
+            if (Sync.migrationDeferred) {
+              const currentDialogue = { ...Sync.cache.dialogue };
+              const slEntries = Array.isArray(currentDialogue[slId]) ? [...currentDialogue[slId]] : [];
+              const idx = slEntries.findIndex(e => e.date === target.date && e.text === target.text);
+              if (idx >= 0) {
+                slEntries.splice(idx, 1);
+              }
+              currentDialogue[slId] = slEntries;
+              Sync.cache.dialogue = currentDialogue;
+              localStorage.setItem('dccs-dialogue-entries', JSON.stringify(currentDialogue));
+              if (Sync.enabled && Sync.db) {
+                await Sync.db.collection("dccs_data").doc("dialogue").set(currentDialogue, { merge: true });
+              }
+              results.push(`Deleted dialogue entry (legacy): "${target.text.substring(0, 30)}..."`);
+              if (window.App && typeof window.App.updateDialogueList === "function") {
+                window.App.updateDialogueList(slId, slEntries);
+              }
+            } else {
+              const targetId = target.id;
+              if (Sync.enabled && Sync.db) {
+                Sync.setStatus('syncing');
+                const collectionRef = Sync.db.collection("dccs_data").doc("dialogue").collection("entries");
+                await collectionRef.doc(targetId).delete();
+                Sync.setStatus('synced');
+              }
+              if (Sync._dialogueDocs) {
+                delete Sync._dialogueDocs[targetId];
+              }
+              results.push(`Deleted dialogue entry: "${target.text.substring(0, 30)}..."`);
+              if (window.App && typeof window.App.updateDialogueList === "function") {
+                const updated = entries.filter(e => e.id !== targetId);
+                window.App.updateDialogueList(slId, updated);
+              }
+            }
+            break;
+          }
           default:
             console.warn("Unknown command action:", cmd.action);
         }
@@ -367,7 +457,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
         console.error("Error executing command:", cmd, err);
         results.push(`Failed update for ${cmd.action}: ${err.message}`);
       }
-    });
+    }
 
     if (results.length > 0) {
       const systemLog = document.createElement("div");
@@ -375,6 +465,137 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       systemLog.innerHTML = results.map(r => `<div>✓ ${r}</div>`).join("");
       body.appendChild(systemLog);
     }
+    this.scrollToBottom(true);
+  },
+
+  renderConfirmationCard(commands, body) {
+    const commandsArray = Array.isArray(commands) ? commands : [commands];
+    if (commandsArray.length === 0) return;
+
+    const card = document.createElement("div");
+    card.className = "ask-confirm-card";
+    card.style.border = "1px solid rgba(255, 255, 255, 0.15)";
+    card.style.borderRadius = "8px";
+    card.style.padding = "12px";
+    card.style.margin = "12px 0";
+    card.style.backgroundColor = "rgba(255, 255, 255, 0.05)";
+    card.style.fontSize = "13px";
+
+    const header = document.createElement("div");
+    header.style.fontWeight = "bold";
+    header.style.marginBottom = "8px";
+    header.style.color = "#8ab4f8";
+    header.textContent = "Proposed Actions Confirmation Required:";
+    card.appendChild(header);
+
+    const list = document.createElement("ul");
+    list.style.margin = "0 0 12px 20px";
+    list.style.padding = "0";
+    list.style.listStyleType = "disc";
+
+    commandsArray.forEach((cmd) => {
+      const li = document.createElement("li");
+      li.style.marginBottom = "6px";
+
+      let desc = "";
+      try {
+        switch (cmd.action) {
+          case "update_metric": {
+            const mappedId = this.validateAndMapMetricId(cmd.metricId);
+            const def = window.App ? window.App.getMetricDefinition(mappedId) : null;
+            const name = def ? def.name : mappedId;
+            desc = `Add/Update value <strong>${cmd.value}</strong> for <strong>${name}</strong> on <strong>${cmd.date || 'today'}</strong>`;
+            break;
+          }
+          case "add_dialogue":
+            desc = `Add dialogue entry to <strong>${cmd.serviceLineId.toUpperCase()}</strong>: "<em>${cmd.text}</em>" on <strong>${cmd.date || 'today'}</strong>`;
+            break;
+          case "update_task_status":
+            desc = `Update task <strong>"${cmd.taskId}"</strong> status to <strong>"${cmd.status}"</strong>`;
+            break;
+          case "update_task_kpi": {
+            const key = cmd.kpiKey !== undefined ? cmd.kpiKey : cmd.kpiIndex;
+            desc = `${cmd.checked ? "Check" : "Uncheck"} KPI <strong>"${key}"</strong> in task <strong>"${cmd.taskId}"</strong>`;
+            break;
+          }
+          case "delete_metric_entry": {
+            const mappedId = this.validateAndMapMetricId(cmd.metricId);
+            const def = window.App ? window.App.getMetricDefinition(mappedId) : null;
+            const name = def ? def.name : mappedId;
+            desc = `Delete entry on date <strong>${cmd.date}</strong> from metric <strong>${name}</strong>`;
+            break;
+          }
+          case "delete_dialogue_entry":
+            desc = `Delete dialogue entry for <strong>${cmd.serviceLineId.toUpperCase()}</strong> on date <strong>${cmd.date}</strong> matching "<em>${cmd.textMatch}</em>"`;
+            break;
+          default:
+            desc = `Unknown action: <strong>${cmd.action}</strong>`;
+        }
+      } catch (err) {
+        desc = `Error parsing action details: ${err.message}`;
+      }
+      li.innerHTML = desc;
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.gap = "8px";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "dccs-btn";
+    confirmBtn.textContent = "Confirm";
+    confirmBtn.style.padding = "6px 12px";
+    confirmBtn.style.fontSize = "12px";
+    confirmBtn.style.cursor = "pointer";
+    confirmBtn.style.borderRadius = "4px";
+    confirmBtn.style.border = "none";
+    confirmBtn.style.backgroundColor = "#7aa26a";
+    confirmBtn.style.color = "#fff";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "dccs-btn btn-secondary";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.padding = "6px 12px";
+    cancelBtn.style.fontSize = "12px";
+    cancelBtn.style.cursor = "pointer";
+    cancelBtn.style.borderRadius = "4px";
+    cancelBtn.style.border = "1px solid rgba(255,255,255,0.2)";
+    cancelBtn.style.backgroundColor = "transparent";
+    cancelBtn.style.color = "#eee";
+
+    btnContainer.appendChild(confirmBtn);
+    btnContainer.appendChild(cancelBtn);
+    card.appendChild(btnContainer);
+    body.appendChild(card);
+
+    confirmBtn.addEventListener("click", () => {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.style.opacity = "0.5";
+      cancelBtn.style.opacity = "0.5";
+      confirmBtn.style.cursor = "default";
+      cancelBtn.style.cursor = "default";
+      this.executeCommands(commands, body);
+    });
+
+    cancelBtn.addEventListener("click", () => {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.style.opacity = "0.5";
+      cancelBtn.style.opacity = "0.5";
+      confirmBtn.style.cursor = "default";
+      cancelBtn.style.cursor = "default";
+      const systemLog = document.createElement("div");
+      systemLog.className = "ask-system-log";
+      systemLog.style.color = "#ff8080";
+      systemLog.style.marginTop = "8px";
+      systemLog.textContent = "Cancelled — nothing changed.";
+      body.appendChild(systemLog);
+    });
+
+    this.scrollToBottom(true);
   },
 
   normalizeDate(dateString) {
@@ -798,6 +1019,24 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     const previous = entries[entries.length - 2] || null;
     const goalStatus = latest ? this.metricGoalStatus(metric, latest.value) : "no-data";
 
+    if (metric.id === "er-patients") {
+      const dates = entries.map(e => e.date).filter(Boolean);
+      return {
+        id: metric.id,
+        name: metric.name,
+        unit: metric.unit,
+        goal: metric.goal ?? null,
+        direction: metric.direction || "neutral",
+        period: metric.period || null,
+        entryCount: entries.length,
+        latest,
+        previous,
+        goalStatus,
+        recentEntries: [],
+        patientDateRange: dates.length > 0 ? { start: dates[0], end: dates[dates.length - 1] } : null
+      };
+    }
+
     return {
       id: metric.id,
       name: metric.name,
@@ -809,7 +1048,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
       latest,
       previous,
       goalStatus,
-      recentEntries: entries
+      recentEntries: entries.slice(-90)
     };
   },
 

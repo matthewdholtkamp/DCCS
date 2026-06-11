@@ -113,3 +113,13 @@
   - Refactored `processERData` to merge data.json entries with Firestore historical entries by date.
   - Added cache check to re-trigger ER data processing on snapshot updates.
   - Configured automatic persistence of newly-added dates and conversion of legacy server ISO-timestamps to Firestore.
+
+## Plan 3 Phase 3: Ask Dr. Holtkamp Read/Write/Delete & Confirmation Card
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Implemented an interactive HTML confirmation card inside the assistant message panel to prevent auto-execution of AI commands.
+  - Added delete command handlers (`delete_metric_entry` and `delete_dialogue_entry`) to support granular entry deletions.
+  - Optimized LLM context sizing in `summarizeMetric` by capping normal series history at the last 90 entries and excluding raw patient arrays.
+  - Updated prompt system rules to instruct the AI to ask clarifying questions on ambiguous tasks.
+  - Bumped CSS/JS file load versions to `v3` in `index.html`.
