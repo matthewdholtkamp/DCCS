@@ -103,6 +103,9 @@ Always explain what changes or deletes you are proposing, and append the command
 
     // Closed only via ✕ or nav toggle. Escape and outside-clicks disabled.
 
+    // Phase 3: Voice input via Web Speech API
+    this.initSpeechRecognition();
+
     this.dependenciesPromise = this.loadDependencies();
   },
 
@@ -137,6 +140,112 @@ Always explain what changes or deletes you are proposing, and append the command
     this.autoSizeInput();
     this.updateSendButtonState();
     this.els.input.focus();
+  },
+
+  initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.log("DCCS Ask: Speech recognition not supported in this browser.");
+      return;
+    }
+
+    this._recognition = new SpeechRecognition();
+    this._recognition.lang = 'en-US';
+    this._recognition.interimResults = true;
+    this._recognition.continuous = true;
+    this._isListening = false;
+    this._interimText = '';
+
+    const micBtn = document.getElementById('ask-mic');
+    if (!micBtn) return;
+
+    micBtn.style.display = 'flex';
+
+    micBtn.addEventListener('click', () => this.toggleMic());
+
+    this._recognition.onresult = (event) => {
+      let final = '';
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += transcript;
+        } else {
+          interim = transcript;
+        }
+      }
+
+      if (final) {
+        const input = this.els.input;
+        const cursorPos = input.selectionStart || input.value.length;
+        const before = input.value.substring(0, cursorPos);
+        const after = input.value.substring(cursorPos);
+        const separator = before.length > 0 && !before.endsWith(' ') ? ' ' : '';
+        input.value = before + separator + final.trim() + after;
+        this.autoSizeInput();
+        this.updateSendButtonState();
+        this._interimText = '';
+      }
+    };
+
+    this._recognition.onerror = (event) => {
+      console.warn("DCCS Ask: Speech recognition error:", event.error);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        this.setStatus("Microphone unavailable on this device", "error");
+        micBtn.style.display = 'none';
+        sessionStorage.setItem('dccs-mic-blocked', '1');
+      }
+      this.stopMic();
+    };
+
+    this._recognition.onend = () => {
+      if (this._isListening) {
+        this.stopMic();
+      }
+    };
+
+    // If mic was previously blocked in this session, hide it
+    if (sessionStorage.getItem('dccs-mic-blocked') === '1') {
+      micBtn.style.display = 'none';
+    }
+  },
+
+  toggleMic() {
+    if (this._isListening) {
+      this.stopMic();
+    } else {
+      this.startMic();
+    }
+  },
+
+  startMic() {
+    if (!this._recognition) return;
+    try {
+      this._recognition.start();
+      this._isListening = true;
+      const micBtn = document.getElementById('ask-mic');
+      if (micBtn) {
+        micBtn.classList.add('listening');
+        micBtn.setAttribute('aria-pressed', 'true');
+        micBtn.setAttribute('aria-label', 'Stop Voice Input');
+      }
+    } catch (e) {
+      console.warn("DCCS Ask: Could not start speech recognition:", e);
+    }
+  },
+
+  stopMic() {
+    if (!this._recognition) return;
+    try {
+      this._recognition.stop();
+    } catch (_) {}
+    this._isListening = false;
+    const micBtn = document.getElementById('ask-mic');
+    if (micBtn) {
+      micBtn.classList.remove('listening');
+      micBtn.setAttribute('aria-pressed', 'false');
+      micBtn.setAttribute('aria-label', 'Start Voice Input');
+    }
   },
 
   toggle() {
