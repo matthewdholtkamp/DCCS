@@ -1507,7 +1507,7 @@ const App = {
     const isExpanded = this.expandedMetricId === metric.id;
 
     return `
-      <article class="metric-card ${metric.featured ? 'featured' : ''}">
+      <article class="metric-card ${metric.featured ? 'featured' : ''}" id="metric-display-${metric.id}">
         <div class="metric-card-header">
           <div>
             <h3 class="metric-title">${this.escapeHtml(metric.name)}</h3>
@@ -1601,7 +1601,7 @@ const App = {
     const isExpanded = this.expandedMetricGroupId === group.id;
 
     return `
-      <article class="metric-group-panel">
+      <article class="metric-group-panel" id="metric-group-section-${group.id}">
         <div class="metric-card-header">
           <div>
             <h3 class="metric-title">${this.escapeHtml(group.name)}</h3>

@@ -629,7 +629,13 @@ const Sync = {
       this.setStatus('syncing');
       try {
         if (this.migrationDeferred) {
-          await this.db.collection("dccs_data").doc("metrics").set(allMetrics, { merge: true });
+          // Exclude generated ER keys to avoid hitting the 1MB Firestore document limit
+          const sanitizedMetrics = {};
+          for (const [k, v] of Object.entries(allMetrics)) {
+            if (k.startsWith('er-') || k === '_lastUpdated') continue;
+            sanitizedMetrics[k] = v;
+          }
+          await this.db.collection("dccs_data").doc("metrics").set(sanitizedMetrics, { merge: true });
         } else {
           if (changedIds.length === 1) {
             const id = changedIds[0];
