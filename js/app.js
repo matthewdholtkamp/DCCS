@@ -19,6 +19,40 @@ const App = {
     return `${year}-${month}-${day}`;
   },
 
+  parseLocalDate(s) {
+    if (!s) return null;
+    if (s instanceof Date) return new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    
+    let dateStr = s;
+    if (typeof s === 'string') {
+      if (s.includes('T')) {
+        const dt = new Date(s);
+        if (!isNaN(dt.getTime())) {
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const r = String(dt.getDate()).padStart(2, '0');
+          dateStr = `${y}-${m}-${r}`;
+        } else {
+          dateStr = s.substring(0, 10);
+        }
+      }
+    }
+    
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const parts = dateStr.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d);
+    }
+    
+    const fallback = new Date(s);
+    if (!isNaN(fallback.getTime())) {
+      return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    }
+    return fallback;
+  },
+
   confirmAction(message, onConfirm) {
     let dialog = document.getElementById('confirm-dialog');
     if (!dialog) {
@@ -3588,7 +3622,7 @@ const App = {
       `;
       setTimeout(() => {
         const store = this.getMetricStore();
-        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: new Date(p.date) }));
+        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
         
         // Reset state for presentation slide
         this.uvState = {
@@ -4318,15 +4352,9 @@ const App = {
     lo.min = '0'; lo.max = String(maxIdx);
     hi.min = '0'; hi.max = String(maxIdx);
  
-    const lastTs = this.uvDateList[maxIdx];
-    const cutoffTs = lastTs - 29*24*60*60*1000;
-    let defLo = 0;
-    for (let i = 0; i <= maxIdx; i++) {
-      if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
-    }
-    this.uvState.loIdx = defLo;
+    this.uvState.loIdx = 0;
     this.uvState.hiIdx = maxIdx;
-    lo.value = String(defLo);
+    lo.value = '0';
     hi.value = String(maxIdx);
     this.uvUpdateDateLabels();
   },
@@ -4485,6 +4513,7 @@ const App = {
   },
  
   renderUnitVolumeChart(prefix) {
+    this.uvRenderBreadcrumb();
     const p = prefix || '';
     const chartId = p + 'mscoe-unit-volume';
     this._destroyErChart(chartId);
@@ -4756,7 +4785,7 @@ const App = {
  
   initMscoeChartsAndTables() {
     const store = this.getMetricStore();
-    this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: new Date(p.date) }));
+    this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
  
     this.uvState = {
       level:    'bde',
