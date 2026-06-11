@@ -20,6 +20,7 @@ const Sync = {
   unsubscribe: null,
   _metricsUnsubscribe: null,
   _dialogueUnsubscribe: null,
+  _auditUnsubscribe: null,
   _dialogueDocs: {},
   pendingWrites: new Set(),
   migrationDeferred: false,
@@ -216,6 +217,10 @@ const Sync = {
       try { this._dialogueUnsubscribe(); } catch (_) {}
       this._dialogueUnsubscribe = null;
     }
+    if (this._auditUnsubscribe) {
+      try { this._auditUnsubscribe(); } catch (_) {}
+      this._auditUnsubscribe = null;
+    }
     this.setStatus('offline');
     this.loadLocalBackup();
   },
@@ -244,6 +249,9 @@ const Sync = {
     }
     if (this._dialogueUnsubscribe) {
       try { this._dialogueUnsubscribe(); } catch (_) {}
+    }
+    if (this._auditUnsubscribe) {
+      try { this._auditUnsubscribe(); } catch (_) {}
     }
 
     const allowedDocs = ['tasks', 'hedis', 'er_data'];
@@ -437,6 +445,52 @@ const Sync = {
         });
       } catch (err) {
         console.warn("Failed to attach dialogue subcollection listener:", err);
+      }
+    }
+
+    // 4. Audit events subcollection listener
+    if (!this.migrationDeferred) {
+      try {
+        this._auditUnsubscribe = this.db.collection("dccs_data").doc("audit").collection("events")
+          .orderBy("at", "desc")
+          .limit(15)
+          .onSnapshot((snapshot) => {
+            let events = [];
+            snapshot.forEach(doc => {
+              const data = doc.data() || {};
+              let atStr = "";
+              if (data.at) {
+                if (typeof data.at.toDate === 'function') {
+                  atStr = data.at.toDate().toISOString();
+                } else if (data.at instanceof Date) {
+                  atStr = data.at.toISOString();
+                } else if (typeof data.at === 'string') {
+                  atStr = data.at;
+                }
+              } else {
+                atStr = new Date().toISOString();
+              }
+              events.push({
+                at: atStr,
+                by: data.by || 'Unknown',
+                action: data.action || '',
+                target: data.target || '',
+                summaryBefore: data.summaryBefore || '',
+                summaryAfter: data.summaryAfter || ''
+              });
+            });
+            if (window.App) {
+              window.App._auditLog = events;
+              const listEl = document.getElementById('recent-activity-list');
+              if (listEl) {
+                listEl.innerHTML = window.App.renderRecentActivityList();
+              }
+            }
+          }, (error) => {
+            console.warn("Audit events subcollection snapshot listener failed:", error);
+          });
+      } catch (err) {
+        console.warn("Failed to attach audit events subcollection listener:", err);
       }
     }
   },

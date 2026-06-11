@@ -203,6 +203,59 @@ const App = {
     }, 8000);
   },
 
+  formatAuditDate(isoString) {
+    if (!isoString) return "";
+    const dt = new Date(isoString);
+    if (isNaN(dt.getTime())) return "";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const day = dt.getDate();
+    const month = months[dt.getMonth()];
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const minutes = String(dt.getMinutes()).padStart(2, '0');
+    return `${day} ${month} ${hours}:${minutes}`;
+  },
+
+  formatAuditMessage(entry) {
+    const timeStr = this.formatAuditDate(entry.at);
+    const byStr = entry.by || "Unknown";
+    
+    let msg = "";
+    if (entry.action === 'update_metric') {
+      const beforeVal = entry.summaryBefore && entry.summaryBefore.includes(': ') ? entry.summaryBefore.split(': ').slice(-1)[0] : 'None';
+      const afterVal = entry.summaryAfter && entry.summaryAfter.includes(': ') ? entry.summaryAfter.split(': ').slice(-1)[0] : 'None';
+      msg = `updated ${entry.target}: ${beforeVal} → ${afterVal}`;
+    } else if (entry.action === 'undo_metric') {
+      const beforeVal = entry.summaryBefore && entry.summaryBefore.includes(': ') ? entry.summaryBefore.split(': ').slice(-1)[0] : 'None';
+      const afterVal = entry.summaryAfter && entry.summaryAfter.includes(': ') ? entry.summaryAfter.split(': ').slice(-1)[0] : 'None';
+      msg = `undid metric change ${entry.target}: ${beforeVal} → ${afterVal}`;
+    } else if (entry.action === 'delete_metric') {
+      msg = `deleted metric entry for ${entry.target}`;
+    } else if (entry.action === 'add_dialogue') {
+      msg = `added dialogue entry for ${entry.target}`;
+    } else if (entry.action === 'delete_dialogue') {
+      msg = `deleted dialogue entry for ${entry.target}`;
+    } else {
+      msg = `${entry.action || 'changed'} ${entry.target || ''}`;
+      if (entry.summaryBefore && entry.summaryAfter) {
+        msg += `: ${entry.summaryBefore} → ${entry.summaryAfter}`;
+      }
+    }
+    
+    return `${timeStr} — ${byStr} ${msg}`;
+  },
+
+  renderRecentActivityList() {
+    const list = this._auditLog || [];
+    if (list.length === 0) {
+      return `<div class="activity-item" style="border: none; opacity: 0.5;">No recent changes recorded.</div>`;
+    }
+    return list.slice(0, 15).map(entry => `
+      <div class="activity-item">
+        ${this.escapeHtml(this.formatAuditMessage(entry))}
+      </div>
+    `).join('');
+  },
+
   confirmAction(message, onConfirm) {
     let dialog = document.getElementById('confirm-dialog');
     if (!dialog) {
@@ -651,6 +704,13 @@ const App = {
           <div class="cross-cutting-info-title">Cross-Cutting Tasks (LOE 2: Ready Medical Force)</div>
           <div class="cross-cutting-info-desc">${D.crossCuttingTasks.length} tasks apply across all service lines and remain visible within each service line detail view.</div>
         </div>
+
+        <details class="recent-activity-section" id="recent-activity-section">
+          <summary>Recent Changes</summary>
+          <div class="recent-activity-list" id="recent-activity-list">
+            ${this.renderRecentActivityList()}
+          </div>
+        </details>
       </section>`;
   },
 
@@ -1127,15 +1187,33 @@ const App = {
     
     const all = { ...this.getMetricStore() };
     const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
-    entries.push({ date: dateInput.value, value: parsedVal });
+    const beforeVal = entries.length > 0 ? { ...entries[entries.length - 1] } : null;
+    const user = this.getCurrentUser();
+    
+    entries.push({ date: dateInput.value, value: parsedVal, by: user });
     entries.sort((a, b) => a.date.localeCompare(b.date));
     all[metricId] = entries;
     Sync.saveMetricSeries([metricId], all);
     valInput.value = '';
+    
     // P2: Show save confirmation flash
     valInput.style.boxShadow = '0 0 0 2px rgba(122,172,106,0.5)';
     setTimeout(() => { valInput.style.boxShadow = ''; }, 800);
     this.refreshMetricDisplay(metricId);
+    
+    this.logAudit('update_metric', metricId, `${metricId} on ${dateInput.value}: None`, `${metricId} on ${dateInput.value}: ${parsedVal}`);
+    this.showUndoToast(`Added ${metricId} = ${parsedVal}`, () => {
+      const undoAll = { ...this.getMetricStore() };
+      const undoEntries = Array.isArray(undoAll[metricId]) ? [...undoAll[metricId]] : [];
+      const idx = undoEntries.findIndex(e => e.date === dateInput.value && e.value === parsedVal);
+      if (idx >= 0) {
+        undoEntries.splice(idx, 1);
+        undoAll[metricId] = undoEntries;
+        Sync.saveMetricSeries([metricId], undoAll);
+        this.refreshMetricDisplay(metricId);
+        this.logAudit('undo_metric', metricId, `${metricId} on ${dateInput.value}: ${parsedVal}`, `${metricId} on ${dateInput.value}: None`);
+      }
+    });
   },
 
   drawMiniChart(metricId) {
@@ -1193,24 +1271,44 @@ const App = {
     
     const date = dateInput.value;
     const all = { ...this.getMetricStore() };
+    const beforeState = {};
     let added = false;
     const changedIds = [];
+    const user = this.getCurrentUser();
     
     group.series.forEach(series => {
       const input = document.getElementById(`metric-group-val-${group.id}-${series.id}`);
       if (!input || input.value === '') return;
       const entries = Array.isArray(all[series.id]) ? [...all[series.id]] : [];
-      entries.push({ date, value: parseFloat(input.value) });
+      beforeState[series.id] = Array.isArray(all[series.id]) ? [...all[series.id]] : null;
+      
+      entries.push({ date, value: parseFloat(input.value), by: user });
       entries.sort((a, b) => a.date.localeCompare(b.date));
       all[series.id] = entries;
       input.value = '';
       added = true;
       changedIds.push(series.id);
+      
+      this.logAudit('update_metric', series.id, `${series.id} on ${date}: None`, `${series.id} on ${date}: ${parseFloat(input.value)}`);
     });
     
     if (!added) return;
     Sync.saveMetricSeries(changedIds, all);
     this.refreshMetricGroupDisplay(group.id);
+
+    this.showUndoToast(`Added ${changedIds.length} metrics`, () => {
+      const undoAll = { ...this.getMetricStore() };
+      changedIds.forEach(seriesId => {
+        if (beforeState[seriesId] === null) {
+          delete undoAll[seriesId];
+        } else {
+          undoAll[seriesId] = beforeState[seriesId];
+        }
+        this.logAudit('undo_metric', seriesId, `${seriesId} on ${date}: restored previous state`, `${seriesId} on ${date}: removed new value`);
+      });
+      Sync.saveMetricSeries(changedIds, undoAll);
+      this.refreshMetricGroupDisplay(group.id);
+    });
   },
 
   drawMetricGroupChart(groupId) {
@@ -2099,21 +2197,46 @@ const App = {
   addDialogueEntry(slId) {
     const ta = document.getElementById(`dialogue-text-${slId}`);
     if (!ta || !ta.value.trim()) return;
+    const text = ta.value.trim();
     const entries = this.getDialogueEntries(slId);
+    
+    // Capture before state
+    const beforeState = entries.map(e => ({ ...e }));
+    
+    const user = this.getCurrentUser();
     entries.unshift({
       date: this.getLocalToday(),
-      text: ta.value.trim()
+      text: text,
+      by: user
     });
     Sync.saveDialogueEntries(slId, entries);
     ta.value = '';
     this.updateDialogueList(slId, entries);
+    
+    this.logAudit('add_dialogue', slId, '', text);
+    this.showUndoToast(`Added dialogue entry`, () => {
+      Sync.saveDialogueEntries(slId, beforeState);
+      this.updateDialogueList(slId, beforeState);
+      this.logAudit('undo_dialogue', slId, text, 'restored previous state');
+    });
   },
 
   deleteDialogueEntry(slId, index) {
     const entries = this.getDialogueEntries(slId);
+    const beforeState = entries.map(e => ({ ...e }));
+    const removed = entries[index];
+    if (!removed) return;
+    
     entries.splice(index, 1);
     Sync.saveDialogueEntries(slId, entries);
     this.updateDialogueList(slId, entries);
+    
+    this.logAudit('delete_dialogue', slId, removed.text, '');
+    this.showUndoToast(`Deleted dialogue entry`, () => {
+      Sync.saveDialogueEntries(slId, beforeState);
+      this.updateDialogueList(slId, beforeState);
+      this.logAudit('undo_dialogue', slId, 'restored deleted entry', removed.text);
+    });
   },
 
   editDialogueEntry(slId, index) {
@@ -2143,9 +2266,19 @@ const App = {
       return;
     }
     const entries = this.getDialogueEntries(slId);
+    const beforeState = entries.map(e => ({ ...e }));
     if (entries[index]) {
-      entries[index].text = val;
+      const beforeText = entries[index].text;
+      const user = this.getCurrentUser();
+      entries[index] = { ...entries[index], text: val, by: user };
       Sync.saveDialogueEntries(slId, entries);
+      
+      this.logAudit('edit_dialogue', slId, beforeText, val);
+      this.showUndoToast(`Updated dialogue entry`, () => {
+        Sync.saveDialogueEntries(slId, beforeState);
+        this.updateDialogueList(slId, beforeState);
+        this.logAudit('undo_dialogue', slId, val, beforeText);
+      });
     }
     this.updateDialogueList(slId, entries);
   },
