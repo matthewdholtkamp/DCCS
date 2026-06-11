@@ -72,7 +72,7 @@ Always explain what changes or deletes you are proposing, and append the command
 
     if (!this.els.button || !this.els.panel || !this.els.form) return;
 
-    this.history = [];
+    this.history = this.loadHistory();
     this.renderHistory();
     this.updateSendButtonState();
 
@@ -101,24 +101,42 @@ Always explain what changes or deletes you are proposing, and append the command
       });
     });
 
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen) this.close();
-    });
-    document.addEventListener("click", (event) => {
-      if (!this.isOpen) return;
-      if (this.els.panel.contains(event.target) || this.els.button.contains(event.target) || this.els.backdrop?.contains(event.target)) return;
-      this.close();
-    });
+    // Closed only via ✕ or nav toggle. Escape and outside-clicks disabled.
 
     this.dependenciesPromise = this.loadDependencies();
   },
 
   loadHistory() {
+    try {
+      const stored = sessionStorage.getItem('dccs-ask-history');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("Failed to load ask history:", e);
+    }
     return [];
   },
 
   saveHistory() {
-    // Strictly in-memory session history
+    try {
+      if (this.history.length > 40) {
+        this.history = this.history.slice(-40);
+      }
+      sessionStorage.setItem('dccs-ask-history', JSON.stringify(this.history));
+    } catch (e) {
+      console.error("Failed to save ask history:", e);
+    }
+  },
+
+  newChat() {
+    this.history = [];
+    sessionStorage.removeItem('dccs-ask-history');
+    this.renderHistory();
+    this.els.input.value = "";
+    this.autoSizeInput();
+    this.updateSendButtonState();
+    this.els.input.focus();
   },
 
   toggle() {
@@ -127,10 +145,8 @@ Always explain what changes or deletes you are proposing, and append the command
 
   open() {
     this.isOpen = true;
-    this.history = []; // Reset history for a fresh session
-    this.renderHistory(); // Re-render greeting message
+    this.renderHistory();
     this.els.panel.classList.add("open");
-    this.els.backdrop.classList.add("open");
     this.els.button.classList.add("active");
     this.els.button.setAttribute("aria-expanded", "true");
     setTimeout(() => this.els.input.focus(), 200);
@@ -139,7 +155,6 @@ Always explain what changes or deletes you are proposing, and append the command
   close() {
     this.isOpen = false;
     this.els.panel.classList.remove("open");
-    this.els.backdrop.classList.remove("open");
     this.els.button.classList.remove("active");
     this.els.button.setAttribute("aria-expanded", "false");
   },
