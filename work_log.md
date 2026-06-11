@@ -80,7 +80,19 @@
   - **Focus safety:** Confirmed active input elements are not overwritten or interrupted when concurrent updates occur.
   - **ER performance:** ER page loads do not write to Firestore and charts only redraw on filter changes.
   - **Multi-tab:** 3 concurrent tabs show zero offline persistence errors.
-  - **Data integrity:** Ran backup script post-change and verified all data remains intact.
-  - **AI command execution:** Confirmed that AI commands are executed exactly once when the Gemini stream closes.
+  - AI command execution: Confirmed that AI commands are executed exactly once when the Gemini stream closes.
 
-
+## Plan 2 Phase 1: Code Hardening & Repositioning
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Implemented FNV-1a hex string hashing (`hash8`) in `js/sync.js`.
+  - Added deterministic dialogue document ID generation (`serviceLineId_date_hash8(text)`) inside both `runMigrationV2()` and `saveDialogueEntries()`.
+  - Implemented transactional lock on `_meta` document in `runMigrationV2()` using `db.runTransaction` to prevent double-migration races.
+  - Implemented graceful legacy mode fallback in `init()`, `subscribe()`, and writer functions (`saveMetricStore` and `saveDialogueEntries`) to keep the app working when subcollection permission is denied.
+  - Removed page-refreshing `App.route()` call on sync failure inside `disableSync()`.
+  - Implemented connection retry with backoff (1s/5s/15s) on database snapshot/write errors before disabling sync.
+  - Repositioned presentation Ask Dr. Holtkamp launcher by changing `.pres-ask-launcher` bottom style to `80px` in `css/styles.css`.
+  - Created deduplication helper script `scripts/dedupe_dialogue.mjs`.
+  - Created pre-Plan 2 database backup in `_backup/2026-06-11T00-03-55-385Z-pre-plan2/`.
+  - Bumped css and js version query parameters to `v2` in `index.html`.

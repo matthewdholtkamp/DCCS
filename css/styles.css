@@ -4447,7 +4447,7 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
 .pres-ask-launcher {
   display: none;
   position: fixed;
-  bottom: 24px;
+  bottom: 80px;
   right: 24px;
   background: var(--gold);
   color: #000000;
