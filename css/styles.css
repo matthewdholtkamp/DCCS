@@ -4323,111 +4323,68 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
   flex: 1;
 }
 
-.uv-slider-wrap {
-  position: relative;
-  height: 40px;
-  margin-top: 4px;
-}
-
-.uv-slider-track {
-  position: absolute;
-  top: 14px;
-  left: 0;
-  right: 0;
-  height: 6px;
-  background: var(--border-subtle);
-  border-radius: 3px;
-}
-
-.uv-slider-range {
-  position: absolute;
-  top: 14px;
-  height: 6px;
-  background: var(--army-green-light);
-  border-radius: 3px;
-}
-
-.uv-slider-wrap input[type=range] {
-  position: absolute;
-  top: 6px;
-  left: 0;
-  width: 100%;
-  margin: 0;
-  -webkit-appearance: none;
-  appearance: none;
-  background: none;
-  pointer-events: none;
-  height: 22px;
-}
-
-/* Lo slider sits on top so its thumb is always grabbable */
-.uv-slider-wrap input[type=range]#uvSliderLo {
-  z-index: 2;
-}
-
-/* Hi slider below Lo, but its thumb still gets pointer-events */
-.uv-slider-wrap input[type=range]#uvSliderHi {
-  z-index: 1;
-}
-
-/* Zero-height track on Lo so it doesn't block Hi's thumb clicks */
-.uv-slider-wrap input[type=range]#uvSliderLo::-webkit-slider-runnable-track {
-  height: 0;
-}
-
-.uv-slider-wrap input[type=range]#uvSliderLo::-moz-range-track {
-  height: 0;
-}
-
-.uv-slider-wrap input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  pointer-events: auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--gold);
-  border: 2px solid var(--army-green-light);
-  cursor: pointer;
-  transition: var(--transition);
-  position: relative;
-}
-
-.uv-slider-wrap input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 8px rgba(var(--gold-rgb, 255 193 7), 0.5);
-}
-
-.uv-slider-wrap input[type=range]::-moz-range-thumb {
-  pointer-events: auto;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--gold);
-  border: 2px solid var(--army-green-light);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.uv-slider-wrap input[type=range]::-moz-range-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 8px rgba(var(--gold-rgb, 255 193 7), 0.5);
-}
-
-.uv-date-labels {
+/* Date picker row — replaces dual-range slider */
+.uv-date-picker-row {
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--text-primary);
-  font-family: var(--font-body);
+  align-items: center;
+  gap: 10px;
 }
 
-.uv-date-labels .sub {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-weight: normal;
+.uv-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
 }
+
+.uv-date-field label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.uv-date-field input[type="date"] {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+  min-width: 130px;
+}
+
+.uv-date-field input[type="date"]:hover {
+  border-color: var(--gold);
+  background: var(--bg-card-hover);
+}
+
+.uv-date-field input[type="date"]:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 168, 78, 0.2);
+}
+
+/* Fix date picker icon color in dark themes */
+.uv-date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+.uv-date-separator {
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 700;
+  padding-top: 16px;
+}
+
 
 /* Patient Check-in Table adjustments */
 .dccs-trainee-table th {

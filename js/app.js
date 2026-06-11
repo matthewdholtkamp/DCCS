@@ -4621,99 +4621,88 @@ const App = {
     return months[d.getMonth()] + ' ' + d.getDate();
   },
  
-  uvBuildDateSlider() {
+  uvBuildDatePickers() {
     const set = new Set();
     this.allPatients.forEach(p => {
       if (!p.date) return;
       set.add(new Date(p.date.getFullYear(), p.date.getMonth(), p.date.getDate()).getTime());
     });
-    this.uvDateList = Array.from(set).sort((a,b)=>a-b);
- 
-    const lo = document.getElementById('uvSliderLo');
-    const hi = document.getElementById('uvSliderHi');
-    if (!lo || !hi) return;
- 
+    this.uvDateList = Array.from(set).sort((a, b) => a - b);
+
+    const loInput = document.getElementById('uvDatePickerLo');
+    const hiInput = document.getElementById('uvDatePickerHi');
+    if (!loInput || !hiInput) return;
+
     if (!this.uvDateList.length) {
-      lo.min = hi.min = 0; lo.max = hi.max = 0; lo.value = hi.value = 0;
+      loInput.value = ''; hiInput.value = '';
       this.uvState.loIdx = this.uvState.hiIdx = 0;
-      this.uvUpdateDateLabels();
       return;
     }
+
     const maxIdx = this.uvDateList.length - 1;
-    lo.min = '0'; lo.max = String(maxIdx);
-    hi.min = '0'; hi.max = String(maxIdx);
- 
-    // default: last 30 calendar days (by date value, not index)
+    const fmtISO = (ts) => {
+      const d = new Date(ts);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+
+    // Set min/max on both pickers
+    loInput.min = fmtISO(this.uvDateList[0]);
+    loInput.max = fmtISO(this.uvDateList[maxIdx]);
+    hiInput.min = fmtISO(this.uvDateList[0]);
+    hiInput.max = fmtISO(this.uvDateList[maxIdx]);
+
+    // Default: last 30 calendar days
     const lastTs = this.uvDateList[maxIdx];
     const cutoffTs = lastTs - 29 * 24 * 60 * 60 * 1000;
     let defLo = 0;
     for (let i = 0; i <= maxIdx; i++) {
       if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
     }
+
     this.uvState.loIdx = defLo;
     this.uvState.hiIdx = maxIdx;
-    lo.value = String(defLo);
-    hi.value = String(maxIdx);
-    this.uvUpdateDateLabels();
+    loInput.value = fmtISO(this.uvDateList[defLo]);
+    hiInput.value = fmtISO(this.uvDateList[maxIdx]);
   },
- 
-  uvUpdateDateLabels() {
-    const loEl = document.getElementById('uvDateLo');
-    const hiEl = document.getElementById('uvDateHi');
-    const rangeBar = document.getElementById('uvSliderRange');
-    if (!loEl || !hiEl || !rangeBar) return;
- 
-    if (!this.uvDateList.length) {
-      loEl.textContent = '—'; hiEl.textContent = '—';
-      rangeBar.style.left = '0%'; rangeBar.style.width = '0%';
-      return;
+
+  uvOnDatePickerChange() {
+    const loInput = document.getElementById('uvDatePickerLo');
+    const hiInput = document.getElementById('uvDatePickerHi');
+    if (!loInput || !hiInput || !this.uvDateList.length) return;
+
+    let loVal = loInput.value;
+    let hiVal = hiInput.value;
+    if (!loVal || !hiVal) return;
+
+    // Enforce lo <= hi
+    if (loVal > hiVal) {
+      const tmp = loVal; loVal = hiVal; hiVal = tmp;
+      loInput.value = loVal;
+      hiInput.value = hiVal;
     }
-    const maxIdx = this.uvDateList.length - 1;
- 
-    const fmtShortDate = (d) => {
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return months[d.getMonth()] + ' ' + d.getDate();
-    };
- 
-    loEl.textContent = fmtShortDate(new Date(this.uvDateList[this.uvState.loIdx]));
-    hiEl.textContent = fmtShortDate(new Date(this.uvDateList[this.uvState.hiIdx]));
-    const lpct = maxIdx > 0 ? (this.uvState.loIdx / maxIdx) * 100 : 0;
-    const hpct = maxIdx > 0 ? (this.uvState.hiIdx / maxIdx) * 100 : 100;
-    rangeBar.style.left  = lpct + '%';
-    rangeBar.style.width = (hpct - lpct) + '%';
-  },
- 
-  uvWireSlider() {
-    const lo = document.getElementById('uvSliderLo');
-    const hi = document.getElementById('uvSliderHi');
-    if (!lo || !hi) return;
- 
-    let debounceTimer = null;
 
-    const onLoInput = () => {
-      let l = parseInt(lo.value, 10);
-      let h = parseInt(hi.value, 10);
-      if (l > h) { l = h; lo.value = String(l); }
-      this.uvState.loIdx = l;
-      this.uvState.hiIdx = h;
-      this.uvUpdateDateLabels();
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => this.renderUnitVolumeChart(), 150);
-    };
+    // Convert date strings to timestamps for comparison
+    const loParts = loVal.split('-');
+    const loTs = new Date(+loParts[0], +loParts[1] - 1, +loParts[2]).getTime();
+    const hiParts = hiVal.split('-');
+    const hiTs = new Date(+hiParts[0], +hiParts[1] - 1, +hiParts[2]).getTime();
 
-    const onHiInput = () => {
-      let l = parseInt(lo.value, 10);
-      let h = parseInt(hi.value, 10);
-      if (h < l) { h = l; hi.value = String(h); }
-      this.uvState.loIdx = l;
-      this.uvState.hiIdx = h;
-      this.uvUpdateDateLabels();
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => this.renderUnitVolumeChart(), 150);
-    };
+    // Find closest indices in uvDateList
+    let bestLo = 0;
+    for (let i = 0; i < this.uvDateList.length; i++) {
+      if (this.uvDateList[i] >= loTs) { bestLo = i; break; }
+      bestLo = i;
+    }
+    let bestHi = this.uvDateList.length - 1;
+    for (let i = this.uvDateList.length - 1; i >= 0; i--) {
+      if (this.uvDateList[i] <= hiTs) { bestHi = i; break; }
+      bestHi = i;
+    }
+    if (bestLo > bestHi) bestLo = bestHi;
 
-    lo.addEventListener('input', onLoInput);
-    hi.addEventListener('input', onHiInput);
+    this.uvState.loIdx = bestLo;
+    this.uvState.hiIdx = bestHi;
+    this.renderUnitVolumeChart();
   },
  
   renderMscoeTrackedMetrics(sl) {
@@ -4769,15 +4758,16 @@ const App = {
  
             <div class="uv-block uv-date-row">
               <span class="uv-block-title">Date Range</span>
-              <div class="uv-slider-wrap">
-                <div class="uv-slider-track"></div>
-                <div class="uv-slider-range" id="uvSliderRange"></div>
-                <input type="range" id="uvSliderLo" min="0" max="0" value="0">
-                <input type="range" id="uvSliderHi" min="0" max="0" value="0">
-              </div>
-              <div class="uv-date-labels">
-                <div><span id="uvDateLo">—</span><div class="sub">start</div></div>
-                <div style="text-align: right;"><span id="uvDateHi">—</span><div class="sub">end</div></div>
+              <div class="uv-date-picker-row">
+                <div class="uv-date-field">
+                  <label for="uvDatePickerLo">From</label>
+                  <input type="date" id="uvDatePickerLo" onchange="App.uvOnDatePickerChange()">
+                </div>
+                <span class="uv-date-separator">→</span>
+                <div class="uv-date-field">
+                  <label for="uvDatePickerHi">To</label>
+                  <input type="date" id="uvDatePickerHi" onchange="App.uvOnDatePickerChange()">
+                </div>
               </div>
             </div>
           </div>
@@ -5102,8 +5092,7 @@ const App = {
       hiIdx:    null,
     };
  
-    this.uvBuildDateSlider();
-    this.uvWireSlider();
+    this.uvBuildDatePickers();
     this.renderUnitVolumeChart();
   },
  
