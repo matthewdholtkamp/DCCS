@@ -123,3 +123,19 @@
   - Optimized LLM context sizing in `summarizeMetric` by capping normal series history at the last 90 entries and excluding raw patient arrays.
   - Updated prompt system rules to instruct the AI to ask clarifying questions on ambiguous tasks.
   - Bumped CSS/JS file load versions to `v3` in `index.html`.
+
+## Plan 4 Phase 1-5: Unit Volume, Ask UX, Voice, Attribution, Undo, and UI Changes Section
+- **Status:** Complete
+- **Date:** 2026-06-11
+- **Changes:**
+  - Automated backups: Added `.github/workflows/nightly-backup.yml` and scripts `scripts/backup_firestore.mjs` / `scripts/prune_backups.mjs`.
+  - Unit Volume Drill-Down: Enabled drilldown support and breadcrumb navigation rendering; fixed local timezone conversion parsing (`parseLocalDate`) to prevent UTC midnight date shift.
+  - Ask Dr. Holtkamp Overhaul: Converted the panel to a permanent side-panel, preserved chat history in sessionStorage, and added a "New Chat" clearing button.
+  - Voice-to-Text Dictation: Implemented microphone dictation via the Web Speech API with automatic failure recovery and permission error handling.
+  - User Attribution: Created a user dropdown identity chip stored in localStorage, and stamped all changes with `by` attributes.
+  - Real-time Audit Logs: Implemented dynamic query listener for `dccs_data/audit/events` ordered by timestamp.
+  - Undo Toast: Created a temporary 8-second toast message that supports undo action to revert changes.
+  - UI Recent Changes Section: Added a collapsible details section at the bottom of the Framework Overview page that displays the last 15 audit events and updates dynamically in real-time.
+  - UI Edits: Refactored manual metrics additions and dialogue additions/deletions/edits to stamp attribution, audit log the event, and show the undo toast.
+  - Bumped all query parameters versioning to `v5` in `index.html`.
+
