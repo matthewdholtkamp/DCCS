@@ -4325,7 +4325,8 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
 
 .uv-slider-wrap {
   position: relative;
-  height: 34px;
+  height: 40px;
+  margin-top: 4px;
 }
 
 .uv-slider-track {
@@ -4359,6 +4360,25 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
   height: 22px;
 }
 
+/* Lo slider sits on top so its thumb is always grabbable */
+.uv-slider-wrap input[type=range]#uvSliderLo {
+  z-index: 2;
+}
+
+/* Hi slider below Lo, but its thumb still gets pointer-events */
+.uv-slider-wrap input[type=range]#uvSliderHi {
+  z-index: 1;
+}
+
+/* Zero-height track on Lo so it doesn't block Hi's thumb clicks */
+.uv-slider-wrap input[type=range]#uvSliderLo::-webkit-slider-runnable-track {
+  height: 0;
+}
+
+.uv-slider-wrap input[type=range]#uvSliderLo::-moz-range-track {
+  height: 0;
+}
+
 .uv-slider-wrap input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -4370,10 +4390,12 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
   border: 2px solid var(--army-green-light);
   cursor: pointer;
   transition: var(--transition);
+  position: relative;
 }
 
 .uv-slider-wrap input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb, 255 193 7), 0.5);
 }
 
 .uv-slider-wrap input[type=range]::-moz-range-thumb {
@@ -4388,7 +4410,8 @@ html:active-view-transition-type(backward)::view-transition-new(root) { animatio
 }
 
 .uv-slider-wrap input[type=range]::-moz-range-thumb:hover {
-  transform: scale(1.1);
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(var(--gold-rgb, 255 193 7), 0.5);
 }
 
 .uv-date-labels {

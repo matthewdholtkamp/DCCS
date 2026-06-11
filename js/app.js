@@ -4689,23 +4689,31 @@ const App = {
     if (!lo || !hi) return;
  
     let debounceTimer = null;
-    const onInput = () => {
+
+    const onLoInput = () => {
       let l = parseInt(lo.value, 10);
       let h = parseInt(hi.value, 10);
-      if (l > h) {
-        [l, h] = [h, l];
-      }
+      if (l > h) { l = h; lo.value = String(l); }
       this.uvState.loIdx = l;
       this.uvState.hiIdx = h;
       this.uvUpdateDateLabels();
-      
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        this.renderUnitVolumeChart();
-      }, 150);
+      debounceTimer = setTimeout(() => this.renderUnitVolumeChart(), 150);
     };
-    lo.addEventListener('input', onInput);
-    hi.addEventListener('input', onInput);
+
+    const onHiInput = () => {
+      let l = parseInt(lo.value, 10);
+      let h = parseInt(hi.value, 10);
+      if (h < l) { h = l; hi.value = String(h); }
+      this.uvState.loIdx = l;
+      this.uvState.hiIdx = h;
+      this.uvUpdateDateLabels();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => this.renderUnitVolumeChart(), 150);
+    };
+
+    lo.addEventListener('input', onLoInput);
+    hi.addEventListener('input', onHiInput);
   },
  
   renderMscoeTrackedMetrics(sl) {
