@@ -139,3 +139,13 @@
   - UI Edits: Refactored manual metrics additions and dialogue additions/deletions/edits to stamp attribution, audit log the event, and show the undo toast.
   - Bumped all query parameters versioning to `v5` in `index.html`.
 
+## Unit Volume Date Range Slider Fix
+- **Status:** Complete
+- **Date:** 2026-06-11
+- **Changes:**
+  - Updated `uvBuildDateSlider()` in `js/app.js` to calculate a 30 calendar days baseline default range from the most recent check-in date.
+  - Set the left handle `loIdx` and `lo.value` to this cutoff index, preventing data from being squished to the far right side of the canvas.
+  - Updated presentation mode Unit Volume chart initialization in `js/app.js` to use the same 30 calendar days default window calculation.
+  - Bumped all query parameters versioning to `v6` in `index.html`.
+
+

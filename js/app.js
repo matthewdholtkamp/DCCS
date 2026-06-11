@@ -3926,8 +3926,15 @@ const App = {
         });
         this.uvDateList = Array.from(set).sort((a,b)=>a-b);
         if (this.uvDateList.length) {
-          this.uvState.loIdx = Math.max(0, this.uvDateList.length - 30);
-          this.uvState.hiIdx = this.uvDateList.length - 1;
+          const maxIdx = this.uvDateList.length - 1;
+          const lastTs = this.uvDateList[maxIdx];
+          const cutoffTs = lastTs - 29 * 24 * 60 * 60 * 1000;
+          let defLo = 0;
+          for (let i = 0; i <= maxIdx; i++) {
+            if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
+          }
+          this.uvState.loIdx = defLo;
+          this.uvState.hiIdx = maxIdx;
         } else {
           this.uvState.loIdx = this.uvState.hiIdx = 0;
         }
@@ -4636,9 +4643,16 @@ const App = {
     lo.min = '0'; lo.max = String(maxIdx);
     hi.min = '0'; hi.max = String(maxIdx);
  
-    this.uvState.loIdx = 0;
+    // default: last 30 calendar days (by date value, not index)
+    const lastTs = this.uvDateList[maxIdx];
+    const cutoffTs = lastTs - 29 * 24 * 60 * 60 * 1000;
+    let defLo = 0;
+    for (let i = 0; i <= maxIdx; i++) {
+      if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
+    }
+    this.uvState.loIdx = defLo;
     this.uvState.hiIdx = maxIdx;
-    lo.value = '0';
+    lo.value = String(defLo);
     hi.value = String(maxIdx);
     this.uvUpdateDateLabels();
   },
