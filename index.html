@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260610-v3">
+  <link rel="stylesheet" href="css/styles.css?v=20260611-v4">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23c8a84e'/><text x='16' y='22' text-anchor='middle' font-size='16' font-weight='800' fill='%23060a13'>G</text></svg>">
 </head>
 <body>
@@ -26,6 +26,10 @@
       </div>
     </div>
     <div class="nav-links">
+      <div class="nav-user-chip" id="nav-user-chip" title="Click to change user">
+        <span id="nav-user-name">Unknown</span>
+        <span class="nav-user-arrow">▾</span>
+      </div>
       <div id="sync-status" class="sync-status-badge offline" title="Firebase Connection Status">
         <span class="sync-dot"></span>
         <span class="sync-text">Offline</span>
@@ -48,12 +52,15 @@
           <h2>Ask Dr. Holtkamp</h2>
         </div>
       </div>
-      <button class="ask-close" id="ask-close" type="button" aria-label="Close Assistant">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="ask-new-chat-btn" id="ask-new-chat" type="button" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer;" onclick="AskDrHoltkamp.newChat()">New Chat</button>
+        <button class="ask-close" id="ask-close" type="button" aria-label="Close Assistant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="ask-status" id="ask-status">Loading persona...</div>
     <div class="ask-messages" id="ask-messages" aria-live="polite">
@@ -71,6 +78,14 @@
       <label class="sr-only" for="ask-input">Ask a DCCS operational question</label>
       <div class="ask-input-wrapper">
         <textarea id="ask-input" placeholder="Type your DCCS question..."></textarea>
+        <button class="ask-mic" id="ask-mic" type="button" aria-label="Start Voice Input" style="display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
         <button class="ask-send" id="ask-send" type="submit" disabled aria-label="Send Message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -96,9 +111,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="js/chart.umd.min.js"></script>
-  <script src="js/data.js?v=20260610-v3"></script>
-  <script src="js/sync.js?v=20260610-v3"></script>
-  <script src="js/app.js?v=20260610-v3"></script>
-  <script src="js/ask-dr-holtkamp.js?v=20260610-v3"></script>
+  <script src="js/data.js?v=20260611-v4"></script>
+  <script src="js/sync.js?v=20260611-v4"></script>
+  <script src="js/app.js?v=20260611-v4"></script>
+  <script src="js/ask-dr-holtkamp.js?v=20260611-v4"></script>
 </body>
 </html>

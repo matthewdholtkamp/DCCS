@@ -72,7 +72,7 @@ Always explain what changes or deletes you are proposing, and append the command
 
     if (!this.els.button || !this.els.panel || !this.els.form) return;
 
-    this.history = [];
+    this.history = this.loadHistory();
     this.renderHistory();
     this.updateSendButtonState();
 
@@ -101,24 +101,151 @@ Always explain what changes or deletes you are proposing, and append the command
       });
     });
 
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isOpen) this.close();
-    });
-    document.addEventListener("click", (event) => {
-      if (!this.isOpen) return;
-      if (this.els.panel.contains(event.target) || this.els.button.contains(event.target) || this.els.backdrop?.contains(event.target)) return;
-      this.close();
-    });
+    // Closed only via ✕ or nav toggle. Escape and outside-clicks disabled.
+
+    // Phase 3: Voice input via Web Speech API
+    this.initSpeechRecognition();
 
     this.dependenciesPromise = this.loadDependencies();
   },
 
   loadHistory() {
+    try {
+      const stored = sessionStorage.getItem('dccs-ask-history');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error("Failed to load ask history:", e);
+    }
     return [];
   },
 
   saveHistory() {
-    // Strictly in-memory session history
+    try {
+      if (this.history.length > 40) {
+        this.history = this.history.slice(-40);
+      }
+      sessionStorage.setItem('dccs-ask-history', JSON.stringify(this.history));
+    } catch (e) {
+      console.error("Failed to save ask history:", e);
+    }
+  },
+
+  newChat() {
+    this.history = [];
+    sessionStorage.removeItem('dccs-ask-history');
+    this.renderHistory();
+    this.els.input.value = "";
+    this.autoSizeInput();
+    this.updateSendButtonState();
+    this.els.input.focus();
+  },
+
+  initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.log("DCCS Ask: Speech recognition not supported in this browser.");
+      return;
+    }
+
+    this._recognition = new SpeechRecognition();
+    this._recognition.lang = 'en-US';
+    this._recognition.interimResults = true;
+    this._recognition.continuous = true;
+    this._isListening = false;
+    this._interimText = '';
+
+    const micBtn = document.getElementById('ask-mic');
+    if (!micBtn) return;
+
+    micBtn.style.display = 'flex';
+
+    micBtn.addEventListener('click', () => this.toggleMic());
+
+    this._recognition.onresult = (event) => {
+      let final = '';
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += transcript;
+        } else {
+          interim = transcript;
+        }
+      }
+
+      if (final) {
+        const input = this.els.input;
+        const cursorPos = input.selectionStart || input.value.length;
+        const before = input.value.substring(0, cursorPos);
+        const after = input.value.substring(cursorPos);
+        const separator = before.length > 0 && !before.endsWith(' ') ? ' ' : '';
+        input.value = before + separator + final.trim() + after;
+        this.autoSizeInput();
+        this.updateSendButtonState();
+        this._interimText = '';
+      }
+    };
+
+    this._recognition.onerror = (event) => {
+      console.warn("DCCS Ask: Speech recognition error:", event.error);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        this.setStatus("Microphone unavailable on this device", "error");
+        micBtn.style.display = 'none';
+        sessionStorage.setItem('dccs-mic-blocked', '1');
+      }
+      this.stopMic();
+    };
+
+    this._recognition.onend = () => {
+      if (this._isListening) {
+        this.stopMic();
+      }
+    };
+
+    // If mic was previously blocked in this session, hide it
+    if (sessionStorage.getItem('dccs-mic-blocked') === '1') {
+      micBtn.style.display = 'none';
+    }
+  },
+
+  toggleMic() {
+    if (this._isListening) {
+      this.stopMic();
+    } else {
+      this.startMic();
+    }
+  },
+
+  startMic() {
+    if (!this._recognition) return;
+    try {
+      this._recognition.start();
+      this._isListening = true;
+      const micBtn = document.getElementById('ask-mic');
+      if (micBtn) {
+        micBtn.classList.add('listening');
+        micBtn.setAttribute('aria-pressed', 'true');
+        micBtn.setAttribute('aria-label', 'Stop Voice Input');
+      }
+    } catch (e) {
+      console.warn("DCCS Ask: Could not start speech recognition:", e);
+    }
+  },
+
+  stopMic() {
+    if (!this._recognition) return;
+    try {
+      this._recognition.stop();
+    } catch (_) {}
+    this._isListening = false;
+    const micBtn = document.getElementById('ask-mic');
+    if (micBtn) {
+      micBtn.classList.remove('listening');
+      micBtn.setAttribute('aria-pressed', 'false');
+      micBtn.setAttribute('aria-label', 'Start Voice Input');
+    }
   },
 
   toggle() {
@@ -127,10 +254,8 @@ Always explain what changes or deletes you are proposing, and append the command
 
   open() {
     this.isOpen = true;
-    this.history = []; // Reset history for a fresh session
-    this.renderHistory(); // Re-render greeting message
+    this.renderHistory();
     this.els.panel.classList.add("open");
-    this.els.backdrop.classList.add("open");
     this.els.button.classList.add("active");
     this.els.button.setAttribute("aria-expanded", "true");
     setTimeout(() => this.els.input.focus(), 200);
@@ -139,7 +264,6 @@ Always explain what changes or deletes you are proposing, and append the command
   close() {
     this.isOpen = false;
     this.els.panel.classList.remove("open");
-    this.els.backdrop.classList.remove("open");
     this.els.button.classList.remove("active");
     this.els.button.setAttribute("aria-expanded", "false");
   },
@@ -698,14 +822,18 @@ Always explain what changes or deletes you are proposing, and append the command
     const val = Number(value);
     if (Number.isNaN(val)) throw new Error("Invalid metric value");
 
+    const user = window.App ? App.getCurrentUser() : 'Unknown';
+    const by = `${user} (via Dr. Holtkamp)`;
+
     const store = { ...Sync.getMetricStore() };
     const entries = Array.isArray(store[metricId]) ? [...store[metricId]] : [];
     
     const existingIndex = entries.findIndex(e => e.date === date);
+    const beforeVal = existingIndex >= 0 ? entries[existingIndex].value : null;
     if (existingIndex >= 0) {
-      entries[existingIndex] = { ...entries[existingIndex], value: val };
+      entries[existingIndex] = { ...entries[existingIndex], value: val, by };
     } else {
-      entries.push({ date, value: val });
+      entries.push({ date, value: val, by });
     }
 
     // Chronologically sort entries to prevent layout/drawing jank
@@ -713,13 +841,35 @@ Always explain what changes or deletes you are proposing, and append the command
 
     store[metricId] = entries;
     Sync.saveMetricSeries([metricId], store);
+
+    // Audit
+    if (window.App) {
+      App.logAudit('update_metric', metricId, `${metricId} on ${date}: ${beforeVal}`, `${metricId} on ${date}: ${val}`);
+      App.showUndoToast(`Saved ${metricId} = ${val}`, () => {
+        const undoStore = { ...Sync.getMetricStore() };
+        const undoEntries = Array.isArray(undoStore[metricId]) ? [...undoStore[metricId]] : [];
+        if (beforeVal !== null) {
+          const idx = undoEntries.findIndex(e => e.date === date);
+          if (idx >= 0) undoEntries[idx] = { ...undoEntries[idx], value: beforeVal };
+        } else {
+          const idx = undoEntries.findIndex(e => e.date === date);
+          if (idx >= 0) undoEntries.splice(idx, 1);
+        }
+        undoStore[metricId] = undoEntries;
+        Sync.saveMetricSeries([metricId], undoStore);
+        if (typeof App.refreshMetricDisplay === 'function') App.refreshMetricDisplay(metricId);
+        App.logAudit('undo_metric', metricId, `${metricId} on ${date}: ${val}`, `${metricId} on ${date}: ${beforeVal}`);
+      });
+    }
   },
 
   addDialogueLocal(serviceLineId, text, dateString) {
     const date = this.normalizeDate(dateString);
+    const user = window.App ? App.getCurrentUser() : 'Unknown';
+    const by = `${user} (via Dr. Holtkamp)`;
     const entries = [...Sync.getDialogueEntries(serviceLineId)];
     
-    entries.unshift({ date, text });
+    entries.unshift({ date, text, by });
     
     // Sort reverse-chronologically so it displays correctly on the UI
     entries.sort((a, b) => b.date.localeCompare(a.date));

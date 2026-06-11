@@ -1,0 +1,46 @@
+name: Nightly Firestore Backup
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Firestore Backup
+        run: |
+          # TODO: When Firestore security rules are locked down in the future,
+          # this backup script will need authenticated access. You will need to
+          # configure a Google Service Account secret (e.g. GOOGLE_APPLICATION_CREDENTIALS)
+          # and authenticate via the Google Auth Action or pass credentials to the script.
+          export BACKUP_DIR_NAME="nightly/$(date +'%Y-%m-%d')"
+          node scripts/backup_firestore.mjs
+
+      - name: Prune Old Backups
+        run: |
+          node scripts/prune_backups.mjs
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add _backup/nightly/
+          if git diff --cached --quiet; then
+            echo "No new backup files to commit."
+          else
+            git commit -m "chore: nightly backup $(date +'%Y-%m-%d') [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi

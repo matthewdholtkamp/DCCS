@@ -19,6 +19,190 @@ const App = {
     return `${year}-${month}-${day}`;
   },
 
+  parseLocalDate(s) {
+    if (!s) return null;
+    if (s instanceof Date) return new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    
+    let dateStr = s;
+    if (typeof s === 'string') {
+      if (s.includes('T')) {
+        const dt = new Date(s);
+        if (!isNaN(dt.getTime())) {
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const r = String(dt.getDate()).padStart(2, '0');
+          dateStr = `${y}-${m}-${r}`;
+        } else {
+          dateStr = s.substring(0, 10);
+        }
+      }
+    }
+    
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const parts = dateStr.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d);
+    }
+    
+    const fallback = new Date(s);
+    if (!isNaN(fallback.getTime())) {
+      return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+    }
+    return fallback;
+  },
+
+  // ===== PHASE 4: User Identity =====
+  KNOWN_USERS: [
+    'LTC Holtkamp',
+    'SSG Holloway',
+    'MAJ Tobin',
+    'LTC Weir',
+    'Dr. Fellwock',
+    'MAJ Henderson'
+  ],
+
+  getCurrentUser() {
+    return localStorage.getItem('dccs-user') || 'Unknown';
+  },
+
+  setCurrentUser(name) {
+    localStorage.setItem('dccs-user', name);
+    const el = document.getElementById('nav-user-name');
+    if (el) el.textContent = name;
+  },
+
+  initUserChip() {
+    const chip = document.getElementById('nav-user-chip');
+    if (!chip) return;
+
+    const saved = this.getCurrentUser();
+    const nameEl = document.getElementById('nav-user-name');
+    if (nameEl) nameEl.textContent = saved;
+
+    // Build dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'nav-user-dropdown';
+    dropdown.id = 'nav-user-dropdown';
+
+    this.KNOWN_USERS.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = name;
+      if (name === saved) btn.classList.add('active');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setCurrentUser(name);
+        dropdown.classList.remove('open');
+        dropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      dropdown.appendChild(btn);
+    });
+
+    // "Other…" free text
+    const otherInput = document.createElement('input');
+    otherInput.type = 'text';
+    otherInput.placeholder = 'Other…';
+    otherInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = otherInput.value.trim();
+        if (val) {
+          this.setCurrentUser(val);
+          dropdown.classList.remove('open');
+          dropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        }
+      }
+      e.stopPropagation();
+    });
+    otherInput.addEventListener('click', (e) => e.stopPropagation());
+    dropdown.appendChild(otherInput);
+
+    chip.appendChild(dropdown);
+
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+    });
+  },
+
+  // ===== PHASE 4: Audit Log =====
+  async logAudit(action, target, summaryBefore, summaryAfter) {
+    const entry = {
+      at: new Date().toISOString(),
+      by: this.getCurrentUser(),
+      action,
+      target,
+      summaryBefore: String(summaryBefore || '').substring(0, 300),
+      summaryAfter: String(summaryAfter || '').substring(0, 300)
+    };
+
+    // Store in local memory for the Recent Activity section
+    if (!this._auditLog) this._auditLog = [];
+    this._auditLog.unshift(entry);
+    if (this._auditLog.length > 50) this._auditLog = this._auditLog.slice(0, 50);
+
+    // Write to Firestore if available
+    if (window.Sync && Sync.enabled && Sync.db) {
+      try {
+        await Sync.db.collection('dccs_data').doc('audit').collection('events').add({
+          ...entry,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('DCCS Audit: Failed to write audit log:', e);
+      }
+    }
+  },
+
+  // ===== PHASE 4: Undo Toast =====
+  _undoTimer: null,
+
+  showUndoToast(message, undoCallback) {
+    let toast = document.getElementById('dccs-undo-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'dccs-undo-toast';
+      toast.className = 'dccs-undo-toast';
+      toast.innerHTML = `
+        <span class="toast-msg"></span>
+        <button class="toast-undo-btn" type="button">Undo</button>
+      `;
+      document.body.appendChild(toast);
+    }
+
+    if (this._undoTimer) {
+      clearTimeout(this._undoTimer);
+      this._undoTimer = null;
+    }
+
+    const msgEl = toast.querySelector('.toast-msg');
+    const undoBtn = toast.querySelector('.toast-undo-btn');
+    msgEl.textContent = '✓ ' + message;
+
+    // Clone to remove old listeners
+    const newBtn = undoBtn.cloneNode(true);
+    undoBtn.parentNode.replaceChild(newBtn, undoBtn);
+
+    newBtn.addEventListener('click', () => {
+      toast.classList.remove('visible');
+      if (this._undoTimer) clearTimeout(this._undoTimer);
+      this._undoTimer = null;
+      if (undoCallback) undoCallback();
+    });
+
+    toast.classList.add('visible');
+    this._undoTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+      this._undoTimer = null;
+    }, 8000);
+  },
+
   confirmAction(message, onConfirm) {
     let dialog = document.getElementById('confirm-dialog');
     if (!dialog) {
@@ -85,6 +269,7 @@ const App = {
     document.addEventListener('blur', (e) => {
       setTimeout(() => this.applyStalePatches(), 50);
     }, true);
+    this.initUserChip();
     this.route();
   },
 
@@ -3588,7 +3773,7 @@ const App = {
       `;
       setTimeout(() => {
         const store = this.getMetricStore();
-        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: new Date(p.date) }));
+        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
         
         // Reset state for presentation slide
         this.uvState = {
@@ -4318,15 +4503,9 @@ const App = {
     lo.min = '0'; lo.max = String(maxIdx);
     hi.min = '0'; hi.max = String(maxIdx);
  
-    const lastTs = this.uvDateList[maxIdx];
-    const cutoffTs = lastTs - 29*24*60*60*1000;
-    let defLo = 0;
-    for (let i = 0; i <= maxIdx; i++) {
-      if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
-    }
-    this.uvState.loIdx = defLo;
+    this.uvState.loIdx = 0;
     this.uvState.hiIdx = maxIdx;
-    lo.value = String(defLo);
+    lo.value = '0';
     hi.value = String(maxIdx);
     this.uvUpdateDateLabels();
   },
@@ -4485,6 +4664,7 @@ const App = {
   },
  
   renderUnitVolumeChart(prefix) {
+    this.uvRenderBreadcrumb();
     const p = prefix || '';
     const chartId = p + 'mscoe-unit-volume';
     this._destroyErChart(chartId);
@@ -4756,7 +4936,7 @@ const App = {
  
   initMscoeChartsAndTables() {
     const store = this.getMetricStore();
-    this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: new Date(p.date) }));
+    this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
  
     this.uvState = {
       level:    'bde',

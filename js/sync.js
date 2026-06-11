@@ -983,17 +983,52 @@ const Sync = {
     }
 
     const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
-    erPatients.sort((a, b) => {
-      const dd = (a.date || '').localeCompare(b.date || '');
+    const currentPatients = store["er-patients"] || [];
+
+    const makePatientKey = (p) => {
+      const normDate = this.normalizeDateKey(p.date);
+      let tStr = p.timeStr || "";
+      if (!tStr && p.time) {
+        tStr = `${String(p.time.hour).padStart(2, '0')}:${String(p.time.minute).padStart(2, '0')}`;
+      }
+      const co = p.company || "";
+      const bn = p.battalion || "";
+      const acuity = p.acuity || "";
+      const cnt = p.count !== undefined && p.count !== null ? p.count : 1;
+      return `${normDate}|${tStr}|${co}|${bn}|${acuity}|${cnt}`;
+    };
+
+    const patientMap = new Map();
+    currentPatients.forEach(p => {
+      if (!p) return;
+      patientMap.set(makePatientKey(p), p);
+    });
+    erPatients.forEach(p => {
+      if (!p) return;
+      patientMap.set(makePatientKey(p), p);
+    });
+
+    const mergedPatients = Array.from(patientMap.values()).sort((a, b) => {
+      const da = this.normalizeDateKey(a.date);
+      const db = this.normalizeDateKey(b.date);
+      const dd = da.localeCompare(db);
       if (dd) return dd;
       const ah = a.time ? a.time.hour * 60 + a.time.minute : 0;
       const bh = b.time ? b.time.hour * 60 + b.time.minute : 0;
       return ah - bh;
     });
 
-    const currentPatients = store["er-patients"] || [];
-    if (JSON.stringify(currentPatients) !== JSON.stringify(erPatients)) {
-      store["er-patients"] = erPatients;
+    const currentKeys = new Set(currentPatients.map(makePatientKey));
+    let hasNewPatientKeys = false;
+    for (const p of mergedPatients) {
+      if (!currentKeys.has(makePatientKey(p))) {
+        hasNewPatientKeys = true;
+        break;
+      }
+    }
+
+    if (JSON.stringify(currentPatients) !== JSON.stringify(mergedPatients)) {
+      store["er-patients"] = mergedPatients;
       hasChanges = true;
     }
 
@@ -1009,6 +1044,10 @@ const Sync = {
     if (changedKeysToPersist.length > 0) {
       console.log("DCCS Sync: ER history merge has new or unnormalized dates. Persisting series:", changedKeysToPersist);
       this.saveMetricSeries(changedKeysToPersist, store);
+    }
+    if (hasNewPatientKeys) {
+      console.log("DCCS Sync: New ER patient check-ins detected. Persisting 'er-patients' series.");
+      this.saveMetricSeries(['er-patients'], store);
     }
   },
 

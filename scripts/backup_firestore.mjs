@@ -54,7 +54,8 @@ async function runBackup() {
     }
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupDir = path.join(__dirname, '..', '_backup', timestamp);
+    const dirName = process.env.BACKUP_DIR_NAME || timestamp;
+    const backupDir = path.join(__dirname, '..', '_backup', dirName);
     
     fs.mkdirSync(backupDir, { recursive: true });
     console.log(`Saving backup files to directory: ${backupDir}`);
