@@ -822,14 +822,18 @@ Always explain what changes or deletes you are proposing, and append the command
     const val = Number(value);
     if (Number.isNaN(val)) throw new Error("Invalid metric value");
 
+    const user = window.App ? App.getCurrentUser() : 'Unknown';
+    const by = `${user} (via Dr. Holtkamp)`;
+
     const store = { ...Sync.getMetricStore() };
     const entries = Array.isArray(store[metricId]) ? [...store[metricId]] : [];
     
     const existingIndex = entries.findIndex(e => e.date === date);
+    const beforeVal = existingIndex >= 0 ? entries[existingIndex].value : null;
     if (existingIndex >= 0) {
-      entries[existingIndex] = { ...entries[existingIndex], value: val };
+      entries[existingIndex] = { ...entries[existingIndex], value: val, by };
     } else {
-      entries.push({ date, value: val });
+      entries.push({ date, value: val, by });
     }
 
     // Chronologically sort entries to prevent layout/drawing jank
@@ -837,13 +841,35 @@ Always explain what changes or deletes you are proposing, and append the command
 
     store[metricId] = entries;
     Sync.saveMetricSeries([metricId], store);
+
+    // Audit
+    if (window.App) {
+      App.logAudit('update_metric', metricId, `${metricId} on ${date}: ${beforeVal}`, `${metricId} on ${date}: ${val}`);
+      App.showUndoToast(`Saved ${metricId} = ${val}`, () => {
+        const undoStore = { ...Sync.getMetricStore() };
+        const undoEntries = Array.isArray(undoStore[metricId]) ? [...undoStore[metricId]] : [];
+        if (beforeVal !== null) {
+          const idx = undoEntries.findIndex(e => e.date === date);
+          if (idx >= 0) undoEntries[idx] = { ...undoEntries[idx], value: beforeVal };
+        } else {
+          const idx = undoEntries.findIndex(e => e.date === date);
+          if (idx >= 0) undoEntries.splice(idx, 1);
+        }
+        undoStore[metricId] = undoEntries;
+        Sync.saveMetricSeries([metricId], undoStore);
+        if (typeof App.refreshMetricDisplay === 'function') App.refreshMetricDisplay(metricId);
+        App.logAudit('undo_metric', metricId, `${metricId} on ${date}: ${val}`, `${metricId} on ${date}: ${beforeVal}`);
+      });
+    }
   },
 
   addDialogueLocal(serviceLineId, text, dateString) {
     const date = this.normalizeDate(dateString);
+    const user = window.App ? App.getCurrentUser() : 'Unknown';
+    const by = `${user} (via Dr. Holtkamp)`;
     const entries = [...Sync.getDialogueEntries(serviceLineId)];
     
-    entries.unshift({ date, text });
+    entries.unshift({ date, text, by });
     
     // Sort reverse-chronologically so it displays correctly on the UI
     entries.sort((a, b) => b.date.localeCompare(a.date));

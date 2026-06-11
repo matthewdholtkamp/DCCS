@@ -53,6 +53,156 @@ const App = {
     return fallback;
   },
 
+  // ===== PHASE 4: User Identity =====
+  KNOWN_USERS: [
+    'LTC Holtkamp',
+    'SSG Holloway',
+    'MAJ Tobin',
+    'LTC Weir',
+    'Dr. Fellwock',
+    'MAJ Henderson'
+  ],
+
+  getCurrentUser() {
+    return localStorage.getItem('dccs-user') || 'Unknown';
+  },
+
+  setCurrentUser(name) {
+    localStorage.setItem('dccs-user', name);
+    const el = document.getElementById('nav-user-name');
+    if (el) el.textContent = name;
+  },
+
+  initUserChip() {
+    const chip = document.getElementById('nav-user-chip');
+    if (!chip) return;
+
+    const saved = this.getCurrentUser();
+    const nameEl = document.getElementById('nav-user-name');
+    if (nameEl) nameEl.textContent = saved;
+
+    // Build dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'nav-user-dropdown';
+    dropdown.id = 'nav-user-dropdown';
+
+    this.KNOWN_USERS.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = name;
+      if (name === saved) btn.classList.add('active');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setCurrentUser(name);
+        dropdown.classList.remove('open');
+        dropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      dropdown.appendChild(btn);
+    });
+
+    // "Other…" free text
+    const otherInput = document.createElement('input');
+    otherInput.type = 'text';
+    otherInput.placeholder = 'Other…';
+    otherInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = otherInput.value.trim();
+        if (val) {
+          this.setCurrentUser(val);
+          dropdown.classList.remove('open');
+          dropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        }
+      }
+      e.stopPropagation();
+    });
+    otherInput.addEventListener('click', (e) => e.stopPropagation());
+    dropdown.appendChild(otherInput);
+
+    chip.appendChild(dropdown);
+
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+      dropdown.classList.remove('open');
+    });
+  },
+
+  // ===== PHASE 4: Audit Log =====
+  async logAudit(action, target, summaryBefore, summaryAfter) {
+    const entry = {
+      at: new Date().toISOString(),
+      by: this.getCurrentUser(),
+      action,
+      target,
+      summaryBefore: String(summaryBefore || '').substring(0, 300),
+      summaryAfter: String(summaryAfter || '').substring(0, 300)
+    };
+
+    // Store in local memory for the Recent Activity section
+    if (!this._auditLog) this._auditLog = [];
+    this._auditLog.unshift(entry);
+    if (this._auditLog.length > 50) this._auditLog = this._auditLog.slice(0, 50);
+
+    // Write to Firestore if available
+    if (window.Sync && Sync.enabled && Sync.db) {
+      try {
+        await Sync.db.collection('dccs_data').doc('audit').collection('events').add({
+          ...entry,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.warn('DCCS Audit: Failed to write audit log:', e);
+      }
+    }
+  },
+
+  // ===== PHASE 4: Undo Toast =====
+  _undoTimer: null,
+
+  showUndoToast(message, undoCallback) {
+    let toast = document.getElementById('dccs-undo-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'dccs-undo-toast';
+      toast.className = 'dccs-undo-toast';
+      toast.innerHTML = `
+        <span class="toast-msg"></span>
+        <button class="toast-undo-btn" type="button">Undo</button>
+      `;
+      document.body.appendChild(toast);
+    }
+
+    if (this._undoTimer) {
+      clearTimeout(this._undoTimer);
+      this._undoTimer = null;
+    }
+
+    const msgEl = toast.querySelector('.toast-msg');
+    const undoBtn = toast.querySelector('.toast-undo-btn');
+    msgEl.textContent = '✓ ' + message;
+
+    // Clone to remove old listeners
+    const newBtn = undoBtn.cloneNode(true);
+    undoBtn.parentNode.replaceChild(newBtn, undoBtn);
+
+    newBtn.addEventListener('click', () => {
+      toast.classList.remove('visible');
+      if (this._undoTimer) clearTimeout(this._undoTimer);
+      this._undoTimer = null;
+      if (undoCallback) undoCallback();
+    });
+
+    toast.classList.add('visible');
+    this._undoTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+      this._undoTimer = null;
+    }, 8000);
+  },
+
   confirmAction(message, onConfirm) {
     let dialog = document.getElementById('confirm-dialog');
     if (!dialog) {
@@ -119,6 +269,7 @@ const App = {
     document.addEventListener('blur', (e) => {
       setTimeout(() => this.applyStalePatches(), 50);
     }, true);
+    this.initUserChip();
     this.route();
   },
 
