@@ -96,3 +96,11 @@
   - Created deduplication helper script `scripts/dedupe_dialogue.mjs`.
   - Created pre-Plan 2 database backup in `_backup/2026-06-11T00-03-55-385Z-pre-plan2/`.
   - Bumped css and js version query parameters to `v2` in `index.html`.
+
+## Plan 3 Phase 1: Metric Persistence & Recovery
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Implemented `saveMetricSeries` to perform granular single or batch writes under the metrics subcollection.
+  - Deprecated `saveMetricStore` and refactored call sites to clone entries arrays before mutation and pass explicit changed metric IDs.
+  - Added a self-healing `recoverStrandedMetrics` mechanism to restore any locally cached metrics points missing from the server database.

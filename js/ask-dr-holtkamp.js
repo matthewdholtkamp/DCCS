@@ -482,7 +482,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     
     const existingIndex = entries.findIndex(e => e.date === date);
     if (existingIndex >= 0) {
-      entries[existingIndex].value = val;
+      entries[existingIndex] = { ...entries[existingIndex], value: val };
     } else {
       entries.push({ date, value: val });
     }
@@ -491,7 +491,7 @@ Always confirm in a direct, command-intent voice that you have applied the reque
     entries.sort((a, b) => a.date.localeCompare(b.date));
 
     store[metricId] = entries;
-    Sync.saveMetricStore(store);
+    Sync.saveMetricSeries([metricId], store);
   },
 
   addDialogueLocal(serviceLineId, text, dateString) {

@@ -940,12 +940,12 @@ const App = {
     
     if (hasError) return;
     
-    const all = this.getMetricStore();
-    const entries = all[metricId] || [];
+    const all = { ...this.getMetricStore() };
+    const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
     entries.push({ date: dateInput.value, value: parsedVal });
     entries.sort((a, b) => a.date.localeCompare(b.date));
     all[metricId] = entries;
-    this.saveMetricStore(all);
+    Sync.saveMetricSeries([metricId], all);
     valInput.value = '';
     // P2: Show save confirmation flash
     valInput.style.boxShadow = '0 0 0 2px rgba(122,172,106,0.5)';
@@ -1007,22 +1007,24 @@ const App = {
     if (dateHasError || valueHasError) return;
     
     const date = dateInput.value;
-    const all = this.getMetricStore();
+    const all = { ...this.getMetricStore() };
     let added = false;
+    const changedIds = [];
     
     group.series.forEach(series => {
       const input = document.getElementById(`metric-group-val-${group.id}-${series.id}`);
       if (!input || input.value === '') return;
-      const entries = all[series.id] || [];
+      const entries = Array.isArray(all[series.id]) ? [...all[series.id]] : [];
       entries.push({ date, value: parseFloat(input.value) });
       entries.sort((a, b) => a.date.localeCompare(b.date));
       all[series.id] = entries;
       input.value = '';
       added = true;
+      changedIds.push(series.id);
     });
     
     if (!added) return;
-    this.saveMetricStore(all);
+    Sync.saveMetricSeries(changedIds, all);
     this.refreshMetricGroupDisplay(group.id);
   },
 
@@ -1309,12 +1311,12 @@ const App = {
   },
 
   deleteLastMetricEntry(metricId) {
-    const all = this.getMetricStore();
-    const entries = all[metricId] || [];
+    const all = { ...this.getMetricStore() };
+    const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
     if (entries.length === 0) return;
     entries.pop();
     all[metricId] = entries;
-    this.saveMetricStore(all);
+    Sync.saveMetricSeries([metricId], all);
     this.refreshMetricDisplay(metricId);
   },
 
@@ -1327,9 +1329,11 @@ const App = {
     const metricName = metric ? metric.name : 'this metric';
     
     this.confirmAction(`Delete the ${entry.date} entry for ${metricName}?`, () => {
-      entries.splice(entryIndex, 1);
-      all[metricId] = entries;
-      this.saveMetricStore(all);
+      const allCopy = { ...this.getMetricStore() };
+      const entriesCopy = Array.isArray(allCopy[metricId]) ? [...allCopy[metricId]] : [];
+      entriesCopy.splice(entryIndex, 1);
+      allCopy[metricId] = entriesCopy;
+      Sync.saveMetricSeries([metricId], allCopy);
       this.refreshMetricDisplay(metricId);
     });
   },
@@ -1346,9 +1350,11 @@ const App = {
     if (!entry) return;
 
     this.confirmAction(`Delete the ${entry.date} ${series.name} entry?`, () => {
-      entries.splice(entryIndex, 1);
-      all[series.id] = entries;
-      this.saveMetricStore(all);
+      const allCopy = { ...this.getMetricStore() };
+      const entriesCopy = Array.isArray(allCopy[series.id]) ? [...allCopy[series.id]] : [];
+      entriesCopy.splice(entryIndex, 1);
+      allCopy[series.id] = entriesCopy;
+      Sync.saveMetricSeries([series.id], allCopy);
       this.refreshMetricGroupDisplay(groupId);
     });
   },
@@ -2689,12 +2695,12 @@ const App = {
     
     if (hasError) return;
     
-    const all = this.getMetricStore();
-    const entries = all[metricId] || [];
+    const all = { ...this.getMetricStore() };
+    const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
     entries.push({ date: dateInput.value, value: parsedVal });
     entries.sort((a, b) => a.date.localeCompare(b.date));
     all[metricId] = entries;
-    this.saveMetricStore(all);
+    Sync.saveMetricSeries([metricId], all);
     valInput.value = '';
     
     const sl = FRAMEWORK.serviceLines.find(s => s.trackedMetrics?.some(m => m.id === metricId));
@@ -2733,12 +2739,12 @@ const App = {
     
     if (hasError) return;
     
-    const all = this.getMetricStore();
-    const entries = all[seriesId] || [];
+    const all = { ...this.getMetricStore() };
+    const entries = Array.isArray(all[seriesId]) ? [...all[seriesId]] : [];
     entries.push({ date: dateInput.value, value: parsedVal });
     entries.sort((a, b) => a.date.localeCompare(b.date));
     all[seriesId] = entries;
-    this.saveMetricStore(all);
+    Sync.saveMetricSeries([seriesId], all);
     valInput.value = '';
     
     const found = this.getMetricGroupDefinition(groupId);

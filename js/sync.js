@@ -317,6 +317,11 @@ const Sync = {
               App.applyRemoteChange('metrics', this.cache.metrics, changedKeys);
             }
           }
+
+          if (!this._hasRecoveredMetrics) {
+            this._hasRecoveredMetrics = true;
+            this.recoverStrandedMetrics(snapshot);
+          }
         }, (error) => {
           console.warn("Metrics subcollection snapshot listener failed:", error);
           if (error.code === 'permission-denied') {
@@ -579,17 +584,7 @@ const Sync = {
     }
   },
 
-  async saveMetricStore(allMetrics) {
-    // Find which metricId changed
-    let changedMetricId = null;
-    for (const key of Object.keys(allMetrics)) {
-      if (key === '_lastUpdated') continue;
-      if (JSON.stringify(allMetrics[key]) !== JSON.stringify(this.cache.metrics[key])) {
-        changedMetricId = key;
-        break;
-      }
-    }
-
+  async saveMetricSeries(changedIds, allMetrics) {
     this.cache.metrics = allMetrics;
     localStorage.setItem('dccs-metric-entries', JSON.stringify(allMetrics));
 
@@ -600,29 +595,105 @@ const Sync = {
         if (this.migrationDeferred) {
           await this.db.collection("dccs_data").doc("metrics").set(allMetrics, { merge: true });
         } else {
-          if (changedMetricId) {
-            const itemPath = `metrics/${changedMetricId}`;
+          if (changedIds.length === 1) {
+            const id = changedIds[0];
+            const itemPath = `metrics/${id}`;
             this.pendingWrites.add(itemPath);
 
-            const docRef = this.db.collection("dccs_data").doc("metrics").collection("series").doc(changedMetricId);
+            const docRef = this.db.collection("dccs_data").doc("metrics").collection("series").doc(id);
             await docRef.set({
-              entries: allMetrics[changedMetricId],
+              entries: allMetrics[id] || [],
               _ts: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             this.pendingWrites.delete(itemPath);
+          } else if (changedIds.length > 1) {
+            const batch = this.db.batch();
+            for (const id of changedIds) {
+              const itemPath = `metrics/${id}`;
+              this.pendingWrites.add(itemPath);
+
+              const docRef = this.db.collection("dccs_data").doc("metrics").collection("series").doc(id);
+              batch.set(docRef, {
+                entries: allMetrics[id] || [],
+                _ts: firebase.firestore.FieldValue.serverTimestamp()
+              });
+            }
+
+            await batch.commit();
+
+            for (const id of changedIds) {
+              this.pendingWrites.delete(`metrics/${id}`);
+            }
           }
         }
         this.setStatus('synced');
       } catch (e) {
-        console.error("Firestore failed to write metrics:", e);
-        if (changedMetricId) {
-          this.pendingWrites.delete(`metrics/${changedMetricId}`);
+        console.error("Firestore failed to write metric series:", e);
+        for (const id of changedIds) {
+          this.pendingWrites.delete(`metrics/${id}`);
         }
-        this.handleSyncFailure("saveMetricStore", e);
+        this.handleSyncFailure("saveMetricSeries", e);
       }
     } else {
       this.setStatus('offline');
+    }
+  },
+
+  async saveMetricStore(allMetrics) {
+    if (window.location.search.includes('debug=1')) {
+      throw new Error("Deprecated call to Sync.saveMetricStore. Use Sync.saveMetricSeries(changedIds, allMetrics) instead.");
+    }
+    console.warn("Deprecated call to Sync.saveMetricStore. Deriving changed ids.");
+    const changedIds = [];
+    for (const key of Object.keys(allMetrics)) {
+      if (key === '_lastUpdated') continue;
+      if (JSON.stringify(allMetrics[key]) !== JSON.stringify(this.cache.metrics[key])) {
+        changedIds.push(key);
+      }
+    }
+    return this.saveMetricSeries(changedIds, allMetrics);
+  },
+
+  recoverStrandedMetrics(snapshot) {
+    if (this.migrationDeferred) return;
+    const serverSeriesMap = new Map();
+    snapshot.forEach(doc => {
+      serverSeriesMap.set(doc.id, doc.data()?.entries || []);
+    });
+
+    const recoveredIds = [];
+    const metricsStore = { ...this.cache.metrics };
+
+    for (const metricId of Object.keys(metricsStore)) {
+      if (metricId.startsWith('er-') || metricId === '_lastUpdated' || metricId === 'undefined' || metricId === 'null' || !metricId) continue;
+      const localEntries = metricsStore[metricId] || [];
+      if (localEntries.length === 0) continue;
+
+      const serverEntries = serverSeriesMap.get(metricId) || [];
+      if (serverEntries.length === 0) {
+        // Upload union (dedupe by date, prefer local where server is empty)
+        const unionMap = new Map();
+        serverEntries.forEach(e => {
+          if (e && e.date) unionMap.set(e.date, e);
+        });
+        localEntries.forEach(e => {
+          if (e && e.date && !unionMap.has(e.date)) {
+            unionMap.set(e.date, e);
+          }
+        });
+
+        const union = Array.from(unionMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+        if (union.length > serverEntries.length) {
+          console.log(`DCCS Recovery: ${metricId} restored ${union.length - serverEntries.length} entries`);
+          metricsStore[metricId] = union;
+          recoveredIds.push(metricId);
+        }
+      }
+    }
+
+    if (recoveredIds.length > 0) {
+      this.saveMetricSeries(recoveredIds, metricsStore);
     }
   },
 
