@@ -104,3 +104,12 @@
   - Implemented `saveMetricSeries` to perform granular single or batch writes under the metrics subcollection.
   - Deprecated `saveMetricStore` and refactored call sites to clone entries arrays before mutation and pass explicit changed metric IDs.
   - Added a self-healing `recoverStrandedMetrics` mechanism to restore any locally cached metrics points missing from the server database.
+
+## Plan 3 Phase 2: ER Charts History Union-Merge
+- **Status:** Complete
+- **Date:** 2026-06-10
+- **Changes:**
+  - Implemented `normalizeDateKey` to normalize raw dates and ISO timestamps to local `YYYY-MM-DD` strings.
+  - Refactored `processERData` to merge data.json entries with Firestore historical entries by date.
+  - Added cache check to re-trigger ER data processing on snapshot updates.
+  - Configured automatic persistence of newly-added dates and conversion of legacy server ISO-timestamps to Firestore.

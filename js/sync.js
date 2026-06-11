@@ -43,6 +43,34 @@ const Sync = {
     return hash.toString(16).padStart(8, '0');
   },
 
+  normalizeDateKey(d) {
+    if (!d) return "";
+    if (typeof d === "string") {
+      if (d.includes("T")) {
+        const dt = new Date(d);
+        if (!isNaN(dt.getTime())) {
+          // Convert timestamp dates using LOCAL date to match how they were entered (Matt's timezone)
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const r = String(dt.getDate()).padStart(2, '0');
+          return `${y}-${m}-${r}`;
+        }
+        return d.substring(0, 10);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        return d;
+      }
+      return d.substring(0, 10);
+    }
+    if (d instanceof Date) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const r = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${r}`;
+    }
+    return String(d);
+  },
+
   handleSyncFailure(context, error) {
     console.warn(`DCCS Sync: Connection or write failure in ${context}:`, error);
     if (this.retryCount < 3) {
@@ -315,6 +343,14 @@ const Sync = {
             localStorage.setItem('dccs-metric-entries', JSON.stringify(this.cache.metrics));
             if (window.App && typeof App.applyRemoteChange === "function") {
               App.applyRemoteChange('metrics', this.cache.metrics, changedKeys);
+            }
+          }
+
+          if (this._lastErData) {
+            const erKeysChanged = changedKeys.some(k => k.startsWith('er-'));
+            if (erKeysChanged) {
+              console.log("DCCS Sync: Re-applying ER merge on snapshot update.");
+              this.processERData(this._lastErData);
             }
           }
 
@@ -841,6 +877,7 @@ const Sync = {
 
   processERData(data) {
     if (!data || !Array.isArray(data.allData)) return;
+    this._lastErData = data;
 
     const erTotalCensus = [];
     const erTotalTrainees = [];
@@ -873,16 +910,71 @@ const Sync = {
       }
     });
 
-    const sortFn = (a, b) => a.date.localeCompare(b.date);
-    erTotalCensus.sort(sortFn);
-    erTotalTrainees.sort(sortFn);
-    erEsi12.sort(sortFn);
-    erEsi3.sort(sortFn);
-    erEsi45.sort(sortFn);
-    erLwobs.sort(sortFn);
+    const rawJsonData = {
+      "er-total-census": erTotalCensus,
+      "er-total-trainees": erTotalTrainees,
+      "er-esi-1-2": erEsi12,
+      "er-esi-3": erEsi3,
+      "er-esi-4-5": erEsi45,
+      "er-lwobs": erLwobs
+    };
 
     const store = this.cache.metrics || {};
     let hasChanges = false;
+    const changedKeysToPersist = [];
+
+    for (const [key, jsonList] of Object.entries(rawJsonData)) {
+      const serverList = store[key] || [];
+      const dateMap = new Map();
+
+      // 1. Add server list, normalizing their date keys
+      serverList.forEach(e => {
+        if (!e) return;
+        const normDate = this.normalizeDateKey(e.date);
+        if (normDate) {
+          dateMap.set(normDate, { date: normDate, value: Number(e.value) });
+        }
+      });
+
+      // 2. Overlay data.json entries (data.json values win for overlapping dates)
+      jsonList.forEach(e => {
+        if (!e) return;
+        const normDate = this.normalizeDateKey(e.date);
+        if (normDate) {
+          dateMap.set(normDate, { date: normDate, value: Number(e.value) });
+        }
+      });
+
+      const merged = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+      // 3. Determine if there are genuinely new dates or unnormalized ISO formats in the server copy
+      const serverNormDates = new Set();
+      let hasIsoServerDate = false;
+      serverList.forEach(e => {
+        if (!e) return;
+        serverNormDates.add(this.normalizeDateKey(e.date));
+        if (e.date && e.date.includes('T')) {
+          hasIsoServerDate = true;
+        }
+      });
+
+      let hasGenuinelyNewDate = false;
+      for (const e of merged) {
+        if (!serverNormDates.has(e.date)) {
+          hasGenuinelyNewDate = true;
+          break;
+        }
+      }
+
+      if (hasGenuinelyNewDate || hasIsoServerDate) {
+        changedKeysToPersist.push(key);
+      }
+
+      if (JSON.stringify(serverList) !== JSON.stringify(merged)) {
+        store[key] = merged;
+        hasChanges = true;
+      }
+    }
 
     const erPatients = Array.isArray(data.allPatients) ? data.allPatients : [];
     erPatients.sort((a, b) => {
@@ -893,25 +985,24 @@ const Sync = {
       return ah - bh;
     });
 
-    const checkAndUpdate = (key, newData) => {
-      const current = store[key] || [];
-      if (JSON.stringify(current) !== JSON.stringify(newData)) {
-        store[key] = newData;
-        hasChanges = true;
-      }
-    };
-
-    checkAndUpdate("er-total-census", erTotalCensus);
-    checkAndUpdate("er-total-trainees", erTotalTrainees);
-    checkAndUpdate("er-esi-1-2", erEsi12);
-    checkAndUpdate("er-esi-3", erEsi3);
-    checkAndUpdate("er-esi-4-5", erEsi45);
-    checkAndUpdate("er-lwobs", erLwobs);
-    checkAndUpdate("er-patients", erPatients);
+    const currentPatients = store["er-patients"] || [];
+    if (JSON.stringify(currentPatients) !== JSON.stringify(erPatients)) {
+      store["er-patients"] = erPatients;
+      hasChanges = true;
+    }
 
     if (hasChanges) {
       console.log("DCCS Sync: Updated in-memory ER metrics.");
       localStorage.setItem('dccs-metric-entries', JSON.stringify(store));
+      if (window.App && typeof App.applyRemoteChange === "function") {
+        App.applyRemoteChange('metrics', store, Object.keys(rawJsonData).concat(["er-patients"]));
+      }
+    }
+
+    // Persist new dates/normalizations to Firestore (gated and idempotent)
+    if (changedKeysToPersist.length > 0) {
+      console.log("DCCS Sync: ER history merge has new or unnormalized dates. Persisting series:", changedKeysToPersist);
+      this.saveMetricSeries(changedKeysToPersist, store);
     }
   },
 
