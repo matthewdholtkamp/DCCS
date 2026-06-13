@@ -601,8 +601,8 @@ const App = {
               <div class="landing-progress-line" aria-hidden="true"><span></span></div>
               <button class="landing-progress-step active" type="button" data-target="scene-current" aria-current="step">
                 <span class="landing-progress-dot" aria-hidden="true"></span>
-                <span class="landing-progress-label">Current State</span>
-                <span class="landing-progress-short">Cur</span>
+                <span class="landing-progress-label">Prior State</span>
+                <span class="landing-progress-short">Prior</span>
               </button>
               <button class="landing-progress-step" type="button" data-target="scene-phase1">
                 <span class="landing-progress-dot" aria-hidden="true"></span>
@@ -630,7 +630,7 @@ const App = {
           <div class="landing-scenes">
             <section class="landing-scene in-view" id="scene-current" data-bg="current">
               <div class="landing-scene-card landing-scene-card--wide reveal">
-                <div class="landing-kicker">CURRENT STATE</div>
+                <div class="landing-kicker">PRIOR STATE</div>
                 <h1 class="landing-title reveal-mask"><span class="reveal-mask-inner">We began as a reactive system.</span></h1>
                 <p class="landing-copy">Underperforming on DHA scorecards — critical staffing shortages, unsustainable primary care access, an overloaded ER, and gaps in unit-level accountability straining the MSCoE partnership and the training mission.</p>
                 <div class="landing-scroll-cue">Scroll to follow the framework ↓</div>
@@ -783,7 +783,7 @@ const App = {
 
         <div class="transformation-diagram">
           <div class="state-box current">
-            <div class="state-label current">2025 Current State</div>
+            <div class="state-label current">2025 Prior State</div>
             <div class="state-text">${D.currentState}</div>
           </div>
           
