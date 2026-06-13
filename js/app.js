@@ -764,6 +764,16 @@ const App = {
     }
   },
 
+  renderHUDBrackets() {
+    return `
+      <div class="hud-bracket top-left" aria-hidden="true"></div>
+      <div class="hud-bracket top-right" aria-hidden="true"></div>
+      <div class="hud-bracket bottom-left" aria-hidden="true"></div>
+      <div class="hud-bracket bottom-right" aria-hidden="true"></div>
+      <div class="hud-scanline" aria-hidden="true"></div>
+    `;
+  },
+
   // ===== FRAMEWORK OVERVIEW =====
   renderFramework(el) {
     const D = FRAMEWORK;
@@ -776,6 +786,19 @@ const App = {
             <!-- Presentation Viewport Container (Pinned) -->
             <div class="framework-presentation-container">
               
+              <!-- Sticky Photographic Backgrounds -->
+              <div class="framework-bg-layer" aria-hidden="true">
+                <div class="framework-bg-grid"></div>
+                <div class="framework-bg-photo active" id="fw-bg-all" style="background-image: radial-gradient(circle at center, #0e1726 0%, #030508 100%);"></div>
+                <div class="framework-bg-photo" id="fw-bg-mission" style="background-image: radial-gradient(circle at center, #0a1120 0%, #020407 100%);"></div>
+                <div class="framework-bg-photo" id="fw-bg-prior" style="background-image: url('assets/Old_Hospital.jpg');"></div>
+                <div class="framework-bg-photo" id="fw-bg-phase1" style="background-image: url('assets/New_Hospital.webp');"></div>
+                <div class="framework-bg-photo" id="fw-bg-phase2" style="background-image: url('assets/change_of_command.webp');"></div>
+                <div class="framework-bg-photo" id="fw-bg-phase3" style="background-image: url('assets/field_medicine.webp');"></div>
+                <div class="framework-bg-photo" id="fw-bg-desired" style="background-image: url('assets/soldier_award.webp');"></div>
+                <div class="framework-scrim"></div>
+              </div>
+
               <!-- Timeline/Progress Tracker (Pills on Left) -->
               <nav class="framework-progress-tracker" aria-label="Framework progression tracker">
                 <div class="framework-progress-track">
@@ -821,6 +844,14 @@ const App = {
                       <div class="slide-kicker">DCCS / MSCOE SURGEON OPERATIONAL DESIGN</div>
                       <h1 class="slide-title">Operational Design — 2027</h1>
                       <p class="slide-vision">Deliver reliable, high-quality healthcare that exceeds DHA standards for access and performance.</p>
+                      
+                      <!-- HUD Telemetry -->
+                      <div class="hud-telemetry" aria-hidden="true">
+                        <div class="telemetry-item"><span class="label">SYS:</span> <span class="val green">ONLINE</span></div>
+                        <div class="telemetry-item"><span class="label">SECTOR:</span> <span class="val" id="hud-val-sector">OVERVIEW</span></div>
+                        <div class="telemetry-item"><span class="label">COORDS:</span> <span class="val" id="hud-val-coords">0.00 / 0.00</span></div>
+                        <div class="telemetry-item"><span class="label">ZOOM:</span> <span class="val" id="hud-val-zoom">100%</span></div>
+                      </div>
                     </header>
 
                     <!-- Body Grid: Prior ➔ Matrix ➔ Desired -->
@@ -828,6 +859,7 @@ const App = {
                       
                       <!-- Col 1: Prior State (2025) -->
                       <section class="slide-column prior-state-box" id="slide-element-prior-state" aria-label="Prior State">
+                        ${this.renderHUDBrackets()}
                         <div class="slide-section-header">
                           <span class="slide-section-icon" aria-hidden="true">⚠</span>
                           <h2>2025 Prior State</h2>
@@ -843,6 +875,7 @@ const App = {
                           <div class="matrix-header-cell empty"></div>
                           
                           <div class="matrix-header-cell phase-header phase-1" id="matrix-header-p1">
+                            ${this.renderHUDBrackets()}
                             <div class="phase-badge complete">Phase 1</div>
                             <div class="phase-name">Build</div>
                             <div class="phase-dates">Now – 1Mar26</div>
@@ -852,6 +885,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-header-cell phase-header phase-2 active" id="matrix-header-p2">
+                            ${this.renderHUDBrackets()}
                             <div class="phase-badge active">Phase 2</div>
                             <div class="phase-name">Improve</div>
                             <div class="phase-dates">1Mar – 1Oct26</div>
@@ -861,6 +895,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-header-cell phase-header phase-3" id="matrix-header-p3">
+                            ${this.renderHUDBrackets()}
                             <div class="phase-badge upcoming">Phase 3</div>
                             <div class="phase-name">Refine</div>
                             <div class="phase-dates">1Oct26 – July 27</div>
@@ -876,6 +911,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p1-loe1" id="cell-p1-loe1">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Optimize PC Access & ER flow</li>
                               <li>Care Ladder: Medic ➔ CSSP ➔ NP ➔ MD</li>
@@ -884,6 +920,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p2-loe1 main-effort-cell" id="cell-p2-loe1">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>PCSL DHA Care Model</li>
                               <li>Throughput in New Facility</li>
@@ -892,6 +929,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p3-loe1" id="cell-p3-loe1">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Refine PCSL Flow & RCA PI</li>
                               <li>Optimize 3SL BOTs</li>
@@ -906,6 +944,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p1-loe2" id="cell-p1-loe2">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Introduce AI & PowerBI tools</li>
                               <li>Role clarity & Counseling</li>
@@ -915,6 +954,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p2-loe2" id="cell-p2-loe2">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Reorganize for Clinical Efficiency</li>
                               <li>Manning Need: RN/SW & APPs</li>
@@ -923,6 +963,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p3-loe2 main-effort-cell" id="cell-p3-loe2">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Deliberate LPD Calendar</li>
                               <li>Enforce military PME timelines</li>
@@ -937,6 +978,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p1-loe3 main-effort-cell" id="cell-p1-loe3">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Trainee Care: TOMS/CTMC/ER</li>
                               <li>Establish Surgeon Oversight</li>
@@ -946,6 +988,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p2-loe3" id="cell-p2-loe3">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>Standardize Med Ops (OPORDs)</li>
                               <li>Predictive supply ASL</li>
@@ -954,6 +997,7 @@ const App = {
                           </div>
                           
                           <div class="matrix-cell p3-loe3" id="cell-p3-loe3">
+                            ${this.renderHUDBrackets()}
                             <ul class="matrix-deliverables">
                               <li>AAR loop on training exercises</li>
                               <li>Med council readiness integration</li>
@@ -965,6 +1009,7 @@ const App = {
 
                       <!-- Col 3: Desired State (2027) -->
                       <section class="slide-column desired-state-box" id="slide-element-desired-state" aria-label="Desired State">
+                        ${this.renderHUDBrackets()}
                         <div class="slide-section-header">
                           <span class="slide-section-icon" aria-hidden="true">★</span>
                           <h2>2027 Desired State</h2>
@@ -975,6 +1020,7 @@ const App = {
 
                     <!-- Footer: Mission -->
                     <footer class="slide-footer" id="slide-element-mission">
+                      ${this.renderHUDBrackets()}
                       <div class="slide-mission-title">COMMAND MISSION STATEMENT</div>
                       <p class="slide-mission-text">${D.mission}</p>
                     </footer>

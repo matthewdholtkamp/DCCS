@@ -5,6 +5,8 @@
   let lenisRaf = null;
   const cleanupFns = [];
   const motionTriggers = [];
+  let activeRotX = 0;
+  let activeRotY = 0;
 
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -20,6 +22,85 @@
     return typeof window.Lenis === 'function' && Boolean(window.gsap) && Boolean(window.ScrollTrigger);
   }
 
+  function setActiveBg(target) {
+    if (!stage) return;
+    const bgMap = {
+      'all': 'fw-bg-all',
+      'mission': 'fw-bg-mission',
+      'prior-state': 'fw-bg-prior',
+      'loes': 'fw-bg-prior',
+      'phase1': 'fw-bg-phase1',
+      'phase2': 'fw-bg-phase2',
+      'phase3': 'fw-bg-phase3',
+      'desired-state': 'fw-bg-desired'
+    };
+    const activeBgId = bgMap[target] || 'fw-bg-all';
+    
+    stage.querySelectorAll('.framework-bg-photo').forEach(photo => {
+      const active = photo.id === activeBgId;
+      photo.classList.toggle('active', active);
+    });
+  }
+
+  function updateTelemetry(target, x, y, scale) {
+    if (!stage) return;
+    const valSector = stage.querySelector('#hud-val-sector');
+    const valCoords = stage.querySelector('#hud-val-coords');
+    const valZoom = stage.querySelector('#hud-val-zoom');
+    
+    if (valSector) {
+      const sectorNames = {
+        'all': 'OVERVIEW',
+        'mission': 'CMD MISSION',
+        'prior-state': 'BASELINE 2025',
+        'loes': 'STRAT LOES',
+        'phase1': 'PH1 BUILD',
+        'phase2': 'PH2 IMPROVE',
+        'phase3': 'PH3 REFINE',
+        'desired-state': 'OUTCOMES 2027'
+      };
+      valSector.textContent = sectorNames[target] || target.toUpperCase();
+    }
+    
+    if (valCoords) {
+      valCoords.textContent = `${x.toFixed(0)} / ${y.toFixed(0)}`;
+    }
+    
+    if (valZoom) {
+      valZoom.textContent = `${(scale * 100).toFixed(0)}%`;
+    }
+  }
+
+  function handleMouseMove(e) {
+    if (prefersReducedMotion() || isTouchDevice()) return;
+    if (!stage) return;
+    const slideDeck = stage.querySelector('.framework-slide-deck');
+    if (!slideDeck) return;
+    
+    const rect = stage.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Normalize coordinates around center (-1 to 1)
+    const normX = (mouseX / rect.width) * 2 - 1;
+    const normY = (mouseY / rect.height) * 2 - 1;
+    
+    // Calculate tilt angles (max tilt ±2.5 deg)
+    const tiltX = -normY * 2.5;
+    const tiltY = normX * 2.5;
+    
+    const gsap = window.gsap;
+    if (gsap) {
+      gsap.to(slideDeck, {
+        rotationX: activeRotX + tiltX,
+        rotationY: activeRotY + tiltY,
+        duration: 0.5,
+        ease: 'power1.out',
+        overwrite: 'auto'
+      });
+    }
+  }
+
   function applyFocus(target) {
     if (!stage) return;
     const slideDeck = stage.querySelector('.framework-slide-deck');
@@ -30,6 +111,8 @@
     let scale = 1.0;
     let x = 0;
     let y = 0;
+    let rotationX = 0;
+    let rotationY = 0;
 
     // We scale down the offsets slightly on smaller screens so the content remains visible
     const isSmallScreen = window.innerWidth <= 1024;
@@ -39,31 +122,54 @@
       scale = 1.75;
       x = 0;
       y = isSmallScreen ? 140 : 200;
+      rotationX = -4.5;
+      rotationY = 0;
     } else if (target === 'prior-state') {
       scale = 1.7;
       x = (isSmallScreen ? 220 : 340) * widthFactor;
       y = 0;
+      rotationX = 0;
+      rotationY = -6.0;
     } else if (target === 'loes') {
       scale = 1.55;
       x = (isSmallScreen ? 180 : 280) * widthFactor;
       y = 0;
+      rotationX = 1.5;
+      rotationY = -4.0;
     } else if (target === 'phase1') {
       scale = 1.5;
       x = (isSmallScreen ? 100 : 150) * widthFactor;
       y = 0;
+      rotationX = 1.0;
+      rotationY = -3.0;
     } else if (target === 'phase2') {
       scale = 1.5;
       x = 0;
       y = 0;
+      rotationX = 0;
+      rotationY = 0;
     } else if (target === 'phase3') {
       scale = 1.5;
       x = (isSmallScreen ? -100 : -150) * widthFactor;
       y = 0;
+      rotationX = 1.0;
+      rotationY = 3.0;
     } else if (target === 'desired-state') {
       scale = 1.7;
       x = (isSmallScreen ? -220 : -340) * widthFactor;
       y = 0;
+      rotationX = 0;
+      rotationY = 6.0;
     }
+
+    activeRotX = rotationX;
+    activeRotY = rotationY;
+
+    // Swap background images
+    setActiveBg(target);
+
+    // Update Telemetry display
+    updateTelemetry(target, x, y, scale);
 
     const gsap = window.gsap;
     if (gsap && !prefersReducedMotion()) {
@@ -71,18 +177,31 @@
         scale: scale,
         x: x,
         y: y,
+        rotationX: rotationX,
+        rotationY: rotationY,
         duration: 0.85,
         ease: 'power3.out',
         overwrite: 'auto'
       });
     } else {
       // Direct jump for reduced motion
-      slideDeck.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+      slideDeck.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale}) rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
     }
 
-    // Apply focus class to dim other components
+    // Apply focus class to dim other components with aligned mapping
     slide.className = 'framework-slide';
-    slide.classList.add(`focus-${target}`);
+    const classMap = {
+      'all': 'focus-all',
+      'mission': 'focus-mission',
+      'prior-state': 'focus-prior',
+      'loes': 'focus-loes',
+      'phase1': 'focus-p1',
+      'phase2': 'focus-p2',
+      'phase3': 'focus-p3',
+      'desired-state': 'focus-desired'
+    };
+    const focusClass = classMap[target] || `focus-${target}`;
+    slide.classList.add(focusClass);
 
     // Update progress steps
     setActiveRail(target);
@@ -270,6 +389,11 @@
     stage.classList.add('js-enhanced');
     applyFocus('all');
     wireRail();
+
+    // Bind mousemove parallax tilt
+    const mouseMoveHandler = (e) => handleMouseMove(e);
+    stage.addEventListener('mousemove', mouseMoveHandler);
+    cleanupFns.push(() => stage.removeEventListener('mousemove', mouseMoveHandler));
 
     const hasObserver = 'IntersectionObserver' in window;
     const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && hasMotionLibraries();
