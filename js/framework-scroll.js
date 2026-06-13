@@ -5,9 +5,6 @@
   let lenisRaf = null;
   const cleanupFns = [];
   const motionTriggers = [];
-  let activeRotX = 0;
-  let activeRotY = 0;
-
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
@@ -71,139 +68,159 @@
     }
   }
 
-  function handleMouseMove(e) {
-    if (prefersReducedMotion() || isTouchDevice()) return;
-    if (!stage) return;
-    const slide = stage.querySelector('.framework-slide');
-    if (!slide) return;
-    
-    const rect = stage.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    // Normalize coordinates around center (-1 to 1)
-    const normX = (mouseX / rect.width) * 2 - 1;
-    const normY = (mouseY / rect.height) * 2 - 1;
-    
-    // Calculate tilt angles (max tilt ±2.5 deg)
-    const tiltX = -normY * 2.5;
-    const tiltY = normX * 2.5;
-    
-    const gsap = window.gsap;
-    if (gsap) {
-      gsap.to(slide, {
-        rotationX: tiltX,
-        rotationY: tiltY,
-        duration: 0.5,
-        ease: 'power1.out',
-        overwrite: 'auto'
-      });
-    }
-  }
-
   function applyFocus(target) {
     if (!stage) return;
     const slideDeck = stage.querySelector('.framework-slide-deck');
     const slide = stage.querySelector('.framework-slide');
     if (!slideDeck || !slide) return;
 
-    // Define coordinates based on targets
-    let scale = 1.0;
-    let x = 0;
-    let y = 0;
-    let rotationX = 0;
-    let rotationY = 0;
+    const gsap = window.gsap;
+    if (!gsap) return;
 
-    // We scale down the offsets slightly on smaller screens so the content remains visible
-    const isSmallScreen = window.innerWidth <= 1024;
-    const widthFactor = isSmallScreen ? 0.7 : 1.0;
-
-    if (target === 'mission') {
-      scale = 1.75;
-      x = 0;
-      y = isSmallScreen ? 140 : 200;
-      rotationX = -4.5;
-      rotationY = 0;
-    } else if (target === 'prior-state') {
-      scale = 1.7;
-      x = (isSmallScreen ? 220 : 340) * widthFactor;
-      y = 0;
-      rotationX = 0;
-      rotationY = -6.0;
-    } else if (target === 'loes') {
-      scale = 1.55;
-      x = (isSmallScreen ? 180 : 280) * widthFactor;
-      y = 0;
-      rotationX = 1.5;
-      rotationY = -4.0;
-    } else if (target === 'phase1') {
-      scale = 1.5;
-      x = (isSmallScreen ? 100 : 150) * widthFactor;
-      y = 0;
-      rotationX = 1.0;
-      rotationY = -3.0;
-    } else if (target === 'phase2') {
-      scale = 1.5;
-      x = 0;
-      y = 0;
-      rotationX = 0;
-      rotationY = 0;
-    } else if (target === 'phase3') {
-      scale = 1.5;
-      x = (isSmallScreen ? -100 : -150) * widthFactor;
-      y = 0;
-      rotationX = 1.0;
-      rotationY = 3.0;
-    } else if (target === 'desired-state') {
-      scale = 1.7;
-      x = (isSmallScreen ? -220 : -340) * widthFactor;
-      y = 0;
-      rotationX = 0;
-      rotationY = 6.0;
+    // Helper to calculate coordinates relative to .framework-slide
+    function getCenterRelativeToSlide(el) {
+      let left = 0;
+      let top = 0;
+      let curr = el;
+      while (curr && curr !== slide && curr !== document.body) {
+        left += curr.offsetLeft;
+        top += curr.offsetTop;
+        curr = curr.offsetParent;
+      }
+      return {
+        x: left + el.offsetWidth / 2,
+        y: top + el.offsetHeight / 2
+      };
     }
 
-    activeRotX = rotationX;
-    activeRotY = rotationY;
+    // 1. Reset cell active states and blur class on slide
+    slide.classList.remove('blur-back');
+    const allElements = slide.querySelectorAll(
+      '.prior-state-box, .desired-state-box, .slide-footer, .matrix-header-cell:not(.empty), .matrix-cell'
+    );
+    allElements.forEach(el => el.classList.remove('active-pop'));
 
-    // Swap background images
+    // 2. Map cells belonging to the current focus scene
+    let activeElements = [];
+    let scale = 1.25;
+
+    if (target === 'mission') {
+      activeElements = [slide.querySelector('#slide-element-mission')];
+    } else if (target === 'prior-state') {
+      activeElements = [slide.querySelector('#slide-element-prior-state')];
+    } else if (target === 'desired-state') {
+      activeElements = [slide.querySelector('#slide-element-desired-state')];
+    } else if (target === 'phase1') {
+      activeElements = [
+        slide.querySelector('#matrix-header-p1'),
+        slide.querySelector('#cell-p1-loe1'),
+        slide.querySelector('#cell-p1-loe2'),
+        slide.querySelector('#cell-p1-loe3')
+      ];
+      scale = 1.15; // slightly smaller scale to fit column elements
+    } else if (target === 'phase2') {
+      activeElements = [
+        slide.querySelector('#matrix-header-p2'),
+        slide.querySelector('#cell-p2-loe1'),
+        slide.querySelector('#cell-p2-loe2'),
+        slide.querySelector('#cell-p2-loe3')
+      ];
+      scale = 1.15;
+    } else if (target === 'phase3') {
+      activeElements = [
+        slide.querySelector('#matrix-header-p3'),
+        slide.querySelector('#cell-p3-loe1'),
+        slide.querySelector('#cell-p3-loe2'),
+        slide.querySelector('#cell-p3-loe3')
+      ];
+      scale = 1.15;
+    }
+
+    activeElements = activeElements.filter(Boolean);
+
+    // 3. Compute target offsets relative to center (cx = 600, cy = 360)
+    let dx = 0;
+    let dy = 0;
+
+    if (activeElements.length > 0) {
+      slide.classList.add('blur-back');
+      activeElements.forEach(el => el.classList.add('active-pop'));
+
+      if (activeElements.length === 1) {
+        const center = getCenterRelativeToSlide(activeElements[0]);
+        dx = 600 - center.x;
+        dy = 360 - center.y;
+      } else {
+        // Compute column X-center using header and Y-center using middle cell
+        const header = activeElements[0];
+        const middleCell = activeElements[2] || activeElements[1];
+        const headerCenter = getCenterRelativeToSlide(header);
+        const middleCenter = getCenterRelativeToSlide(middleCell);
+        dx = 600 - headerCenter.x;
+        dy = 360 - middleCenter.y;
+      }
+    }
+
+    // 4. Update backdrop scrim photo
     setActiveBg(target);
 
-    // Update Telemetry display
-    updateTelemetry(target, x, y, scale);
+    // 5. Update HUD telemetry display values
+    updateTelemetry(target, dx, dy, activeElements.length > 0 ? scale : 1.0);
 
-    const gsap = window.gsap;
-    if (gsap && !prefersReducedMotion()) {
+    // 6. Smoothly animate transforms with GSAP
+    if (!prefersReducedMotion()) {
+      // Keep main deck centered and unrotated
       gsap.to(slideDeck, {
-        scale: scale,
-        x: x,
-        y: y,
-        rotationX: rotationX,
-        rotationY: rotationY,
-        duration: 0.85,
-        ease: 'power3.out',
+        scale: 1,
+        x: 0,
+        y: 0,
+        rotationX: 0,
+        rotationY: 0,
+        duration: 0.6,
+        ease: 'power2.out',
         overwrite: 'auto'
       });
-      // Smoothly animate inner slide rotation back to center during zoom shifts
       gsap.to(slide, {
         rotationX: 0,
         rotationY: 0,
-        duration: 0.85,
-        ease: 'power3.out',
+        duration: 0.6,
+        ease: 'power2.out',
         overwrite: 'auto'
       });
+
+      // Animate active cells/columns outwards and center them, reset non-active cells
+      allElements.forEach(el => {
+        const isActive = activeElements.includes(el);
+        gsap.to(el, {
+          x: isActive ? dx : 0,
+          y: isActive ? dy : 0,
+          scale: isActive ? scale : 1.0,
+          duration: 0.65,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        });
+      });
     } else {
-      // Direct jump for reduced motion
-      slideDeck.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale}) rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
+      // Reduced motion direct fallback
+      slideDeck.style.transform = 'none';
       slide.style.transform = 'none';
+      allElements.forEach(el => {
+        const isActive = activeElements.includes(el);
+        if (isActive) {
+          el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
+        } else {
+          el.style.transform = 'none';
+        }
+      });
     }
 
-    // Apply focus class to dim other components with aligned mapping
+    // Apply focus class name to slide
     slide.className = 'framework-slide';
     const classMap = {
       'all': 'focus-all',
       'mission': 'focus-mission',
       'prior-state': 'focus-prior',
-      'loes': 'focus-loes',
+      'loes': 'focus-prior',
       'phase1': 'focus-p1',
       'phase2': 'focus-p2',
       'phase3': 'focus-p3',
@@ -211,8 +228,11 @@
     };
     const focusClass = classMap[target] || `focus-${target}`;
     slide.classList.add(focusClass);
+    if (activeElements.length > 0) {
+      slide.classList.add('blur-back');
+    }
 
-    // Update progress steps
+    // Update bottom stepper highlighted state
     setActiveRail(target);
   }
 
@@ -399,10 +419,7 @@
     applyFocus('all');
     wireRail();
 
-    // Bind mousemove parallax tilt
-    const mouseMoveHandler = (e) => handleMouseMove(e);
-    stage.addEventListener('mousemove', mouseMoveHandler);
-    cleanupFns.push(() => stage.removeEventListener('mousemove', mouseMoveHandler));
+    // (Mousemove tilt event listener removed to satisfy user choice)
 
     const hasObserver = 'IntersectionObserver' in window;
     const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && hasMotionLibraries();
