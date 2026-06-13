@@ -4697,6 +4697,11 @@ body.presentation-mode-active .ask-backdrop {
   pointer-events: none;
 }
 
+.landing-stage .landing-stage-inner {
+  position: relative;
+  min-height: 100%;
+}
+
 .landing-stage .landing-bg {
   position: absolute;
   inset: 0;
@@ -4704,14 +4709,15 @@ body.presentation-mode-active .ask-backdrop {
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;
-  transform: scale(1.02);
-  transition: opacity 900ms ease, transform 1400ms ease;
+  transform: scale(1.06);
+  transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1), transform 1400ms cubic-bezier(0.16, 1, 0.3, 1);
   will-change: opacity, transform;
+  backface-visibility: hidden;
 }
 
 .landing-stage .landing-bg.active {
   opacity: 1;
-  transform: scale(1);
+  transform: scale(1.04);
 }
 
 .landing-stage .landing-bg--fill {
@@ -4737,7 +4743,7 @@ body.presentation-mode-active .ask-backdrop {
   background-position: center center;
   background-size: cover;
   filter: brightness(1.22) saturate(1.08) contrast(1.04);
-  transition: opacity 420ms ease, transform 900ms ease;
+  transition: opacity 420ms cubic-bezier(0.16, 1, 0.3, 1), transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .landing-stage .landing-bg--object {
@@ -4820,7 +4826,7 @@ body.presentation-mode-active .ask-backdrop {
   text-transform: uppercase;
   cursor: pointer;
   pointer-events: auto;
-  transition: color 180ms ease, transform 180ms ease;
+  transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .landing-stage .landing-progress-step:hover,
@@ -4828,6 +4834,12 @@ body.presentation-mode-active .ask-backdrop {
   color: var(--stage-ink);
   transform: translateX(-2px);
   outline: none;
+}
+
+.landing-stage .landing-progress-step:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid rgba(255, 184, 28, 0.78);
+  outline-offset: 6px;
 }
 
 .landing-stage .landing-progress-step.active {
@@ -4845,7 +4857,7 @@ body.presentation-mode-active .ask-backdrop {
   border: 1px solid rgba(246, 242, 232, 0.28);
   border-radius: 999px;
   box-shadow: 0 0 0 4px rgba(8, 15, 24, 0.74);
-  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  transition: background 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1), transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .landing-stage .landing-progress-step.active .landing-progress-dot {
@@ -4853,6 +4865,19 @@ body.presentation-mode-active .ask-backdrop {
   border-color: rgba(255, 244, 205, 0.92);
   box-shadow: 0 0 0 4px rgba(8, 15, 24, 0.78), 0 0 20px rgba(255, 184, 28, 0.45);
   transform: scale(1.08);
+}
+
+.landing-stage .landing-progress-step.is-current-phase .landing-progress-dot {
+  background: var(--stage-gold);
+  border-color: rgba(255, 244, 205, 0.92);
+  box-shadow: 0 0 0 4px rgba(8, 15, 24, 0.78), 0 0 0 7px rgba(255, 184, 28, 0.34);
+}
+
+.landing-stage .landing-progress-step.is-current-phase .landing-progress-label::after {
+  content: " · now";
+  color: var(--stage-gold);
+  font-weight: 800;
+  letter-spacing: 0.10em;
 }
 
 .landing-stage .landing-progress-short {
@@ -4912,7 +4937,17 @@ body.presentation-mode-active .ask-backdrop {
 .landing-stage .reveal {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 520ms ease, transform 520ms ease;
+  transition: opacity 520ms cubic-bezier(0.16, 1, 0.3, 1), transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing-stage .reveal-mask {
+  display: block;
+  overflow: hidden;
+}
+
+.landing-stage .reveal-mask-inner {
+  display: block;
+  will-change: transform;
 }
 
 .landing-stage .landing-kicker {
@@ -5132,6 +5167,11 @@ body.presentation-mode-active .ask-backdrop {
 
   .landing-stage .landing-scroll-cue {
     animation: none;
+  }
+
+  .landing-stage .reveal-mask-inner,
+  .landing-stage .landing-bg {
+    transform: none !important;
   }
 }
 
