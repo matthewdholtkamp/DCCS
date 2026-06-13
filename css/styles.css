@@ -5342,6 +5342,7 @@ body.presentation-mode-active .ask-backdrop {
   width: 100%;
   background: #020408;
   color: #ffffff;
+  --text-primary: #ffffff;
   --text-secondary: #dddddd;
   --text-muted: #999999;
 }
