@@ -457,6 +457,7 @@ const App = {
 
   route() {
     if (window.DCCS_DEBUG) window.DCCS_DEBUG.routeCalls++;
+    document.body.classList.remove('hide-sidebar');
     if (this._erCharts) {
       Object.keys(this._erCharts).forEach(id => this._destroyErChart(id));
     }
@@ -506,7 +507,11 @@ const App = {
     else if (isFrameworkRoute) this.renderFramework(main);
     else this.renderLanding(main);
 
-    this.renderSidebar(serviceLineId, isFrameworkRoute && !serviceLineId);
+    const isMainFramework = isFrameworkRoute && !serviceLineId;
+    this.renderSidebar(serviceLineId, isMainFramework);
+    if (isMainFramework) {
+      document.body.classList.add('hide-sidebar');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 

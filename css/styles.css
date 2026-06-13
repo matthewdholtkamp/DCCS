@@ -5336,6 +5336,15 @@ body.presentation-mode-active .ask-backdrop {
   }
 }
 
+body.hide-sidebar #sidebar {
+  display: none !important;
+}
+body.hide-sidebar .main {
+  margin-left: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 /* ===== OPERATIONAL FRAMEWORK V2 PRESENTATION STYLES ===== */
 .framework-v2 {
   position: relative;
@@ -5449,18 +5458,26 @@ body.presentation-mode-active .ask-backdrop {
 }
 
 .framework-slide-deck {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transform-origin: center center;
   will-change: transform;
   transform-style: preserve-3d;
 }
 
 .framework-slide {
-  width: 1200px;
-  height: 720px;
+  width: 100%;
+  height: 100%;
+  max-width: 1400px;
+  max-height: 82vh;
+  aspect-ratio: 16 / 9;
   background: rgba(9, 14, 23, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  padding: 30px;
+  padding: 2.5vh 30px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px);
   display: flex;
@@ -5979,31 +5996,7 @@ body.presentation-mode-active .ask-backdrop {
 }
 
 /* RESPONSIVE MAPPING FOR PPT SLIDE VIEWPORT */
-@media (max-width: 1440px) {
-  .framework-slide {
-    transform: scale(0.8);
-  }
-}
-
-@media (max-width: 1280px) {
-  .framework-slide {
-    transform: scale(0.7);
-  }
-  .framework-slide-deck-wrapper {
-    padding-left: 5rem;
-    padding-right: 32%;
-  }
-}
-
-@media (max-width: 1024px) {
-  .framework-slide {
-    transform: scale(0.58);
-  }
-  .framework-slide-deck-wrapper {
-    padding-left: 4.5rem;
-    padding-right: 34%;
-  }
-}
+/* (Desktop media query scaling removed to allow fluid responsive aspect-ratio fitting) */
 
 @media (max-width: 768px) {
   .framework-presentation-container {

@@ -3,6 +3,7 @@
   let content = null;
   let lenis = null;
   let lenisRaf = null;
+  let currentTarget = null;
   const cleanupFns = [];
   const motionTriggers = [];
   function prefersReducedMotion() {
@@ -16,7 +17,7 @@
   }
 
   function hasMotionLibraries() {
-    return typeof window.Lenis === 'function' && Boolean(window.gsap) && Boolean(window.ScrollTrigger);
+    return typeof window.Lenis === 'function' && Boolean(window.gsap);
   }
 
   function setActiveBg(target) {
@@ -74,8 +75,8 @@
     const slide = stage.querySelector('.framework-slide');
     if (!slideDeck || !slide) return;
 
-    const gsap = window.gsap;
-    if (!gsap) return;
+    if (target === currentTarget) return;
+    currentTarget = target;
 
     // Helper to calculate coordinates relative to .framework-slide
     function getCenterRelativeToSlide(el) {
@@ -138,9 +139,11 @@
 
     activeElements = activeElements.filter(Boolean);
 
-    // 3. Compute target offsets relative to center (cx = 600, cy = 360)
+    // 3. Compute target offsets relative to center dynamically
     let dx = 0;
     let dy = 0;
+    const cx = slide.offsetWidth / 2;
+    const cy = slide.offsetHeight / 2;
 
     if (activeElements.length > 0) {
       slide.classList.add('blur-back');
@@ -148,16 +151,16 @@
 
       if (activeElements.length === 1) {
         const center = getCenterRelativeToSlide(activeElements[0]);
-        dx = 600 - center.x;
-        dy = 360 - center.y;
+        dx = cx - center.x;
+        dy = cy - center.y;
       } else {
         // Compute column X-center using header and Y-center using middle cell
         const header = activeElements[0];
         const middleCell = activeElements[2] || activeElements[1];
         const headerCenter = getCenterRelativeToSlide(header);
         const middleCenter = getCenterRelativeToSlide(middleCell);
-        dx = 600 - headerCenter.x;
-        dy = 360 - middleCenter.y;
+        dx = cx - headerCenter.x;
+        dy = cy - middleCenter.y;
       }
     }
 
@@ -168,7 +171,8 @@
     updateTelemetry(target, dx, dy, activeElements.length > 0 ? scale : 1.0);
 
     // 6. Smoothly animate transforms with GSAP
-    if (!prefersReducedMotion()) {
+    const gsap = window.gsap;
+    if (gsap && !prefersReducedMotion()) {
       // Keep main deck centered and unrotated
       gsap.to(slideDeck, {
         scale: 1,
@@ -201,7 +205,7 @@
         });
       });
     } else {
-      // Reduced motion direct fallback
+      // Reduced motion direct fallback / CSS inline fallback
       slideDeck.style.transform = 'none';
       slide.style.transform = 'none';
       allElements.forEach(el => {
@@ -279,12 +283,9 @@
     if (!stage || !content || !hasMotionLibraries()) return false;
 
     const gsap = window.gsap;
-    const ScrollTrigger = window.ScrollTrigger;
 
     try {
-      gsap.registerPlugin(ScrollTrigger);
-
-      // Setup Lenis scroll wrapper
+      // Setup Lenis scroll wrapper for smooth scrolling
       lenis = new window.Lenis({
         wrapper: stage,
         content,
@@ -295,19 +296,6 @@
         syncTouch: false
       });
 
-      ScrollTrigger.scrollerProxy(stage, {
-        scrollTop(value) {
-          if (arguments.length) {
-            lenis.scrollTo(value, { immediate: true });
-          }
-          return lenis.actualScroll ?? lenis.animatedScroll ?? lenis.scroll ?? stage.scrollTop;
-        },
-        getBoundingClientRect() {
-          const r = stage.getBoundingClientRect();
-          return { top: r.top, left: r.left, width: r.width, height: r.height };
-        }
-      });
-
       lenisRaf = time => {
         if (lenis) lenis.raf(time * 1000);
       };
@@ -315,67 +303,20 @@
       gsap.ticker.add(lenisRaf);
       gsap.ticker.lagSmoothing(0);
 
+      // Listen to Lenis scroll event to update active scene
       lenis.on('scroll', () => {
-        ScrollTrigger.update();
-      });
-
-      // Pin the slide presentation view
-      const pinTrigger = ScrollTrigger.create({
-        trigger: '.framework-presentation-container',
-        scroller: stage,
-        start: 'top top',
-        end: 'bottom bottom',
-        pin: true,
-        pinSpacing: false
-      });
-      motionTriggers.push(pinTrigger);
-
-      // Set up triggers for each scene to shift slide focus
-      stage.querySelectorAll('.framework-scroll-scene').forEach(scene => {
-        const target = scene.dataset.target;
-        const trigger = ScrollTrigger.create({
-          trigger: scene,
-          scroller: stage,
-          start: 'top 50%',
-          end: 'bottom 50%',
-          onToggle: self => {
-            if (self.isActive) {
-              applyFocus(target);
-            }
-          }
-        });
-        motionTriggers.push(trigger);
-      });
-
-      // Stagger card reveals
-      stage.querySelectorAll('.framework-scroll-scene').forEach(scene => {
-        const card = scene.querySelector('.narrative-card');
-        if (card) {
-          const revealTween = gsap.from(card, {
-            yPercent: 12,
-            opacity: 0.1,
-            duration: 0.8,
-            ease: 'power3.out',
-            scrollTrigger: {
-              trigger: scene,
-              scroller: stage,
-              start: 'top 80%',
-              toggleActions: 'play none none reverse'
-            }
-          });
-          if (revealTween.scrollTrigger) motionTriggers.push(revealTween.scrollTrigger);
-        }
+        updateActiveSceneFallback();
       });
 
       const onResize = () => {
         if (lenis && typeof lenis.resize === 'function') lenis.resize();
-        ScrollTrigger.refresh();
+        updateActiveSceneFallback();
       };
       window.addEventListener('resize', onResize);
       cleanupFns.push(() => window.removeEventListener('resize', onResize));
 
       if (typeof lenis.resize === 'function') lenis.resize();
-      ScrollTrigger.refresh();
+      updateActiveSceneFallback();
       return true;
     } catch (error) {
       console.warn('Framework Scroll: Motion layer failed to load:', error);
@@ -416,6 +357,7 @@
 
     stage.scrollTop = 0;
     stage.classList.add('js-enhanced');
+    currentTarget = null; // Reset target on init
     applyFocus('all');
     wireRail();
 
@@ -430,6 +372,8 @@
     }
 
     if (motionAllowed && initMotionLayer()) {
+      // Also bind the standard scroll event on the stage as a native failsafe
+      wireScrollTrackingFallback();
       return;
     }
 
