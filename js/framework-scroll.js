@@ -96,7 +96,7 @@
     // 1. Reset cell active states and blur class on slide
     slide.classList.remove('blur-back');
     const allElements = slide.querySelectorAll(
-      '.prior-state-box, .desired-state-box, .slide-footer, .matrix-header-cell:not(.empty), .matrix-cell'
+      '.prior-state-box, .desired-state-box, .slide-mission-box, .matrix-header-cell:not(.empty), .matrix-cell'
     );
     allElements.forEach(el => el.classList.remove('active-pop'));
 

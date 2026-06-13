@@ -809,15 +809,17 @@ const App = {
                       <div class="slide-kicker">DCCS / MSCOE SURGEON OPERATIONAL DESIGN</div>
                       <h1 class="slide-title">Operational Design — 2027</h1>
                       <p class="slide-vision">Deliver reliable, high-quality healthcare that exceeds DHA standards for access and performance.</p>
-                      
-                      <!-- HUD Telemetry -->
-                      <div class="hud-telemetry" aria-hidden="true">
-                        <div class="telemetry-item"><span class="label">SYS:</span> <span class="val green">ONLINE</span></div>
-                        <div class="telemetry-item"><span class="label">SECTOR:</span> <span class="val" id="hud-val-sector">OVERVIEW</span></div>
-                        <div class="telemetry-item"><span class="label">COORDS:</span> <span class="val" id="hud-val-coords">0.00 / 0.00</span></div>
-                        <div class="telemetry-item"><span class="label">ZOOM:</span> <span class="val" id="hud-val-zoom">100%</span></div>
-                      </div>
                     </header>
+
+                    <!-- Command Mission Statement (Moved to Top) -->
+                    <section class="slide-mission-box" id="slide-element-mission" aria-label="Command Mission Statement">
+                      ${this.renderHUDBrackets()}
+                      <div class="slide-mission-title">COMMAND MISSION STATEMENT</div>
+                      <p class="slide-mission-text">${D.mission}</p>
+                      <div class="cell-detailed-content">
+                        <p style="font-size: 11.5px; color: #ccc; margin-top: 8px; line-height: 1.5;">GLWCH coordinates clinical care and tactical readiness across all sectors to ensure our medical personnel are prepared to deploy, and our training forces remain combat ready.</p>
+                      </div>
+                    </section>
 
                     <!-- Body Grid: Prior ➔ Matrix ➔ Desired -->
                     <div class="slide-body-grid">
@@ -1039,15 +1041,7 @@ const App = {
                       </section>
                     </div>
 
-                    <!-- Footer: Mission -->
-                    <footer class="slide-footer" id="slide-element-mission">
-                      ${this.renderHUDBrackets()}
-                      <div class="slide-mission-title">COMMAND MISSION STATEMENT</div>
-                      <p class="slide-mission-text">${D.mission}</p>
-                      <div class="cell-detailed-content">
-                        <p style="font-size: 11.5px; color: #ccc; margin-top: 8px; line-height: 1.5;">GLWCH coordinates clinical care and tactical readiness across all sectors to ensure our medical personnel are prepared to deploy, and our training forces remain combat ready.</p>
-                      </div>
-                    </footer>
+                    <!-- Footer: Removed (Mission relocated to top) -->
                   </div>
                 </div>
               </div>
