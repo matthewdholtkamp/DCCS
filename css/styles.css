@@ -4753,17 +4753,6 @@ body.presentation-mode-active .ask-backdrop {
     linear-gradient(180deg, rgba(10, 17, 26, 0.76), rgba(10, 17, 26, 0.2) 38%, rgba(10, 17, 26, 0.9));
 }
 
-.landing-stage .landing-stage-header {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  padding: 16px clamp(132px, 14vw, 190px) 15px clamp(24px, 4vw, 44px);
-  background: linear-gradient(180deg, rgba(10, 17, 26, 0.96), rgba(10, 17, 26, 0.76));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(16px);
-}
-
 .landing-stage .landing-progress-tracker {
   position: sticky;
   top: 0;
@@ -4870,65 +4859,6 @@ body.presentation-mode-active .ask-backdrop {
   display: none;
 }
 
-.landing-stage .landing-command-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.72fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: start;
-  padding: 0;
-  text-align: center;
-}
-
-.landing-stage .landing-command-person,
-.landing-stage .landing-command-motto {
-  min-width: 0;
-  color: var(--stage-muted);
-  font-size: 0.76rem;
-  line-height: 1.35;
-  text-align: center;
-}
-
-.landing-stage .landing-command-person strong,
-.landing-stage .landing-command-motto strong {
-  display: block;
-  color: var(--stage-ink);
-  font-size: 0.84rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.landing-stage .landing-command-person span {
-  display: block;
-  margin-top: 3px;
-}
-
-.landing-stage .landing-command-person--right {
-  text-align: center;
-}
-
-.landing-stage .landing-command-motto {
-  justify-self: center;
-  width: 100%;
-  max-width: 360px;
-  padding: 0;
-  color: var(--stage-muted);
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  text-align: center;
-  font-weight: 900;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  box-shadow: none;
-}
-
-.landing-stage .landing-command-motto strong {
-  display: inline;
-  color: var(--stage-gold);
-  font-size: inherit;
-}
-
 .landing-stage .landing-scenes {
   position: relative;
   z-index: 2;
@@ -4940,7 +4870,7 @@ body.presentation-mode-active .ask-backdrop {
   padding: clamp(48px, 7vw, 96px) clamp(126px, 14vw, 188px) clamp(48px, 7vw, 96px) clamp(44px, 6.5vw, 92px);
   align-items: center;
   scroll-snap-align: none;
-  scroll-margin-top: 118px;
+  scroll-margin-top: 32px;
 }
 
 .landing-stage .landing-scene--pivot {
@@ -5215,10 +5145,6 @@ body.presentation-mode-active .ask-backdrop {
     border-radius: 14px;
   }
 
-  .landing-stage .landing-stage-header {
-    padding: 12px 72px 12px 14px;
-  }
-
   .landing-stage .landing-progress-track {
     top: 18px;
     right: 8px;
@@ -5269,22 +5195,10 @@ body.presentation-mode-active .ask-backdrop {
     display: inline;
   }
 
-  .landing-stage .landing-command-strip {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    padding: 0;
-  }
-
-  .landing-stage .landing-command-person,
-  .landing-stage .landing-command-person--right,
-  .landing-stage .landing-command-motto {
-    text-align: center;
-  }
-
   .landing-stage .landing-scene {
     min-height: calc(100svh - 142px);
     padding: 36px 66px 36px 16px;
-    scroll-margin-top: 236px;
+    scroll-margin-top: 28px;
   }
 
   .landing-stage .landing-scene-card {
@@ -5314,21 +5228,6 @@ body.presentation-mode-active .ask-backdrop {
     width: 100%;
     border-inline: 0;
     border-radius: 0;
-  }
-
-  .landing-stage .landing-command-person,
-  .landing-stage .landing-command-motto {
-    font-size: 0.68rem;
-  }
-
-  .landing-stage .landing-command-person strong,
-  .landing-stage .landing-command-motto strong {
-    font-size: 0.72rem;
-  }
-
-  .landing-stage .landing-stage-header {
-    padding-right: 56px;
-    padding-left: 12px;
   }
 
   .landing-stage .landing-progress-track {

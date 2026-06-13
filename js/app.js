@@ -591,7 +591,7 @@ const App = {
             <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/New_Hospital.webp')"></div>
             <div class="landing-bg" data-bg="command" style="background-image: url('assets/change_of_command.webp')"></div>
             <div class="landing-bg landing-bg--phase3" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
-            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v12')"></div>
+            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v13')"></div>
             <div class="landing-scrim"></div>
           </div>
 
@@ -625,20 +625,6 @@ const App = {
               </button>
             </div>
           </nav>
-
-          <div class="landing-stage-header">
-            <div class="landing-command-strip" aria-label="DCCS leadership and motto">
-              <div class="landing-command-person">
-                <strong>LTC Matthew D. Holtkamp</strong>
-                <span>Deputy Commander for Clinical Services (DCCS) &amp; MSCoE Command Surgeon</span>
-              </div>
-              <div class="landing-command-motto">Motto: <strong>Work Smart, Move Fast, Be Nice</strong></div>
-              <div class="landing-command-person landing-command-person--right">
-                <strong>SSG Flor Holloway</strong>
-                <span>Deputy Commander for Clinical Services (DCCS) &amp; MSCoE Command Surgeon, NCOIC</span>
-              </div>
-            </div>
-          </div>
 
           <div class="landing-scenes">
             <section class="landing-scene in-view" id="scene-current" data-bg="current">
