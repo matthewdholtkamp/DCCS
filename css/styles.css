@@ -4662,11 +4662,12 @@ body.presentation-mode-active .ask-backdrop {
   --landing-scroll-percent: 0%;
   --stage-gold: #FFB81C;
   --stage-gold-soft: rgba(255, 184, 28, 0.22);
-  --stage-ink: #f6f2e8;
-  --stage-muted: rgba(246, 242, 232, 0.76);
-  --stage-dim: rgba(246, 242, 232, 0.58);
-  --stage-panel: rgba(9, 17, 27, 0.76);
-  --stage-border: rgba(255, 255, 255, 0.16);
+  --stage-ink: #fff8ea;
+  --stage-muted: rgba(255, 252, 244, 0.9);
+  --stage-dim: rgba(255, 245, 220, 0.78);
+  --stage-panel: rgba(7, 14, 23, 0.78);
+  --stage-border: rgba(255, 255, 255, 0.22);
+  --stage-text-shadow: 0 2px 18px rgba(0, 0, 0, 0.82), 0 1px 2px rgba(0, 0, 0, 0.92);
   position: relative;
   isolation: isolate;
   width: 100%;
@@ -4911,14 +4912,33 @@ body.presentation-mode-active .ask-backdrop {
 .landing-stage .landing-scene-card {
   position: relative;
   z-index: 1;
+  overflow: hidden;
   width: min(100%, 680px);
   padding: clamp(22px, 3vw, 34px);
-  background: var(--stage-panel);
+  background:
+    linear-gradient(135deg, rgba(7, 14, 23, 0.86), rgba(7, 14, 23, 0.64)),
+    var(--stage-panel);
   border: 1px solid var(--stage-border);
   border-left: 5px solid var(--loe-accent, var(--stage-gold));
   border-radius: 8px;
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(18px);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(22px) saturate(1.1);
+}
+
+.landing-stage .landing-scene-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.26));
+}
+
+.landing-stage .landing-scene-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-stage .landing-scene-card--wide {
@@ -4930,8 +4950,8 @@ body.presentation-mode-active .ask-backdrop {
 }
 
 .landing-stage.js-enhanced .landing-scene:not(.in-view) .reveal {
-  opacity: 0;
-  transform: translateY(22px);
+  opacity: 0.86;
+  transform: translateY(12px);
 }
 
 .landing-stage .reveal {
@@ -4958,6 +4978,7 @@ body.presentation-mode-active .ask-backdrop {
   letter-spacing: 0.12em;
   line-height: 1.35;
   text-transform: uppercase;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.88), 0 0 16px rgba(255, 184, 28, 0.26);
 }
 
 .landing-stage .landing-title {
@@ -4966,6 +4987,7 @@ body.presentation-mode-active .ask-backdrop {
   font-size: clamp(2rem, 5.5vw, 5.2rem);
   line-height: 0.98;
   letter-spacing: 0;
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage h2.landing-title {
@@ -4980,10 +5002,11 @@ body.presentation-mode-active .ask-backdrop {
   color: var(--stage-muted);
   font-size: clamp(1rem, 1.55vw, 1.28rem);
   line-height: 1.65;
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-lead {
-  color: rgba(246, 242, 232, 0.86);
+  color: rgba(255, 252, 244, 0.94);
 }
 
 .landing-stage .landing-scroll-cue,
@@ -4995,6 +5018,7 @@ body.presentation-mode-active .ask-backdrop {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-scroll-cue {
@@ -5028,10 +5052,11 @@ body.presentation-mode-active .ask-backdrop {
 .landing-stage .landing-loe-card {
   min-height: 220px;
   padding: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, rgba(10, 18, 29, 0.74), rgba(8, 15, 24, 0.56));
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-top: 5px solid var(--loe-accent, var(--stage-gold));
   border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 16px 34px rgba(0, 0, 0, 0.20);
 }
 
 .landing-stage .landing-loe-card span {
@@ -5040,6 +5065,7 @@ body.presentation-mode-active .ask-backdrop {
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.72);
 }
 
 .landing-stage .landing-loe-card h3 {
@@ -5047,6 +5073,7 @@ body.presentation-mode-active .ask-backdrop {
   color: var(--stage-ink);
   font-size: 1.05rem;
   line-height: 1.2;
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-loe-card p {
@@ -5054,6 +5081,7 @@ body.presentation-mode-active .ask-backdrop {
   color: var(--stage-muted);
   font-size: 0.92rem;
   line-height: 1.55;
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-effort-tag {
@@ -5076,11 +5104,12 @@ body.presentation-mode-active .ask-backdrop {
   margin: 22px 0 0 1.25rem;
   padding: 0;
   color: var(--stage-ink);
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-goals li {
   padding-left: 4px;
-  color: rgba(246, 242, 232, 0.88);
+  color: rgba(255, 252, 244, 0.94);
   line-height: 1.55;
 }
 
@@ -5092,7 +5121,8 @@ body.presentation-mode-active .ask-backdrop {
 .landing-stage .landing-bullets {
   margin: 22px 0 0 1.1rem;
   padding: 0;
-  color: rgba(246, 242, 232, 0.9);
+  color: rgba(255, 252, 244, 0.94);
+  text-shadow: var(--stage-text-shadow);
 }
 
 .landing-stage .landing-bullets li {
@@ -5144,11 +5174,12 @@ body.presentation-mode-active .ask-backdrop {
   color: var(--stage-ink);
   border: 1px solid var(--stage-gold-soft);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(7, 14, 23, 0.62);
   font-size: 0.92rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-shadow: var(--stage-text-shadow);
 }
 
 @media (prefers-reduced-motion: reduce) {

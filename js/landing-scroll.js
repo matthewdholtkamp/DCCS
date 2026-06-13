@@ -244,7 +244,7 @@
         if (items.length) {
           const revealTween = gsap.from(items, {
             yPercent: 16,
-            opacity: 0,
+            opacity: 0.86,
             duration: 0.9,
             ease: 'power3.out',
             stagger: 0.08,
