@@ -460,6 +460,7 @@ const App = {
     if (this._erCharts) {
       Object.keys(this._erCharts).forEach(id => this._destroyErChart(id));
     }
+    if (window.LandingScroll) window.LandingScroll.destroy();
     const hash = location.hash.slice(1) || '/';
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
@@ -563,31 +564,152 @@ const App = {
   // ===== LANDING PAGE =====
   renderLanding(el) {
     const D = FRAMEWORK;
+    const loeById = id => D.loes.find(loe => loe.id === id);
+    const loeAccent = id => id === 3 ? '#1c4f78' : (loeById(id)?.color || '#FFB81C');
+    const loeLabel = id => {
+      const loe = loeById(id);
+      return loe ? `LOE ${loe.id} · ${this.escapeHtml(loe.name)}` : `LOE ${id}`;
+    };
+    const renderGoals = goals => `
+      <ol class="landing-goals">
+        ${goals.map(goal => `<li>${this.escapeHtml(goal)}</li>`).join('')}
+      </ol>`;
+    const loeCards = D.loes.map(loe => `
+      <article class="landing-loe-card" style="--loe-accent: ${loeAccent(loe.id)}">
+        <span>LOE ${loe.id}</span>
+        <h3>${this.escapeHtml(loe.name)}</h3>
+        <p>${this.escapeHtml(loe.description)}</p>
+      </article>
+    `).join('');
+
     el.innerHTML = `
-      <div class="page landing">
-        <div class="landing-header">
-          <div class="landing-eyebrow">Defense Health Agency • Fort Leonard Wood</div>
-          <h1 class="landing-title">${D.hospital}</h1>
-          <p class="landing-subtitle">${D.title}</p>
-          <div class="landing-mission">${D.mission}</div>
-        </div>
-        ${this.renderLandingPhaseStrip()}
-        <div class="landing-footer">
-          <div class="landing-leadership">
-            <div class="landing-leader-box">
-              <div class="landing-footer-name">${D.leader.name}</div>
-              <div class="landing-footer-title">${D.leader.title}</div>
-            </div>
-            <div class="landing-leader-box">
-              <div class="landing-footer-name">${D.assistant.name}</div>
-              <div class="landing-footer-title">${D.assistant.title}</div>
-            </div>
+      <div class="landing-v2">
+        <section class="landing-stage" id="landing-stage" aria-label="DCCS operational framework landing experience">
+          <div class="landing-bg-layer" aria-hidden="true">
+            <div class="landing-bg active" data-bg="current" style="background-image: url('assets/Old_Hospital.jpg')"></div>
+            <div class="landing-bg" data-bg="transition" style="background-image: url('assets/New_Hospital.webp')"></div>
+            <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/change_of_command.webp')"></div>
+            <div class="landing-bg landing-bg--fill" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
+            <div class="landing-bg landing-bg--object" data-bg="desired" style="background-image: url('assets/soldier_award.webp')"></div>
+            <div class="landing-scrim"></div>
           </div>
-          <div class="landing-motto-box">
-            Motto: <span>${D.motto}</span>
+
+          <nav class="landing-rail" aria-label="Landing scenes">
+            <button class="rail-seg active" type="button" data-target="scene-current" aria-current="step">
+              <span class="rail-label-full">Current State</span>
+              <span class="rail-label-short">Current</span>
+            </button>
+            <button class="rail-seg" type="button" data-target="scene-phase1">
+              <span class="rail-label-full">Build</span>
+              <span class="rail-label-short">Build</span>
+            </button>
+            <button class="rail-seg is-current" type="button" data-target="scene-phase2">
+              <span class="rail-label-full">Improve</span>
+              <span class="rail-label-short">Improve</span>
+            </button>
+            <button class="rail-seg" type="button" data-target="scene-phase3">
+              <span class="rail-label-full">Refine</span>
+              <span class="rail-label-short">Refine</span>
+            </button>
+            <button class="rail-seg" type="button" data-target="scene-desired">
+              <span class="rail-label-full">Desired State</span>
+              <span class="rail-label-short">Desired</span>
+            </button>
+          </nav>
+
+          <div class="landing-scenes">
+            <section class="landing-scene in-view" id="scene-current" data-bg="current">
+              <div class="landing-scene-card landing-scene-card--wide reveal">
+                <div class="landing-kicker">CURRENT STATE</div>
+                <h1 class="landing-title">We began as a reactive system.</h1>
+                <p class="landing-copy">Underperforming on DHA scorecards — critical staffing shortages, unsustainable primary care access, an overloaded ER, and gaps in unit-level accountability straining the MSCoE partnership and the training mission.</p>
+                <div class="landing-scroll-cue">Scroll to follow the framework ↓</div>
+              </div>
+            </section>
+
+            <section class="landing-scene" id="scene-loes" data-bg="current">
+              <div class="landing-scene-card landing-scene-card--wide reveal">
+                <div class="landing-kicker">OPERATIONAL DESIGN</div>
+                <h2 class="landing-title">Three lines of effort.</h2>
+                <p class="landing-lead">${this.escapeHtml(D.mission)}</p>
+                <div class="landing-loe-grid">
+                  ${loeCards}
+                </div>
+                <p class="landing-footnote">Each phase elevates one line of effort as its main effort.</p>
+              </div>
+            </section>
+
+            <section class="landing-scene" id="scene-phase1" data-bg="phase1">
+              <div class="landing-scene-card reveal" style="--loe-accent: ${loeAccent(3)}">
+                <div class="landing-kicker">PHASE 1 · BUILD · 1 AUG 2025 – 1 MAR 2026 · COMPLETE</div>
+                <h2 class="landing-title">Build the system around MSCoE integration.</h2>
+                <div class="landing-effort-tag">Main Effort — ${loeLabel(3)}</div>
+                <p class="landing-copy">${this.escapeHtml(loeById(3).description)}</p>
+                ${renderGoals([
+                  'Implement Trainee Care Model — TOMS / CTMC / ER establishment',
+                  'MSCoE Surgeon oversight — synchronize across BDEs',
+                  'Executive Medicine — key-leader care; protect clinic access (SRP walk-ins, shaving/body-fat group encounters)',
+                  'Establish MSCoE Surgeon as a true division-level staff function'
+                ])}
+                <a class="landing-action" href="#/framework">Open in framework →</a>
+              </div>
+            </section>
+
+            <section class="landing-scene landing-scene--pivot" id="scene-transition" data-bg="transition">
+              <div class="landing-scene-card landing-scene-card--compact reveal">
+                <div class="landing-kicker">DECISIVE POINT</div>
+                <h2 class="landing-title">Hospital Move</h2>
+                <p class="landing-date">7 Apr 2026</p>
+                <p class="landing-copy">The transition to the new facility — the pivot from building to improving.</p>
+              </div>
+            </section>
+
+            <section class="landing-scene" id="scene-phase2" data-bg="phase2">
+              <div class="landing-scene-card reveal" style="--loe-accent: ${loeAccent(1)}">
+                <div class="landing-kicker">PHASE 2 · IMPROVE · 1 MAR – 10 AUG 2026 · ★ CURRENT</div>
+                <h2 class="landing-title">Improve the medically ready force.</h2>
+                <div class="landing-effort-tag">Main Effort — ${loeLabel(1)}</div>
+                <p class="landing-copy">${this.escapeHtml(loeById(1).description)}</p>
+                ${renderGoals([
+                  'PCSL DHA care model — access to care / HEDIS plans developed and implemented',
+                  'ER & Surgery throughput in the new facility — ER Fast Track (medic-led); surgery efficiency metrics developed and implemented',
+                  'Behavioral Health — improve BH targeted care model and tracking'
+                ])}
+                <a class="landing-action" href="#/framework">Open in framework →</a>
+              </div>
+            </section>
+
+            <section class="landing-scene" id="scene-phase3" data-bg="phase3">
+              <div class="landing-scene-card reveal" style="--loe-accent: ${loeAccent(2)}">
+                <div class="landing-kicker">PHASE 3 · REFINE · 10 AUG 2026 – JUL 2027 · UPCOMING</div>
+                <h2 class="landing-title">Refine the ready medical force.</h2>
+                <div class="landing-effort-tag">Main Effort — ${loeLabel(2)}</div>
+                <p class="landing-copy">${this.escapeHtml(loeById(2).description)}</p>
+                ${renderGoals([
+                  'Deliberate professional development — deliberate counseling at all levels',
+                  'Prioritize military skills & education — schools and local training/education plans',
+                  'Execute a deliberate leadership-transition plan'
+                ])}
+                <a class="landing-action" href="#/framework">Open in framework →</a>
+              </div>
+            </section>
+
+            <section class="landing-scene landing-scene--desired" id="scene-desired" data-bg="desired">
+              <div class="landing-scene-card landing-scene-card--wide reveal">
+                <div class="landing-kicker">DESIRED STATE</div>
+                <h1 class="landing-title">Right care. Right place. Right time.</h1>
+                <p class="landing-copy">Consistently meeting DHA standards, with an integrated trainee care model and technologically empowered, accountable staff who protect the ER, drive efficiency, and forge a fully integrated MSCoE partnership that enables the training mission.</p>
+                <div class="landing-motto-stamp">${this.escapeHtml(D.motto)}.</div>
+                <a class="landing-action landing-action--primary" href="#/framework">Enter the framework →</a>
+              </div>
+            </section>
           </div>
-        </div>
+        </section>
       </div>`;
+
+    requestAnimationFrame(() => {
+      if (window.LandingScroll) window.LandingScroll.init('#landing-stage');
+    });
   },
 
   renderLandingPhaseStrip() {
