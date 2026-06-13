@@ -5335,3 +5335,700 @@ body.presentation-mode-active .ask-backdrop {
     border-radius: 8px;
   }
 }
+
+/* ===== OPERATIONAL FRAMEWORK V2 PRESENTATION STYLES ===== */
+.framework-v2 {
+  position: relative;
+  width: 100%;
+  background: #020408;
+  color: #ffffff;
+}
+
+.framework-stage {
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+  position: relative;
+  scrollbar-width: thin;
+}
+
+.framework-stage-inner {
+  height: 800vh; /* 8 sections x 100vh to scroll through the slides */
+  position: relative;
+}
+
+.framework-presentation-container {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(100vh - 64px);
+  display: flex;
+  overflow: hidden;
+  background: #030508;
+}
+
+/* Progress rail on the left */
+.framework-progress-tracker {
+  position: absolute;
+  left: 1.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 90;
+}
+.framework-progress-track {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: relative;
+}
+.framework-progress-line {
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.framework-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 0;
+  text-align: left;
+  transition: all 0.3s ease;
+}
+.framework-progress-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #030508;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+.framework-progress-step:hover,
+.framework-progress-step.active {
+  color: var(--gold);
+}
+.framework-progress-step.active .framework-progress-dot {
+  background: var(--gold);
+  border-color: var(--gold);
+  box-shadow: 0 0 10px rgba(255, 184, 28, 0.5);
+}
+
+/* Slide Deck Area */
+.framework-slide-deck-wrapper {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding-left: 8rem; /* Avoid progress tracker */
+  padding-right: 30%; /* Space for narrative cards on right */
+  position: relative;
+  background: radial-gradient(circle at center, #0e1726 0%, #030508 100%);
+}
+
+.framework-slide-deck {
+  transform-origin: center center;
+  transition: transform 0.1s linear; /* smoothed in JS */
+  will-change: transform;
+}
+
+.framework-slide {
+  width: 1200px;
+  height: 720px;
+  background: rgba(9, 14, 23, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Slide Header */
+.slide-header {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+  transition: opacity 0.4s ease;
+}
+.slide-kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+.slide-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  font-family: var(--font-display);
+}
+.slide-vision {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Slide Grid Layout */
+.slide-body-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 240px;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  transition: opacity 0.4s ease;
+}
+
+/* Columns */
+.slide-column {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.4s ease;
+}
+.slide-column h2 {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold);
+  font-family: var(--font-display);
+}
+.slide-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+.slide-section-icon {
+  font-size: 16px;
+  color: var(--gold);
+}
+.slide-section-text {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.prior-state-box {
+  border-left: 4px solid var(--red);
+  background: linear-gradient(90deg, rgba(169, 41, 27, 0.04), transparent);
+}
+.prior-state-box h2 {
+  color: #ff9a8e;
+}
+.prior-state-box .slide-section-icon {
+  color: #ff9a8e;
+}
+
+.desired-state-box {
+  border-left: 4px solid var(--emerald);
+  background: linear-gradient(90deg, rgba(61, 96, 50, 0.04), transparent);
+}
+.desired-state-box h2 {
+  color: #7aac6a;
+}
+.desired-state-box .slide-section-icon {
+  color: #7aac6a;
+}
+
+/* Matrix Column */
+.slide-matrix-container {
+  display: flex;
+  flex-direction: column;
+  transition: all 0.4s ease;
+}
+.slide-matrix-grid {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr 1fr 1fr;
+  gap: 8px;
+  height: 100%;
+}
+
+/* Headers */
+.matrix-header-cell {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.4s ease;
+}
+.matrix-header-cell.empty {
+  background: transparent;
+  border: none;
+}
+.phase-badge {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  margin-bottom: 4px;
+}
+.phase-badge.complete {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+.phase-badge.active {
+  background: var(--gold);
+  color: #000000;
+}
+.phase-badge.upcoming {
+  background: rgba(28, 79, 120, 0.2);
+  color: #5aa9e6;
+  border: 1px solid rgba(90, 169, 230, 0.4);
+}
+.phase-name {
+  font-size: 13px;
+  font-weight: 800;
+  font-family: var(--font-display);
+}
+.phase-dates {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+.phase-hq {
+  font-size: 8px;
+  color: var(--text-secondary);
+}
+.phase-me {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--gold);
+  margin-top: 2px;
+}
+.phase-dp {
+  font-size: 8px;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+/* Rows & Cells */
+.matrix-row-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px;
+  border-left: 3px solid var(--text-muted);
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 0 6px 6px 0;
+  transition: all 0.4s ease;
+}
+.loe-num {
+  font-size: 8.5px;
+  font-weight: 900;
+  color: var(--text-muted);
+}
+.loe-name {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-family: var(--font-display);
+}
+.loe-label.loe-1 { border-color: var(--gold); }
+.loe-label.loe-1 .loe-num { color: var(--gold); }
+.loe-label.loe-2 { border-color: #7aac6a; }
+.loe-label.loe-2 .loe-num { color: #7aac6a; }
+.loe-label.loe-3 { border-color: #5aa9e6; }
+.loe-label.loe-3 .loe-num { color: #5aa9e6; }
+
+.matrix-cell {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  transition: all 0.4s ease;
+}
+
+.matrix-deliverables {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+.matrix-deliverables li {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  position: relative;
+  padding-left: 10px;
+  margin-bottom: 4px;
+}
+.matrix-deliverables li::before {
+  content: "▪";
+  position: absolute;
+  left: 0;
+  color: var(--text-muted);
+  font-size: 8px;
+  top: -1px;
+}
+.p1-loe3 li::before { color: var(--gold); }
+.p2-loe1 li::before { color: var(--gold); }
+.p3-loe2 li::before { color: var(--gold); }
+
+/* Main effort highlights on slide matrix */
+.main-effort-cell {
+  border: 1px solid rgba(255, 184, 28, 0.25);
+  background: rgba(255, 184, 28, 0.02);
+  box-shadow: inset 0 0 10px rgba(255, 184, 28, 0.03);
+}
+
+/* Footer: Mission */
+.slide-footer {
+  border-top: 2px solid rgba(255, 255, 255, 0.08);
+  padding-top: 12px;
+  margin-top: 15px;
+  transition: opacity 0.4s ease;
+}
+.slide-mission-title {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+.slide-mission-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Focus States (Dimming) */
+.framework-slide.focus-mission .slide-body-grid,
+.framework-slide.focus-mission .slide-header {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-prior .slide-matrix-container,
+.framework-slide.focus-prior .desired-state-box,
+.framework-slide.focus-prior .slide-header,
+.framework-slide.focus-prior .slide-footer {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-loes .prior-state-box,
+.framework-slide.focus-loes .desired-state-box,
+.framework-slide.focus-loes .matrix-cell,
+.framework-slide.focus-loes .matrix-header-cell,
+.framework-slide.focus-loes .slide-header,
+.framework-slide.focus-loes .slide-footer {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-p1 .prior-state-box,
+.framework-slide.focus-p1 .desired-state-box,
+.framework-slide.focus-p1 .phase-header:not(.phase-1),
+.framework-slide.focus-p1 .matrix-cell:not(.p1-loe1):not(.p1-loe2):not(.p1-loe3),
+.framework-slide.focus-p1 .slide-header,
+.framework-slide.focus-p1 .slide-footer {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-p2 .prior-state-box,
+.framework-slide.focus-p2 .desired-state-box,
+.framework-slide.focus-p2 .phase-header:not(.phase-2),
+.framework-slide.focus-p2 .matrix-cell:not(.p2-loe1):not(.p2-loe2):not(.p2-loe3),
+.framework-slide.focus-p2 .slide-header,
+.framework-slide.focus-p2 .slide-footer {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-p3 .prior-state-box,
+.framework-slide.focus-p3 .desired-state-box,
+.framework-slide.focus-p3 .phase-header:not(.phase-3),
+.framework-slide.focus-p3 .matrix-cell:not(.p3-loe1):not(.p3-loe2):not(.p3-loe3),
+.framework-slide.focus-p3 .slide-header,
+.framework-slide.focus-p3 .slide-footer {
+  opacity: 0.08;
+}
+
+.framework-slide.focus-desired .prior-state-box,
+.framework-slide.focus-desired .slide-matrix-container,
+.framework-slide.focus-desired .slide-header,
+.framework-slide.focus-desired .slide-footer {
+  opacity: 0.08;
+}
+
+/* Narrative Overlay (Scrolling content) */
+.framework-narrative-overlay {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 32%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none; /* Let scrolls pass to the container */
+}
+
+.framework-scroll-scene {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-right: 2rem;
+  padding-left: 1rem;
+}
+
+.narrative-card {
+  pointer-events: auto; /* Re-enable clicks inside card */
+  background: rgba(10, 15, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+  transform: translate3d(0,0,0);
+}
+
+.narrative-card.active {
+  border-left: 5px solid var(--gold);
+}
+.narrative-card.error {
+  border-left: 5px solid var(--red);
+}
+.narrative-card.success {
+  border-left: 5px solid var(--emerald);
+}
+
+.card-eyebrow {
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--gold);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.narrative-card h3 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-family: var(--font-display);
+}
+.narrative-card p {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.card-hint {
+  font-size: 11px !important;
+  color: var(--gold) !important;
+  font-weight: 700;
+  margin-top: 15px;
+  margin-bottom: 0 !important;
+}
+
+.card-details-list {
+  margin: 12px 0 0 1.25rem;
+  padding: 0;
+  color: var(--text-secondary);
+}
+.card-details-list li {
+  font-size: 12px;
+  line-height: 1.55;
+  margin-bottom: 6px;
+}
+
+.card-loe-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+}
+.loe-pill {
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: #000;
+}
+.loe-pill.mrf { background: var(--gold); }
+.loe-pill.rmf { background: #7aac6a; }
+.loe-pill.msc { background: #5aa9e6; }
+
+/* Granular deliverables phase sections in narratives */
+.narrative-loe-details {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  margin-top: 15px;
+  padding-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.narrative-loe-details h4 {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 4px;
+}
+.narrative-loe-details ul {
+  margin: 4px 0 0 1.1rem;
+  padding: 0;
+}
+.narrative-loe-details li {
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+.badge {
+  font-size: 8px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.badge.main-effort {
+  background: rgba(255, 184, 28, 0.12);
+  color: var(--gold);
+  border: 1px solid rgba(255, 184, 28, 0.3);
+}
+
+.framework-links-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 15px;
+}
+.framework-enter-btn {
+  display: block;
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 184, 28, 0.3);
+  background: rgba(255, 184, 28, 0.08);
+  color: var(--gold) !important;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none !important;
+  transition: all 0.2s ease;
+}
+.framework-enter-btn:hover {
+  background: var(--gold);
+  color: #000 !important;
+  transform: translateY(-1px);
+}
+
+/* RESPONSIVE MAPPING FOR PPT SLIDE VIEWPORT */
+@media (max-width: 1440px) {
+  .framework-slide {
+    transform: scale(0.8);
+  }
+}
+
+@media (max-width: 1280px) {
+  .framework-slide {
+    transform: scale(0.7);
+  }
+  .framework-slide-deck-wrapper {
+    padding-left: 5rem;
+    padding-right: 32%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .framework-slide {
+    transform: scale(0.58);
+  }
+  .framework-slide-deck-wrapper {
+    padding-left: 4.5rem;
+    padding-right: 34%;
+  }
+}
+
+@media (max-width: 768px) {
+  .framework-presentation-container {
+    flex-direction: column;
+    height: auto;
+    overflow-y: visible;
+  }
+  .framework-slide-deck-wrapper {
+    width: 100%;
+    height: 40vh; /* Fixed panel at the top on small screens */
+    position: sticky;
+    top: 64px;
+    z-index: 100;
+    padding: 0;
+    background: #030508;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .framework-slide-deck {
+    transform: none !important; /* disable translation on mobile */
+  }
+  .framework-slide {
+    transform: scale(0.4) !important;
+    transform-origin: center center !important;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+  }
+  .framework-progress-tracker {
+    display: none; /* Hide progress tracker on mobile */
+  }
+  .framework-narrative-overlay {
+    position: relative;
+    width: 100%;
+    margin-top: 40vh;
+    padding: 1rem;
+    pointer-events: auto;
+  }
+  .framework-scroll-scene {
+    height: auto;
+    min-height: 0;
+    margin-bottom: 2rem;
+    padding: 0;
+  }
+  .narrative-card {
+    max-height: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .framework-slide {
+    transform: scale(0.28) !important;
+  }
+}
+
