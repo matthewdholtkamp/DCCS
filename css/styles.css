@@ -142,14 +142,24 @@ textarea:focus-visible {
   padding: 0 2rem; height: 64px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.nav-brand { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-.nav-brand-icon {
+.nav-brand { display: flex; align-items: center; gap: 12px; cursor: pointer; text-decoration: none; color: inherit; }
+.nav-brand-home-icon {
   width: 36px; height: 36px; border-radius: 8px;
-  background: var(--gold);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; font-weight: 800; color: var(--bg-primary);
+  color: var(--text-secondary);
+  transition: var(--transition);
 }
-.nav-brand-text { font-size: 14px; font-weight: 600; letter-spacing: 0.5px; }
+.nav-brand:hover .nav-brand-home-icon {
+  color: var(--gold);
+  border-color: var(--border-accent);
+  background: rgba(255, 184, 28, 0.08);
+}
+.nav-brand-text { font-size: 14px; font-weight: 600; letter-spacing: 0.5px; transition: var(--transition); }
+.nav-brand:hover .nav-brand-text {
+  color: var(--gold);
+}
 .nav-brand-sub { font-size: 11px; color: var(--text-secondary); font-weight: 400; }
 .nav-links { display: flex; gap: 4px; margin-left: auto; align-items: center; }
 .sync-status-badge {
