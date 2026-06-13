@@ -74,8 +74,8 @@
   function handleMouseMove(e) {
     if (prefersReducedMotion() || isTouchDevice()) return;
     if (!stage) return;
-    const slideDeck = stage.querySelector('.framework-slide-deck');
-    if (!slideDeck) return;
+    const slide = stage.querySelector('.framework-slide');
+    if (!slide) return;
     
     const rect = stage.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -91,9 +91,9 @@
     
     const gsap = window.gsap;
     if (gsap) {
-      gsap.to(slideDeck, {
-        rotationX: activeRotX + tiltX,
-        rotationY: activeRotY + tiltY,
+      gsap.to(slide, {
+        rotationX: tiltX,
+        rotationY: tiltY,
         duration: 0.5,
         ease: 'power1.out',
         overwrite: 'auto'
@@ -183,9 +183,18 @@
         ease: 'power3.out',
         overwrite: 'auto'
       });
+      // Smoothly animate inner slide rotation back to center during zoom shifts
+      gsap.to(slide, {
+        rotationX: 0,
+        rotationY: 0,
+        duration: 0.85,
+        ease: 'power3.out',
+        overwrite: 'auto'
+      });
     } else {
       // Direct jump for reduced motion
       slideDeck.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale}) rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
+      slide.style.transform = 'none';
     }
 
     // Apply focus class to dim other components with aligned mapping
