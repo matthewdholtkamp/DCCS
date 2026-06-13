@@ -4733,6 +4733,13 @@ body.presentation-mode-active .ask-backdrop {
   transform: scale(1.12);
 }
 
+.landing-stage .landing-bg--phase3 {
+  background-position: center center;
+  background-size: cover;
+  filter: brightness(1.22) saturate(1.08) contrast(1.04);
+  transition: opacity 420ms ease, transform 900ms ease;
+}
+
 .landing-stage .landing-bg--object {
   background-color: #05080d;
   background-size: auto min(70%, 620px);

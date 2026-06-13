@@ -590,8 +590,8 @@ const App = {
             <div class="landing-bg" data-bg="transition" style="background-image: url('assets/New_Hospital.webp')"></div>
             <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/New_Hospital.webp')"></div>
             <div class="landing-bg" data-bg="command" style="background-image: url('assets/change_of_command.webp')"></div>
-            <div class="landing-bg landing-bg--fill" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
-            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v11')"></div>
+            <div class="landing-bg landing-bg--phase3" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
+            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v12')"></div>
             <div class="landing-scrim"></div>
           </div>
 
