@@ -37,8 +37,17 @@
     });
   }
 
+  function updateScrollProgress() {
+    if (!stage) return;
+    const maxScroll = Math.max(stage.scrollHeight - stage.clientHeight, 1);
+    const progress = Math.min(1, Math.max(0, stage.scrollTop / maxScroll));
+    stage.style.setProperty('--landing-scroll-progress', progress.toFixed(4));
+    stage.style.setProperty('--landing-scroll-percent', `${(progress * 100).toFixed(2)}%`);
+  }
+
   function updateActiveScene() {
     if (!stage) return;
+    updateScrollProgress();
     const scenes = Array.from(stage.querySelectorAll('.landing-scene'));
     const stageRect = stage.getBoundingClientRect();
     const stageCenter = stageRect.top + (stageRect.height * 0.5);
@@ -124,12 +133,15 @@
 
     stage.scrollTop = 0;
     stage.classList.add('js-enhanced');
+    updateScrollProgress();
     setActiveBg('current');
     setActiveRail('scene-current');
 
     if (!('IntersectionObserver' in window) || prefersReducedMotion()) {
       stage.querySelectorAll('.landing-scene').forEach(scene => scene.classList.add('in-view'));
+      wireScrollTracking();
       wireRail();
+      updateActiveScene();
       return;
     }
 

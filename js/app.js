@@ -594,30 +594,45 @@ const App = {
             <div class="landing-scrim"></div>
           </div>
 
-          <nav class="landing-rail" aria-label="Landing scenes">
-            <button class="rail-seg active" type="button" data-target="scene-current" aria-current="step">
-              <span class="rail-label-full">Current State</span>
-              <span class="rail-label-short">Current</span>
-            </button>
-            <button class="rail-seg" type="button" data-target="scene-phase1">
-              <span class="rail-label-full">Build</span>
-              <span class="rail-label-short">Build</span>
-            </button>
-            <button class="rail-seg is-current" type="button" data-target="scene-phase2">
-              <span class="rail-label-full">Improve</span>
-              <span class="rail-label-short">Improve</span>
-            </button>
-            <button class="rail-seg" type="button" data-target="scene-phase3">
-              <span class="rail-label-full">Refine</span>
-              <span class="rail-label-short">Refine</span>
-            </button>
-            <button class="rail-seg" type="button" data-target="scene-desired">
-              <span class="rail-label-full">Desired State</span>
-              <span class="rail-label-short">Desired</span>
-            </button>
-          </nav>
+          <div class="landing-stage-header">
+            <nav class="landing-rail" aria-label="Landing scenes">
+              <button class="rail-seg active" type="button" data-target="scene-current" aria-current="step">
+                <span class="rail-label-full">Current State</span>
+                <span class="rail-label-short">Current</span>
+              </button>
+              <button class="rail-seg" type="button" data-target="scene-phase1">
+                <span class="rail-label-full">Build</span>
+                <span class="rail-label-short">Build</span>
+              </button>
+              <button class="rail-seg is-current" type="button" data-target="scene-phase2">
+                <span class="rail-label-full">Improve</span>
+                <span class="rail-label-short">Improve</span>
+              </button>
+              <button class="rail-seg" type="button" data-target="scene-phase3">
+                <span class="rail-label-full">Refine</span>
+                <span class="rail-label-short">Refine</span>
+              </button>
+              <button class="rail-seg" type="button" data-target="scene-desired">
+                <span class="rail-label-full">Desired State</span>
+                <span class="rail-label-short">Desired</span>
+              </button>
+            </nav>
+
+            <div class="landing-command-strip" aria-label="DCCS leadership and motto">
+              <div class="landing-command-person">
+                <strong>LTC Matthew D. Holtkamp</strong>
+                <span>Deputy Commander for Clinical Services (DCCS) &amp; MSCoE Command Surgeon</span>
+              </div>
+              <div class="landing-command-motto">Motto: <strong>Work Smart, Move Fast, Be Nice</strong></div>
+              <div class="landing-command-person landing-command-person--right">
+                <strong>SSG Flor Holloway</strong>
+                <span>Deputy Commander for Clinical Services (DCCS) &amp; MSCoE Command Surgeon, NCOIC</span>
+              </div>
+            </div>
+          </div>
 
           <div class="landing-scenes">
+            <div class="landing-scroll-trail" aria-hidden="true"><span></span></div>
             <section class="landing-scene in-view" id="scene-current" data-bg="current">
               <div class="landing-scene-card landing-scene-card--wide reveal">
                 <div class="landing-kicker">CURRENT STATE</div>
