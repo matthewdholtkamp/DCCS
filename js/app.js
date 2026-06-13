@@ -1109,7 +1109,14 @@ const App = {
             </div>
           </div>
         </section>
-      </div>`\n\n  // ===== SERVICE LINE DETAIL =====
+      </div>`;
+
+    requestAnimationFrame(() => {
+      if (window.FrameworkScroll) window.FrameworkScroll.init('#framework-stage');
+    });
+  },
+
+  // ===== SERVICE LINE DETAIL =====
   renderServiceLine(el, slId) {
     const sl = FRAMEWORK.serviceLines.find(s => s.id === slId);
     if (!sl) { this.renderFramework(el); return; }
