@@ -5336,14 +5336,6 @@ body.presentation-mode-active .ask-backdrop {
   }
 }
 
-body.hide-sidebar #sidebar {
-  display: none !important;
-}
-body.hide-sidebar .main {
-  margin-left: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-}
 
 /* ===== OPERATIONAL FRAMEWORK V2 PRESENTATION STYLES ===== */
 .framework-v2 {
