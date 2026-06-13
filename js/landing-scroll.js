@@ -31,7 +31,7 @@
     };
     const target = map[sceneId] || sceneId;
 
-    stage.querySelectorAll('.rail-seg').forEach(seg => {
+    stage.querySelectorAll('.landing-progress-step').forEach(seg => {
       const active = seg.dataset.target === target;
       seg.classList.toggle('active', active);
       seg.setAttribute('aria-current', active ? 'step' : 'false');
@@ -113,7 +113,7 @@
   }
 
   function wireRail() {
-    stage.querySelectorAll('.rail-seg').forEach(seg => {
+    stage.querySelectorAll('.landing-progress-step').forEach(seg => {
       const onClick = () => {
         const scene = stage.querySelector(`#${seg.dataset.target}`);
         if (!scene) return;

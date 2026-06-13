@@ -591,34 +591,42 @@ const App = {
             <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/New_Hospital.webp')"></div>
             <div class="landing-bg" data-bg="command" style="background-image: url('assets/change_of_command.webp')"></div>
             <div class="landing-bg landing-bg--fill" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
-            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v10')"></div>
+            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v11')"></div>
             <div class="landing-scrim"></div>
           </div>
 
-          <div class="landing-stage-header">
-            <nav class="landing-rail" aria-label="Landing scenes">
-              <button class="rail-seg active" type="button" data-target="scene-current" aria-current="step">
-                <span class="rail-label-full">Current State</span>
-                <span class="rail-label-short">Current</span>
+          <nav class="landing-progress-tracker" aria-label="Landing progress">
+            <div class="landing-progress-track">
+              <div class="landing-progress-line" aria-hidden="true"><span></span></div>
+              <button class="landing-progress-step active" type="button" data-target="scene-current" aria-current="step">
+                <span class="landing-progress-dot" aria-hidden="true"></span>
+                <span class="landing-progress-label">Current State</span>
+                <span class="landing-progress-short">Cur</span>
               </button>
-              <button class="rail-seg" type="button" data-target="scene-phase1">
-                <span class="rail-label-full">Build</span>
-                <span class="rail-label-short">Build</span>
+              <button class="landing-progress-step" type="button" data-target="scene-phase1">
+                <span class="landing-progress-dot" aria-hidden="true"></span>
+                <span class="landing-progress-label">Build</span>
+                <span class="landing-progress-short">Bld</span>
               </button>
-              <button class="rail-seg is-current" type="button" data-target="scene-phase2">
-                <span class="rail-label-full">Improve</span>
-                <span class="rail-label-short">Improve</span>
+              <button class="landing-progress-step" type="button" data-target="scene-phase2">
+                <span class="landing-progress-dot" aria-hidden="true"></span>
+                <span class="landing-progress-label">Improve</span>
+                <span class="landing-progress-short">Imp</span>
               </button>
-              <button class="rail-seg" type="button" data-target="scene-phase3">
-                <span class="rail-label-full">Refine</span>
-                <span class="rail-label-short">Refine</span>
+              <button class="landing-progress-step" type="button" data-target="scene-phase3">
+                <span class="landing-progress-dot" aria-hidden="true"></span>
+                <span class="landing-progress-label">Refine</span>
+                <span class="landing-progress-short">Ref</span>
               </button>
-              <button class="rail-seg" type="button" data-target="scene-desired">
-                <span class="rail-label-full">Desired State</span>
-                <span class="rail-label-short">Desired</span>
+              <button class="landing-progress-step" type="button" data-target="scene-desired">
+                <span class="landing-progress-dot" aria-hidden="true"></span>
+                <span class="landing-progress-label">Desired State</span>
+                <span class="landing-progress-short">Goal</span>
               </button>
-            </nav>
+            </div>
+          </nav>
 
+          <div class="landing-stage-header">
             <div class="landing-command-strip" aria-label="DCCS leadership and motto">
               <div class="landing-command-person">
                 <strong>LTC Matthew D. Holtkamp</strong>
@@ -633,7 +641,6 @@ const App = {
           </div>
 
           <div class="landing-scenes">
-            <div class="landing-scroll-trail" aria-hidden="true"><span></span></div>
             <section class="landing-scene in-view" id="scene-current" data-bg="current">
               <div class="landing-scene-card landing-scene-card--wide reveal">
                 <div class="landing-kicker">CURRENT STATE</div>
