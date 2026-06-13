@@ -145,16 +145,13 @@ textarea:focus-visible {
 .nav-brand { display: flex; align-items: center; gap: 12px; cursor: pointer; text-decoration: none; color: inherit; }
 .nav-brand-home-icon {
   width: 36px; height: 36px; border-radius: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  background: var(--gold);
   display: flex; align-items: center; justify-content: center;
-  color: var(--text-secondary);
+  color: #000000;
   transition: var(--transition);
 }
 .nav-brand:hover .nav-brand-home-icon {
-  color: var(--gold);
-  border-color: var(--border-accent);
-  background: rgba(255, 184, 28, 0.08);
+  background: var(--gold-light);
 }
 .nav-brand-text { font-size: 14px; font-weight: 600; letter-spacing: 0.5px; transition: var(--transition); }
 .nav-brand:hover .nav-brand-text {
