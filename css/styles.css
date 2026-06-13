@@ -5104,6 +5104,22 @@ body.presentation-mode-active .ask-backdrop {
   font-weight: 900;
 }
 
+.landing-stage .landing-bullets {
+  margin: 22px 0 0 1.1rem;
+  padding: 0;
+  color: rgba(246, 242, 232, 0.9);
+}
+
+.landing-stage .landing-bullets li {
+  padding-left: 6px;
+  font-size: clamp(1rem, 1.45vw, 1.18rem);
+  line-height: 1.6;
+}
+
+.landing-stage .landing-bullets li::marker {
+  color: var(--stage-gold);
+}
+
 .landing-stage .landing-action {
   display: inline-flex;
   align-items: center;

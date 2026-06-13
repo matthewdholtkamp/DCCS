@@ -588,9 +588,10 @@ const App = {
           <div class="landing-bg-layer" aria-hidden="true">
             <div class="landing-bg active" data-bg="current" style="background-image: url('assets/Old_Hospital.jpg')"></div>
             <div class="landing-bg" data-bg="transition" style="background-image: url('assets/New_Hospital.webp')"></div>
-            <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/change_of_command.webp')"></div>
+            <div class="landing-bg" data-bg="phase2" style="background-image: url('assets/New_Hospital.webp')"></div>
+            <div class="landing-bg" data-bg="command" style="background-image: url('assets/change_of_command.webp')"></div>
             <div class="landing-bg landing-bg--fill" data-bg="phase3" style="background-image: url('assets/field_medicine.webp')"></div>
-            <div class="landing-bg landing-bg--object" data-bg="desired" style="background-image: url('assets/soldier_award.webp')"></div>
+            <div class="landing-bg" data-bg="desired" style="background-image: url('assets/soldier_award.webp?v=20260613-v10')"></div>
             <div class="landing-scrim"></div>
           </div>
 
@@ -691,6 +692,17 @@ const App = {
                   'Behavioral Health — improve BH targeted care model and tracking'
                 ])}
                 <a class="landing-action" href="#/framework">Open in framework →</a>
+              </div>
+            </section>
+
+            <section class="landing-scene landing-scene--pivot" id="scene-command" data-bg="command">
+              <div class="landing-scene-card landing-scene-card--compact reveal">
+                <div class="landing-kicker">DECISIVE POINT</div>
+                <h2 class="landing-title">Change of Command</h2>
+                <p class="landing-date">10 August 2026</p>
+                <ul class="landing-bullets">
+                  <li>Transfer of authority shifts the main effort from improving the system to refining it: lock in the gains, sharpen standards, and sustain disciplined execution.</li>
+                </ul>
               </div>
             </section>
 

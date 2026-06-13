@@ -25,6 +25,7 @@
       'scene-phase1': 'scene-phase1',
       'scene-transition': 'scene-phase1',
       'scene-phase2': 'scene-phase2',
+      'scene-command': 'scene-phase2',
       'scene-phase3': 'scene-phase3',
       'scene-desired': 'scene-desired'
     };
