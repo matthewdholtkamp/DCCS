@@ -764,342 +764,336 @@ const App = {
     }
   },
 
-  renderHUDBrackets() {
-    return `
-      <div class="hud-bracket top-left" aria-hidden="true"></div>
-      <div class="hud-bracket top-right" aria-hidden="true"></div>
-      <div class="hud-bracket bottom-left" aria-hidden="true"></div>
-      <div class="hud-bracket bottom-right" aria-hidden="true"></div>
-      <div class="hud-scanline" aria-hidden="true"></div>
-    `;
-  },
-
   // ===== FRAMEWORK OVERVIEW =====
   renderFramework(el) {
     const D = FRAMEWORK;
+    const beatFallback = [
+      ['Establish', 'This is the campaign — one slide, three years, three lines of effort.'],
+      ['Mission', 'Synchronize GLWCH and MSCoE medical efforts to deliver the right care, at the right place, at the right time.'],
+      ['Prior State', 'A reactive system with DHA scorecard gaps, critical staffing pressure, ER overload, and strained MSCoE accountability.'],
+      ['Phase 1', 'Build before the hospital move, with MSCoE Integration as the main effort.'],
+      ['Phase 2', 'Improve inside the new facility, with Medically Ready Force as the main effort.'],
+      ['Phase 3', 'Refine the system and hand off a culture of continuous improvement.'],
+      ['Desired State', 'A high-reliability organization that consistently exceeds DHA standards and enables the training mission.']
+    ];
     
     el.innerHTML = `
       <div class="framework-v2">
         <section class="framework-stage" id="framework-stage" aria-label="Detailed Operational Framework Presentation">
           <div class="framework-stage-inner">
-            
-            <!-- Presentation Viewport Container (Pinned) -->
-            <div class="framework-presentation-container">
-              
-              <!-- Sticky Photographic Backgrounds -->
-              <div class="framework-bg-layer" aria-hidden="true">
-                <div class="framework-bg-grid"></div>
-                <div class="framework-bg-photo active" id="fw-bg-all" style="background-image: radial-gradient(circle at center, #0e1726 0%, #030508 100%);"></div>
-                <div class="framework-bg-photo" id="fw-bg-mission" style="background-image: radial-gradient(circle at center, #0a1120 0%, #020407 100%);"></div>
-                <div class="framework-bg-photo" id="fw-bg-prior" style="background-image: url('assets/Old_Hospital.jpg');"></div>
-                <div class="framework-bg-photo" id="fw-bg-phase1" style="background-image: url('assets/New_Hospital.webp');"></div>
-                <div class="framework-bg-photo" id="fw-bg-phase2" style="background-image: url('assets/change_of_command.webp');"></div>
-                <div class="framework-bg-photo" id="fw-bg-phase3" style="background-image: url('assets/field_medicine.webp');"></div>
-                <div class="framework-bg-photo" id="fw-bg-desired" style="background-image: url('assets/soldier_award.webp');"></div>
+            <div class="framework-cinema">
+              <div class="framework-photo-layer" aria-hidden="true">
+                <div class="framework-bg-photo active" data-bg="dark" style="background-image: radial-gradient(circle at 50% 42%, #172033 0%, #050810 58%, #020408 100%);"></div>
+                <div class="framework-bg-photo" data-bg="old" style="background-image: url('assets/Old_Hospital.jpg');"></div>
+                <div class="framework-bg-photo" data-bg="new" style="background-image: url('assets/New_Hospital.webp');"></div>
+                <div class="framework-bg-photo" data-bg="change" style="background-image: url('assets/change_of_command.webp');"></div>
+                <div class="framework-bg-photo" data-bg="field" style="background-image: url('assets/field_medicine.webp');"></div>
+                <div class="framework-bg-photo" data-bg="award" style="background-image: url('assets/soldier_award.webp');"></div>
                 <div class="framework-scrim"></div>
               </div>
 
-              <!-- PowerPoint Slide Container -->
-              <div class="framework-slide-deck-wrapper">
-                <div class="framework-slide-deck">
-                  <div class="framework-slide focus-all" id="framework-slide-main">
+              <div class="framework-viewport" aria-label="Operational design board viewport">
+                <div class="framework-camera">
+                  <article class="framework-board board-overview" aria-label="DCCS/MSCoE Operational Design Board">
                     
-                    <!-- Header: Title & Vision -->
-                    <header class="slide-header">
-                      <div class="slide-kicker">DCCS / MSCOE SURGEON OPERATIONAL DESIGN</div>
-                      <h1 class="slide-title">Operational Design — 2027</h1>
-                      <p class="slide-vision">Deliver reliable, high-quality healthcare that exceeds DHA standards for access and performance.</p>
-                    </header>
+                    <div class="board-wrapper">
+                      <header class="board-title-block">
+                        <img class="board-logo board-logo-left" src="assets/framework-logo-left.jpg" alt="" aria-hidden="true">
+                        <img class="board-logo board-logo-right" src="assets/framework-logo-right.jpg" alt="" aria-hidden="true">
+                        <h1>DCCS/MSCoE Surgeon Operational Design - <span>2027</span></h1>
+                        <p>Deliver reliable, high-quality healthcare that exceeds DHA standards for access and performance.</p>
+                      </header>
 
-                    <!-- Command Mission Statement (Moved to Top) -->
-                    <section class="slide-mission-box" id="slide-element-mission" aria-label="Command Mission Statement">
-                      ${this.renderHUDBrackets()}
-                      <div class="slide-mission-title">COMMAND MISSION STATEMENT</div>
-                      <p class="slide-mission-text">${D.mission}</p>
-                      <div class="cell-detailed-content">
-                        <p style="font-size: 11.5px; color: #ccc; margin-top: 8px; line-height: 1.5;">GLWCH coordinates clinical care and tactical readiness across all sectors to ensure our medical personnel are prepared to deploy, and our training forces remain combat ready.</p>
-                      </div>
-                    </section>
-
-                    <!-- Body Grid: Prior ➔ Matrix ➔ Desired -->
-                    <div class="slide-body-grid">
-                      
-                      <!-- Col 1: Prior State (2025) -->
-                      <section class="slide-column prior-state-box" id="slide-element-prior-state" aria-label="Prior State">
-                        ${this.renderHUDBrackets()}
-                        <div class="slide-section-header">
-                          <span class="slide-section-icon" aria-hidden="true">⚠</span>
-                          <h2>2025 Prior State</h2>
-                        </div>
-                        <p class="slide-section-text">${D.currentState}</p>
-                        
-                        <!-- Detailed content revealed during pop-out -->
-                        <div class="cell-detailed-content">
-                          <p style="font-size: 11px; margin-top: 8px; color: #ff9a8e; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Baseline Pain Points:</p>
-                          <ul class="matrix-deliverables" style="margin-top: 6px;">
-                            <li style="font-size: 11px; margin-bottom: 6px;"><strong>DHA Scorecard Deficits:</strong> Inconsistent primary care clinic access and long appointment wait times.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;"><strong>Critical Staffing:</strong> Severe staffing gaps threatening core inpatient/outpatient functions.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;"><strong>ER Overload:</strong> Low-acuity trainee visits causing congestion in the Emergency Department.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;"><strong>Accountability Gaps:</strong> Safety and credentials process delays without unit-level tracking.</li>
-                          </ul>
-                        </div>
+                      <section class="board-mission board-region" id="b-mission" data-framework-region aria-label="Command mission">
+                        <span class="board-label">COMMAND MISSION STATEMENT</span>
+                        <p>Continuously synchronize medical efforts across the GLWCH and MSCoE footprint to deliver the right care, at the right place, at the right time—building a medically ready force, developing a ready medical force, and achieving seamless MSCoE Integration—in order to enable the MSCoE training mission.</p>
                       </section>
 
-                      <!-- Col 2: Operational LOE/Phase Matrix Grid -->
-                      <div class="slide-matrix-container" id="slide-element-matrix">
-                        <div class="slide-matrix-grid">
-                          
-                          <!-- Matrix Row 0 (Headers): Phase names & dec points -->
-                          <div class="matrix-header-cell empty"></div>
-                          
-                          <div class="matrix-header-cell phase-header phase-1" id="matrix-header-p1">
-                            ${this.renderHUDBrackets()}
-                            <div class="phase-badge complete">Phase 1</div>
-                            <div class="phase-name">Build</div>
-                            <div class="phase-dates">Now – 1Mar26</div>
-                            <div class="phase-hq">HQ: TOMS, CTMC, BH, ER</div>
-                            <div class="phase-me">ME: LOE 3</div>
-                            <div class="phase-dp">DP: Hospital Move (7 Apr 26)</div>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #ccc; text-align: left; line-height: 1.4;"><strong>Operational Focus:</strong> Stabilize critical infrastructure, protect provider schedules, and integrate basic trainee care models before the physical hospital move.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-header-cell phase-header phase-2 active" id="matrix-header-p2">
-                            ${this.renderHUDBrackets()}
-                            <div class="phase-badge active">Phase 2</div>
-                            <div class="phase-name">Improve</div>
-                            <div class="phase-dates">1Mar – 1Oct26</div>
-                            <div class="phase-hq">HQ: PCSL, ER, 3SL, Cred</div>
-                            <div class="phase-me">ME: LOE 1</div>
-                            <div class="phase-dp">DP: Change of Cmd (10 Aug)</div>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #ccc; text-align: left; line-height: 1.4;"><strong>Operational Focus:</strong> Leverage the new facility's custom workflows, clinic designs, and advanced layouts to drive clinical throughput and scorecard recovery.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-header-cell phase-header phase-3" id="matrix-header-p3">
-                            ${this.renderHUDBrackets()}
-                            <div class="phase-badge upcoming">Phase 3</div>
-                            <div class="phase-name">Refine</div>
-                            <div class="phase-dates">1Oct26 – July 27</div>
-                            <div class="phase-hq">HQ: DCCS Leaders</div>
-                            <div class="phase-me">ME: LOE 2</div>
-                            <div class="phase-dp">DP: PCS / Transition (July 27)</div>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #ccc; text-align: left; line-height: 1.4;"><strong>Operational Focus:</strong> Solidify clinical process metrics and execute transition ownership plans before commander's transfer of authority.</p>
-                            </div>
-                          </div>
+                      <div class="board-main-grid">
 
-                          <!-- Matrix Row 1: LOE 1 (Medically Ready Force) -->
-                          <div class="matrix-row-label loe-label loe-1" id="matrix-label-loe1">
-                            <div class="loe-num">LOE 1</div>
-                            <div class="loe-name">Medically Ready Force</div>
+                        <section class="board-current board-region" id="b-current" data-framework-region aria-label="2025 Prior State">
+                          <header>
+                            2025 Prior State
+                          </header>
+                          <div class="state-content">
+                            <p>GLWCH is a reactive system underperforming on DHA scorecards, where critical staffing shortages create mission-failure risk, unsustainable primary care access, and an overloaded ER. These systemic performance gaps, compounded by a lack of unit-level safety accountability, strain the MSCoE partnership and directly hinder the training mission.</p>
                           </div>
-                          
-                          <div class="matrix-cell p1-loe1" id="cell-p1-loe1">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Optimize PC Access & ER flow</li>
-                              <li>Care Ladder: Medic ➔ CSSP ➔ NP ➔ MD</li>
-                              <li>Designate No-Fail: OB & Trainee BH</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 1 Deliverables:</strong> Establish primary care template optimization to cut down acute wait times. Secure inpatient coverage models for OB-GYN and crisis behavioral health to prevent service breaks. Implement Care Ladder triage guidelines to maximize provider efficiency.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-cell p2-loe1 main-effort-cell" id="cell-p2-loe1">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>PCSL DHA Care Model</li>
-                              <li>Throughput in New Facility</li>
-                              <li>Fast Track ED (Medic-led)</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 1 Deliverables (MAIN EFFORT):</strong> Meet DHA access targets (<24h acute / <7d follow-up) and 90%+ HEDIS chart screens. Deploy medic-led ER Fast-Track. Increase OR surgical blocks to target 176+ monthly cases, and scale group BH intake screening.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-cell p3-loe1" id="cell-p3-loe1">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Refine PCSL Flow & RCA PI</li>
-                              <li>Optimize 3SL BOTs</li>
-                              <li>Tech/AI daily integration</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 1 Deliverables:</strong> Perform Root Cause Analysis (RCA) on clinic flow bottlenecks. Maintain surgical starts with anesthesia constraint planning to sustain 176+ monthly cases. Integrate ambient speaking CDS tools into daily templates.</p>
-                            </div>
-                          </div>
+                        </section>
 
-                          <!-- Matrix Row 2: LOE 2 (Ready Medical Force) -->
-                          <div class="matrix-row-label loe-label loe-2" id="matrix-label-loe2">
-                            <div class="loe-num">LOE 2</div>
-                            <div class="loe-name">Ready Medical Force</div>
+                        <div class="board-loe-col">
+                          <div class="board-loe-label loe-1" data-framework-region>
+                            <span>LOE 1</span>
+                            <strong>Medically Ready<br>Force</strong>
                           </div>
-                          
-                          <div class="matrix-cell p1-loe2" id="cell-p1-loe2">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Introduce AI & PowerBI tools</li>
-                              <li>Role clarity & Counseling</li>
-                              <li>Safety/Credentials compliance</li>
-                              <li>Conduct Functional Needs Analysis</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 2 Deliverables:</strong> Initiate clinical AI training (OpenEvidence, Ask Sage) to decrease documentation burden. Enforce 72h outpatient chart closure, BLS completion, and strict credentials timelines. Conduct comprehensive staffing needs study for RNs/APPs.</p>
-                            </div>
+                          <div class="board-loe-label loe-2" data-framework-region>
+                            <span>LOE 2</span>
+                            <strong>Ready Medical<br>Force</strong>
                           </div>
-                          
-                          <div class="matrix-cell p2-loe2" id="cell-p2-loe2">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Reorganize for Clinical Efficiency</li>
-                              <li>Manning Need: RN/SW & APPs</li>
-                              <li>Integrate Telehealth & Async</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 2 Deliverables:</strong> Restructure empanelments and empanelment caps. Align manning to the Care Ladder (hiring/allocating RNs/medics). Deploy formal virtual health and asynchronous consultations to cut network leakage.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-cell p3-loe2 main-effort-cell" id="cell-p3-loe2">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Deliberate LPD Calendar</li>
-                              <li>Enforce military PME timelines</li>
-                              <li>Mentorship & Leadership Transition</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 2 Deliverables (MAIN EFFORT):</strong> Execute a structured 6-month professional development calendar focusing on AI-guided care. Enforce military professional education timelines. Establish transition mentorship plans for dashboard control.</p>
-                            </div>
-                          </div>
-
-                          <!-- Matrix Row 3: LOE 3 (MSCoE Integration) -->
-                          <div class="matrix-row-label loe-label loe-3" id="matrix-label-loe3">
-                            <div class="loe-num">LOE 3</div>
-                            <div class="loe-name">MSCoE Integration</div>
-                          </div>
-                          
-                          <div class="matrix-cell p1-loe3 main-effort-cell" id="cell-p1-loe3">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Trainee Care: TOMS/CTMC/ER</li>
-                              <li>Establish Surgeon Oversight</li>
-                              <li>Executive Med program</li>
-                              <li>Protect Clinic Access & SRP</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 3 Deliverables (MAIN EFFORT):</strong> Execute Trainee Operations Medicine Section (TOMS), CTMC, and ER redirection protocols. Establish Surgeon oversight under BDE command. Protect clinic temple space by moving SRP out of main templates.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-cell p2-loe3" id="cell-p2-loe3">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>Standardize Med Ops (OPORDs)</li>
-                              <li>Predictive supply ASL</li>
-                              <li>Automated Readiness Tracker</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 3 Deliverables:</strong> Standardize training exercise OPORD annexes and BAS SOPs. Authorize brigade stock lists (ASLs) based on usage tracking. Connect Army Vantage data pipelines directly to PowerBI dashboards.</p>
-                            </div>
-                          </div>
-                          
-                          <div class="matrix-cell p3-loe3" id="cell-p3-loe3">
-                            ${this.renderHUDBrackets()}
-                            <ul class="matrix-deliverables">
-                              <li>AAR loop on training exercises</li>
-                              <li>Med council readiness integration</li>
-                              <li>Achieve Predictive Logistics</li>
-                            </ul>
-                            <div class="cell-detailed-content">
-                              <p style="font-size: 11px; color: #aaa; text-align: left; line-height: 1.4; margin-top: 8px;"><strong>LOE 3 Deliverables:</strong> Institutionalize training exercise After-Action Reviews (AARs) to iterate supply planning. Spend forecasting using 12-month data, and brief predictive readiness trends at quarterly med councils.</p>
-                            </div>
+                          <div class="board-loe-label loe-3" data-framework-region>
+                            <span>LOE 3</span>
+                            <strong>MSCoE<br>Integration</strong>
                           </div>
                         </div>
+
+                        <div class="board-phases-col">
+                          <div class="board-phases-header">
+                            <section class="board-phase board-region phase-1" id="b-p1" data-framework-region aria-label="Phase 1 Build">
+                              <div class="phase-header-top">
+                                <span class="board-phase-num">PHASE 1</span>
+                                <h2>Build</h2>
+                              </div>
+                              <div class="phase-meta">Now - 1 Mar 26<br>HQ: TOMS, CTMC, ER, OB<br><strong class="me-text">ME: LOE 3</strong></div>
+                            </section>
+
+                            <div class="board-star board-region" id="b-dp1" data-framework-region tabindex="0" aria-label="Decisive Point 1 - Hospital Move">
+                              <span class="star-glyph" aria-hidden="true">★</span><span class="star-label">DP1 · Hospital Move</span>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Move into the new hospital cleanly.</li>
+                                  <li>Time Build phase work to protect clinical continuity.</li>
+                                </ul>
+                              </div>
+                            </div>
+
+                            <section class="board-phase board-region phase-2" id="b-p2" data-framework-region aria-label="Phase 2 Improve">
+                              <div class="phase-header-top">
+                                <span class="board-phase-num">PHASE 2</span>
+                                <h2>Improve</h2>
+                              </div>
+                              <div class="phase-meta">1 Mar - 1 Oct 26<br>HQ: PCSL, 3SL, BH, OS<br><strong class="me-text">ME: LOE 1</strong></div>
+                            </section>
+
+                            <div class="board-star board-region" id="b-dp2" data-framework-region tabindex="0" aria-label="Decisive Point 2 - Change of Command">
+                              <span class="star-glyph" aria-hidden="true">★</span><span class="star-label">DP2 · Change of Cmd</span>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Systems run without commander-dependent lift.</li>
+                                  <li>Improve phase culminates at the change of command.</li>
+                                </ul>
+                              </div>
+                            </div>
+
+                            <section class="board-phase board-region phase-3" id="b-p3" data-framework-region aria-label="Phase 3 Refine">
+                              <div class="phase-header-top">
+                                <span class="board-phase-num">PHASE 3</span>
+                                <h2>Refine</h2>
+                              </div>
+                              <div class="phase-meta">1 Oct 26 - Jul 27<br>HQ: DCCS, MSCoE<br><strong class="me-text">ME: LOE 2</strong></div>
+                              <div class="phase-meta phase-dp">DP: PCS | Transition (July 27)</div>
+                            </section>
+                          </div>
+
+                          <div class="loe-objectives" aria-hidden="true">
+                            <div class="loe-objective loe-1">Deliver reliable, high-quality healthcare that exceeds DHA standards for access and performance.</div>
+                            <div class="loe-objective loe-2">Develop and empower a professional, technologically proficient, and resilient medical team capable of executing the mission with initiative.</div>
+                            <div class="loe-objective loe-3">Synchronize medical functions to support the MSCoE training mission by ensuring trainees receive the right care, right place, right time.</div>
+                          </div>
+
+                          <div class="board-cells-grid">
+                            <!-- LOE 1 Row -->
+                            <section class="board-cell board-region" id="b-p1-loe1" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Optimize Critical Services PC Access, ER flow, Surgical throughput</li>
+                                <li>Care Ladder: Medic &rarr; CSSP &rarr; NP &rarr; MD</li>
+                                <li>Designate no-fail: OB &amp; BH</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Optimize PC Access & ER flow</li>
+                                  <li>Care Ladder: Medic ➔ CSSP ➔ NP ➔ MD</li>
+                                  <li>Designate no-fail: OB & BH</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region main-effort" id="b-p2-loe1" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>PCSL DHA Access acute &lt;24 hrs; routine &lt;7 days</li>
+                                <li>New facility throughput and surgery flow</li>
+                                <li>Medic-led ER fast track</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>PCSL DHA Care Model</li>
+                                  <li>Throughput in New Facility</li>
+                                  <li>Fast Track ER (Medic-led)</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region" id="b-p3-loe1" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>PCSL Flow RCA primary care access PI</li>
+                                <li>Optimize 3SL SOTs and OR flow</li>
+                                <li>Integrate Tech/AI at point of care</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Refine PCSL Flow & RCA PI</li>
+                                  <li>Optimize 3SL SOTs</li>
+                                  <li>Tech/AI daily integration</li>
+                                </ul>
+                              </div>
+                            </section>
+
+                            <!-- LOE 2 Row -->
+                            <section class="board-cell board-region" id="b-p1-loe2" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Tech Enablement AI, PowerBI, OpenEvidence, Ask Sage</li>
+                                <li>Role clarity, counseling, credentials</li>
+                                <li>Functional needs analysis</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Introduce AI & PowerBI tools</li>
+                                  <li>Role clarity & Counseling</li>
+                                  <li>Safety/Credentials compliance</li>
+                                  <li>Conduct Functional Needs Analysis</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region" id="b-p2-loe2" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Clinical Efficiency reorganize clinic work</li>
+                                <li>Man toward RN/SW &amp; APPs</li>
+                                <li>Telehealth and asynchronous care</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Reorganize for Clinical Efficiency</li>
+                                  <li>Manning Need: RN/SW & APPs</li>
+                                  <li>Integrate Telehealth & Async</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region main-effort" id="b-p3-loe2" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Leadership Development six-month LPD calendar</li>
+                                <li>Quarterly counseling and PME timelines</li>
+                                <li>Mentorship and leader transition</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Deliberate LPD Calendar</li>
+                                  <li>Enforce military PME timelines</li>
+                                  <li>Mentorship & Leadership Transition</li>
+                                </ul>
+                              </div>
+                            </section>
+
+                            <!-- LOE 3 Row -->
+                            <section class="board-cell board-region main-effort" id="b-p1-loe3" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Trainee Care Model TOMS / CTMC / ER</li>
+                                <li>Establish Surgeon oversight</li>
+                                <li>Executive Medicine and SRP access</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Trainee Care: TOMS/CTMC/ER</li>
+                                  <li>Establish Surgeon Oversight</li>
+                                  <li>Executive Med program</li>
+                                  <li>Protect Clinic Access & SRP</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region" id="b-p2-loe3" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Standardize Med Ops OPORDs and BAS SOPs</li>
+                                <li>Predictive supply ASL</li>
+                                <li>Automated readiness tracker</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>Standardize Med Ops (OPORDs)</li>
+                                  <li>Predictive supply ASL</li>
+                                  <li>Automated Readiness Tracker</li>
+                                </ul>
+                              </div>
+                            </section>
+                            <section class="board-cell board-region" id="b-p3-loe3" data-framework-region>
+                              <ul class="cell-lines">
+                                <li>Institutionalize AAR Loop exercises to SOP updates</li>
+                                <li>Readiness in MSCoE battle rhythm</li>
+                                <li>Achieve predictive logistics</li>
+                              </ul>
+                              <div class="cell-full" hidden>
+                                <ul>
+                                  <li>AAR loop on training exercises</li>
+                                  <li>Med council readiness integration</li>
+                                  <li>Achieve Predictive Logistics</li>
+                                </ul>
+                              </div>
+                            </section>
+                          </div>
+                        </div>
+
+                        <section class="board-desired board-region" id="b-desired" data-framework-region aria-label="2027 Desired State">
+                          <header>
+                            2027 Desired State
+                          </header>
+                          <div class="state-content">
+                            <p>Be a High Reliability Organization consistently meeting DHA standards, where an integrated trainee care model and technologically empowered staff deliver the right care, right place, right time, protect the ER, and drive clinical efficiency. This foundation reinforced by accountable unit leaders, will forge a fully integrated partnership with MSCoE that directly enables the training mission.</p>
+                          </div>
+                        </section>
+
                       </div>
-
-                      <!-- Col 3: Desired State (2027) -->
-                      <section class="slide-column desired-state-box" id="slide-element-desired-state" aria-label="Desired State">
-                        ${this.renderHUDBrackets()}
-                        <div class="slide-section-header">
-                          <span class="slide-section-icon" aria-hidden="true">★</span>
-                          <h2>2027 Desired State</h2>
-                        </div>
-                        <p class="slide-section-text">${D.desiredState}</p>
-                        <div class="cell-detailed-content">
-                          <p style="font-size: 11px; margin-top: 8px; color: #7aac6a; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Outcomes Achieved:</p>
-                          <ul class="matrix-deliverables" style="margin-top: 6px;">
-                            <li style="font-size: 11px; margin-bottom: 6px;">Full compliance with all DHA access and performance metrics.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;">Sustained trainee care model enabling the MSCoE basic training mission.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;">A technologically forward, credentials-optimized workforce.</li>
-                            <li style="font-size: 11px; margin-bottom: 6px;">Accountable unit integration with predictive supply lines.</li>
-                          </ul>
-                        </div>
-                      </section>
                     </div>
-
-                    <!-- Footer: Removed (Mission relocated to top) -->
-                  </div>
+                  </article>
                 </div>
               </div>
-              
-              <!-- Timeline/Progress Tracker (Horizontal Bottom Stepper) -->
-              <nav class="framework-progress-tracker horizontal" aria-label="Framework progression tracker">
+
+              <div class="framework-scroll-cue" aria-hidden="true">
+                <span class="cue-text">Scroll to walk the plan</span>
+                <span class="cue-chevron">⌄</span>
+              </div>
+
+              <aside class="framework-detail" aria-live="polite" aria-label="Section detail">
+                <div class="detail-eyebrow"></div>
+                <div class="detail-body"></div>
+              </aside>
+
+              <nav class="framework-progress-tracker" aria-label="Framework progression tracker">
                 <div class="framework-progress-track">
                   <div class="framework-progress-line" aria-hidden="true"><span></span></div>
-                  <button class="framework-progress-step active" type="button" id="fw-step-all" data-target="scene-fw-all" aria-current="step">
+                  <button class="framework-progress-step active" type="button" data-rail="overview" aria-current="step">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Overview</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-mission" data-target="scene-fw-mission">
+                  <button class="framework-progress-step" type="button" data-rail="mission">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Mission</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-prior" data-target="scene-fw-prior">
+                  <button class="framework-progress-step" type="button" data-rail="prior">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Prior State</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-phase1" data-target="scene-fw-phase1">
+                  <button class="framework-progress-step" type="button" data-rail="p1">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Phase 1</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-phase2" data-target="scene-fw-phase2">
+                  <button class="framework-progress-step" type="button" data-rail="p2">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Phase 2</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-phase3" data-target="scene-fw-phase3">
+                  <button class="framework-progress-step" type="button" data-rail="p3">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Phase 3</span>
                   </button>
-                  <button class="framework-progress-step" type="button" id="fw-step-desired" data-target="scene-fw-desired">
+                  <button class="framework-progress-step" type="button" data-rail="desired">
                     <span class="framework-progress-dot" aria-hidden="true"></span>
                     <span class="framework-progress-label">Desired State</span>
                   </button>
                 </div>
               </nav>
-
             </div>
 
-            <!-- Scroll Scenes (Invisible triggers driving state shifts) -->
-            <div class="framework-scroll-scenes" style="position: relative; width: 100%; pointer-events: none; z-index: 10;">
-              <section class="framework-scroll-scene" id="scene-fw-all" data-target="all" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-mission" data-target="mission" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-prior" data-target="prior-state" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-phase1" data-target="phase1" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-phase2" data-target="phase2" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-phase3" data-target="phase3" style="height: 100vh;"></section>
-              <section class="framework-scroll-scene" id="scene-fw-desired" data-target="desired-state" style="height: 100vh;">
-                <!-- Link wrapper to allow navigation links at the final step -->
-                <div style="pointer-events: auto; padding: 2rem; display: flex; justify-content: center; position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 210;">
-                  <div class="framework-links-grid" style="display: flex; gap: 1rem; width: 500px;">
-                    <a class="framework-enter-btn" href="#/framework/pcsl" style="flex: 1;">Go to Primary Care (PCSL) ➔</a>
-                    <a class="framework-enter-btn" href="#/framework/surgery" style="flex: 1;">Go to Surgical Services (3SL) ➔</a>
-                  </div>
-                </div>
-              </section>
+            <div class="framework-beats" aria-hidden="true"></div>
+            <div class="framework-static-script">
+              ${beatFallback.map(([label, text]) => `
+                <section class="framework-static-beat">
+                  <h2>${label}</h2>
+                  <p>${text}</p>
+                </section>
+              `).join('')}
             </div>
           </div>
         </section>
