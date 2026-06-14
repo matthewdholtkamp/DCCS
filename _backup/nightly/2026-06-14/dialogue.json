@@ -1,0 +1,77 @@
+{
+  "emergency": [
+    {
+      "date": "2026-06-09",
+      "text": "PI project is up and running, all patient roomed immediately, complete daily huddles with nurse and medics, put PCSL open appointment outside of the ER this week. Chem shower WG to get shower as intended. Next week will start nursing orders started, standard order sets."
+    },
+    {
+      "date": "2026-06-03",
+      "text": "1) New DC Pyxis SOP (Minimize use to maximize nursing flow) 2) New Charge Nurse SOP for improved communication. 3) Updated PI slides. 4) NIO SOPS."
+    },
+    {
+      "text": "Focus: Screen and Redirect. ESI 4/5 patients must be pushed to BAS/CTMC. Hold Brigade Surgeons accountable for self-referral habits.",
+      "date": "2026-05-26"
+    }
+  ],
+  "mental-health": [
+    {
+      "text": "Monthly MHSL referral averages recorded: Jan (8), Feb (11), Mar (18), Apr (14), May (13). (Active Duty off-post).",
+      "date": "2026-06-09"
+    },
+    {
+      "date": "2026-06-09",
+      "text": "KPI - gauge, will add traker for average number of patients per month per provider to make sure targeted care is met. SUDCC not meeting 5 days to see patients - 4 providers. 2 provider joining the team. Neuropsych helping wed-friday. Open appointment outside the ER - is buid. BRAVE not working - still getting set up - live next week."
+    },
+    {
+      "date": "2026-06-03",
+      "text": "1. Automation continues within the service line. Visit Alert Engine (VAE) is up and running. Request to add a year-over-year line graph acknowledged and implementation is pending. Necessary data migration ISO this request taking longer than expected. Estimate completion of VAE upgrade by COB 3 Jun. \n2. Tests on Available Appointments dashboard continuing. So far, no information or automation setbacks. Additional aesthetic refining needed.\n3. Implementation for announcement/resource displays to run in the MH waiting rooms underway. Coordination w/ IMD to secure and install a mini-PC initiated.\n4. 2nd request sent to IMD SharePoint team for permissions to create a document library IOT move automation tools and supporting files to the GLWCH SharePoint site as opposed to personal workspace to ensure continuity and facilitate dissemination of tools to other service lines.\n5. Changes to Referrals to the Network dashboard complete and populated.\n6. Template reviews for providers underway. First group of template changes ready to go to HCO for processing."
+    }
+  ],
+  "surgery": [
+    {
+      "text": "Ortho requirement SOP - this is not reasonable - need MRI in last 6 months.  Need to have WG once SOuthern and Brimmo go over the SOP.  PA should do nonSurgical and Surgeons do Surgical. Continue looking for General Surgeon. All providers will do profiles not just PCM",
+      "date": "2026-06-09"
+    },
+    {
+      "date": "2026-06-09",
+      "text": "Dr Brimmo - first surgery completed - wants to operate, has 7 surgies scheduled. there will be an issue with OR time of other providers. OR needs to be more effienct. need to figure out how to be more efficient, Pay setting with Dr Southern, GS is open to retirees. Roam- where are we doing colonoscopy - the endo suite needs to be fixed??? Need to open 2 ORs. Techs is the limitation. OB/GYn back fill here thru 30Sept2026. Barrow is moving to CTMC - Robinson is taking over. Goal is still 8 surgeries a day."
+    },
+    {
+      "text": "UPCOMING DIVERTS:\n\nOrtho: \n18 Jun @ 1600-22 Jun @ 0700\n25 Jun @ 1600-29 Jun @ 0700\n2 Jul @ 1600-6 Jul @ 0700\n16 Jul @ 1600-20 Jul @ 0700\n\nGen Surg:\n24 Jun @ 0700-25 Jun @ 0700\n24 Jul @ 1600-3 Aug @ 0700\n14 Aug @ 1600-31 Aug @0700",
+      "date": "2026-06-09"
+    },
+    {
+      "date": "2026-05-30",
+      "text": "Ramp-up Strategy (10 to 40 cases/week): We are shifting to an OR factory model. We are not waiting for additional staff; we are optimizing process now. We will track Block Utilization (>80%), Cancellations, FCOTS (>90%), Turnover Time (<20 min), and OB acuity balance. Priority: RCA on current throughput bottlenecks to prepare for the August staffing increase."
+    },
+    {
+      "date": "2026-05-26",
+      "text": "Focus: Anesthesia constraint (2 providers). Ruthless efficiency in block utilization. Reallocate unused blocks immediately."
+    }
+  ],
+  "pcsl": [
+    {
+      "date": "2026-06-09",
+      "text": "MHS portal issue not able to book spots, now fixed and that is why we had open appointments, appointment lines filling, also cross booking appoints from peds to adults due to peds under filling. Medic appointment low due to open provider schedules. Why - did the acute appointments go UP???????   Infusion and allergy  - WG continues - COA brief on 17 june.  Brief to commander by friday 12June. Ms lock in pay negotiations as the hospitalist"
+    },
+    {
+      "text": "Focus: Leverage Care Ladder (Nursing/Medic-led) to absorb volume redirected from the ER. Protect clinic access to ensure patients have a destination.",
+      "date": "2026-05-26"
+    },
+    {
+      "text": "Access update: Acute appointments at 1.5 days. Constraint: MOD inpatient rotation reduces clinic availability by 50% for affected providers. We will not eliminate inpatient duties as it would degrade overall capacity. Mitigation: Optimize remaining templates and leverage Care Ladder (Nursing/Medic-led) to manage volume.",
+      "date": "2026-05-23"
+    }
+  ],
+  "mscoe": [
+    {
+      "date": "2026-06-09",
+      "text": "Following the 29 May FRAGO establishing the after-hours/weekend NCO medical consult line, the Division Surgeon baseline shows 163 inappropriate (Cat 4/5) trainee ER check-ins across five brigades over the past 30-day window, led by 14th Military Police BDE (69, 42%, 538 training hours lost), followed by 3rd Chemical BDE (43–48, 29%, 335 hours), 1st Engineer BDE (23, 14%, 179 hours), 43rd Reception BN (17, 133 hours), and Other Units (7, 55 hours). Low-acuity visits concentrate in the evening block (1800–2359, 41% of volume; peak hour 2000)and on weekends—Saturday is the busiest day at 225 visits (2.4x the lightest day, Monday), with weekend daily averages exceeding weekday, directly degrading ER access for permanent party and family members during peak hours. The tracking dashboard is fielded and provides all brigade surgeons real-time, company-level visibility; the way ahead is brigade enforcement of the consult process, with a request for command-team engagement on dashboard utilization and H2F/BHO integration to address underlying drivers."
+    },
+    {
+      "date": "2026-06-03",
+      "text": "Last Friday the FRADO was published that to have BDEs carry the call phone for nights and weekend till 2000.  THis is no differrent then what we have been doing just one dedicated phone. DS with this published the ER will be holding DS and units accountable for dropping trainees that have not compelted the proper pathway."
+    }
+  ],
+  "_lastUpdated": 1781133408388
+}
