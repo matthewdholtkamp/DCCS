@@ -1,294 +1,310 @@
+/* =============================================================================
+ * framework-scroll.js
+ * DCCS Operational Framework — cinematic walkthrough controller (Model B)
+ * -----------------------------------------------------------------------------
+ * A camera glides/zooms across a persistent operational-design board while a
+ * heavy detail panel narrates each region in the commander's voice.
+ *
+ * Engine is copied from landing-scroll.js: Lenis smooth-scroll wired to GSAP
+ * ScrollTrigger via ScrollTrigger.scrollerProxy(). BEATS[] below is the single
+ * source of truth for the walk (camera targets, backgrounds, narration, rail).
+ *
+ * HANDOFF NOTES FOR CODEX
+ *   - This file is inert until app.js renders the DOM contract below and CSS
+ *     defines the new framework block. When all three land, rename this to
+ *     js/framework-scroll.js (replacing the old one) and update index.html's
+ *     ?v= cache string.
+ *   - SHIP STAGE 1 FIRST: leave USE_SCRUB = false. Verify the full walk is
+ *     stable (no clip, no jitter). THEN flip USE_SCRUB = true for the
+ *     continuous glide (Stage 2) and take the tuning pass there only.
+ *
+ * REQUIRED DOM (renderFramework must emit this):
+ *   #framework-stage                       scroll wrapper (overflow-y:auto; height:calc(100vh-64px))
+ *     .framework-stage-inner               height set by JS = BEATS.length*100vh
+ *       .framework-cinema                  position:sticky; top:0; height:calc(100vh-64px)
+ *         .framework-photo-layer           one .framework-bg-photo[data-bg="<key>"] per PHOTO key + .framework-scrim
+ *         .framework-viewport              overflow:hidden (camera window; flex-fills right of the 292px sidebar)
+ *           .framework-camera              position:relative; transform-origin:0 0; will-change:transform
+ *             .framework-board             the slide (digital twin of the .pptx); cells carry the #b-* IDs
+ *         .framework-progress-tracker      one .framework-progress-step[data-rail="<id>"] per RAIL id
+ *       .framework-beats                   EMPTY — this controller injects the invisible 100vh markers
+ *
+ * Board cell IDs (must exist on .framework-board):
+ *   #b-mission #b-current #b-desired
+ *   #b-p1 #b-p2 #b-p3
+ *   #b-p1-loe1 #b-p1-loe2 #b-p1-loe3
+ *   #b-p2-loe1 #b-p2-loe2 #b-p2-loe3
+ *   #b-p3-loe1 #b-p3-loe2 #b-p3-loe3
+ *   #b-dp1 #b-dp2
+ * ============================================================================= */
+
 (function () {
-  let stage = null;
-  let content = null;
-  let lenis = null;
-  let lenisRaf = null;
-  let currentTarget = null;
+  'use strict';
+
+  // ---- BUILD FLAG -----------------------------------------------------------
+  // Stage 1 = false (discrete camera tweens). Stage 2 = true (scrubbed glide).
+  const USE_SCRUB = true;
+
+  // ---- TUNING ---------------------------------------------------------------
+  const CAMERA_DURATION = 0.9;     // Stage 1 tween seconds
+  const CAMERA_EASE     = 'power3.inOut';
+  const SCRUB_EASE      = 'power2.inOut';
+  const SCRUB_AMOUNT    = 0.8;     // ScrollTrigger scrub lag
+  const MAX_SCALE       = 1.55;    // preserve row/phase context around small cells
+
+  // ---- THE WALK -------------------------------------------------------------
+  // target: CSS selector of the board region to frame, or null = whole board.
+  // fill:   fraction of the viewport the target should occupy when framed.
+  // photo:  data-bg key on .framework-photo-layer.
+  // rail:   which progress-step lights up.
+  const BEATS = [
+    { id:'establish', target:null,         fill:0.95, photo:'dark',   rail:'overview',
+      eyebrow:'DCCS / MSCoE SURGEON · OPERATIONAL DESIGN 2027',
+      text:'This is the campaign — one slide, three years, three lines of effort. Let me walk you through it.' },
+
+    { id:'mission', target:'#b-mission',   fill:0.68, photo:'dark',   rail:'mission',
+      eyebrow:'COMMAND MISSION',
+      text:'My mission: continuously synchronize medical efforts across GLWCH and the MSCoE footprint to deliver the right care, at the right place, at the right time — building a medically ready force, developing a ready medical force, and achieving seamless MSCoE integration — to enable the training mission.' },
+
+    { id:'current', target:'#b-current',   fill:0.62, photo:'old',    rail:'prior',
+      eyebrow:'2025 · PRIOR STATE',
+      text:"Here's where we started — a reactive system underperforming on DHA scorecards. Critical staffing gaps that put missions at risk, primary-care access we couldn't sustain, an overloaded ER, and accountability gaps straining the MSCoE partnership. That's the problem we're solving." },
+
+    { id:'p1', target:'#b-p1',             fill:0.55, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · BUILD — NOW TO 1 MAR 26',
+      text:'Phase One — Build. Before we move into the new hospital, we stabilize. Main effort is LOE 3, MSCoE Integration — the trainee care model has to work first. The decisive point is the move itself.' },
+
+    { id:'p1-loe1', target:'#b-p1-loe1',   fill:0.62, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · LOE 1 — MEDICALLY READY FORCE',
+      text:'In Build, LOE 1 fixes fundamentals: optimize primary-care access, trainee ER flow, and surgical throughput; designate the no-fail missions — OB and trainee behavioral health — so they never break; and stand up the care ladder so patients are seen at the right level: medic, nurse, PA/NP, then physician.' },
+
+    { id:'p1-loe2', target:'#b-p1-loe2',   fill:0.62, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · LOE 2 — READY MEDICAL FORCE',
+      text:'LOE 2 builds the team. Introduce the efficiency tools — OpenEvidence and Ask Sage — through deliberate LPDs. Put the right people in the right jobs with clear roles and deliberate counseling. Enforce the basics — 100% BLS, timely record closure, no pencil-whipping credentials. And run a functional needs analysis to man toward nurses, social workers, and APPs over physicians.' },
+
+    { id:'p1-loe3', target:'#b-p1-loe3',   fill:0.62, photo:'old',    rail:'p1', mainEffort:true,
+      eyebrow:'PHASE 1 · LOE 3 — MSCoE INTEGRATION',
+      text:'This is the main effort. The trainee care model — TOMS, CTMC, and ER — right care, right place, right time. I establish the Surgeon\u2019s oversight across the brigades to find and fill readiness gaps, stand up Executive Medicine for key leaders, and protect clinic access by making the SRP a single walk-in point.' },
+
+    { id:'dp1', target:'#b-dp1',           fill:0.46, photo:'new',    rail:'p2',
+      eyebrow:'DECISIVE POINT 1 · HOSPITAL MOVE',
+      text:'Decisive point one — we move into the new hospital. Everything in Build is timed to make that move clean.' },
+
+    { id:'p2', target:'#b-p2',             fill:0.55, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · IMPROVE — 1 MAR TO 1 OCT 26',
+      text:'Phase Two — Improve. Now we leverage the new facility. Main effort shifts to LOE 1, Medically Ready Force, and we drive to hit every DHA metric. This phase culminates at the Hospital Commander\u2019s change of command.' },
+
+    { id:'p2-loe1', target:'#b-p2-loe1',   fill:0.62, photo:'new',    rail:'p2', mainEffort:true,
+      eyebrow:'PHASE 2 · LOE 1 — MEDICALLY READY FORCE',
+      text:'Main effort. Meet the DHA targets — acutes under 24 hours, follow-ups under 7 days, 90% HEDIS. Use the new building to run the medic-led ER fast track and push surgical throughput to 176 cases a month. Scale group and technician-led behavioral health to expand access with fewer providers.' },
+
+    { id:'p2-loe2', target:'#b-p2-loe2',   fill:0.62, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · LOE 2 — READY MEDICAL FORCE',
+      text:'Man to the functional needs analysis — RN, SW, and APP over physicians, the Surgeon excepted — and build a predictable six-month staffing model instead of reacting to every PCS and deployment. Reorganize clinics and empanelment for efficiency, and formalize telehealth and asynchronous care to cover gaps and stop network leakage.' },
+
+    { id:'p2-loe3', target:'#b-p2-loe3',   fill:0.62, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · LOE 3 — MSCoE INTEGRATION',
+      text:'Move logistics from reactive to predictive: brigade ASLs, tracked burn rates, a TDA matched to FORSCOM, a DCAMs-trained medic in each brigade on a data-driven spend plan. Standardize operations — OPORD medical annexes, BAS SOPs — and build the automated readiness tracker: Army Vantage into a Power BI dashboard.' },
+
+    { id:'dp2', target:'#b-dp2',           fill:0.46, photo:'change', rail:'p3',
+      eyebrow:'DECISIVE POINT 2 · CHANGE OF COMMAND',
+      text:'Decisive point two — the change of command. By here, the systems have to run without me holding them up.' },
+
+    { id:'p3', target:'#b-p3',             fill:0.55, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · REFINE — 1 OCT 26 TO 1 JUL 27',
+      text:'Phase Three — Refine. We stop chasing metrics and start embedding a culture of continuous improvement. Main effort is LOE 2, Ready Medical Force — this phase is about handing it off intact.' },
+
+    { id:'p3-loe1', target:'#b-p3-loe1',   fill:0.62, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · LOE 1 — MEDICALLY READY FORCE',
+      text:'Charter formal PI projects: root-cause the primary-care flow and access problems, and root-cause the surgical line to hold 176 cases — anesthesia constraints, on-time first starts, OR turnover. And put AI decision support at the point of care so every provider works to the evidence.' },
+
+    { id:'p3-loe2', target:'#b-p3-loe2',   fill:0.62, photo:'field',  rail:'p3', mainEffort:true,
+      eyebrow:'PHASE 3 · LOE 2 — READY MEDICAL FORCE',
+      text:'Main effort. Publish and run a six-month LPD calendar with quarterly deliberate counseling for everyone. Enforce military readiness and PME. And execute a deliberate leadership transition — formally mentor the people who\u2019ll own the PI projects and brief the dashboards after I\u2019m gone.' },
+
+    { id:'p3-loe3', target:'#b-p3-loe3',   fill:0.62, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · LOE 3 — MSCoE INTEGRATION',
+      text:'Institutionalize the improvement loop — AARs after every major exercise feeding back into MEDLOG and BAS SOPs. Make readiness a standing, predictive topic in the MSCoE battle rhythm. And reach true predictive logistics off a full year of consumption data.' },
+
+    { id:'desired', target:'#b-desired',   fill:0.62, photo:'award',  rail:'desired',
+      eyebrow:'2027 · DESIRED STATE',
+      text:"Here's where we land — a high-reliability organization that consistently exceeds DHA standards, an integrated trainee care model, a technologically empowered staff, and accountable unit integration with predictive supply lines. The right care, right place, right time — by design." },
+
+    { id:'close', target:null,             fill:0.95, photo:'award',  rail:'desired',
+      eyebrow:'WORK SMART · MOVE FAST · BE NICE',
+      text:'That\u2019s the plan — three phases, three lines of effort, one mission. The close returns to the whole operational picture so the board can stand on its own.' }
+  ];
+  const RAIL_TARGETS = {
+    overview: 'establish',
+    mission: 'mission',
+    prior: 'current',
+    p1: 'p1',
+    p2: 'p2',
+    p3: 'p3',
+    desired: 'desired'
+  };
+
+  // ---- module state ---------------------------------------------------------
+  let stage, stageInner, cinema, viewport, camera, board, photoLayer, beatsEl, railSteps;
+  let lenis = null, lenisRaf = null, sceneObserver = null;
+  let beats = [];          // precomputed [{x,y,scale,targetEl}]
+  let regionEls = [];      // unique dimmable board regions
+  let activeIndex = -1;
   const cleanupFns = [];
   const motionTriggers = [];
+
+  // ---- capability checks ----------------------------------------------------
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
-
   function isTouchDevice() {
     return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
-      ('ontouchstart' in window) ||
-      (navigator.maxTouchPoints > 0);
+      ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   }
-
+  function isNarrowViewport() {
+    return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+  }
   function hasMotionLibraries() {
-    return typeof window.Lenis === 'function' && Boolean(window.gsap);
+    return typeof window.Lenis === 'function' && Boolean(window.gsap) && Boolean(window.ScrollTrigger);
+  }
+  function lenisScrollOffset() {
+    if (!lenis) return null;
+    return lenis.actualScroll ?? lenis.animatedScroll ?? lenis.scroll ?? stage.scrollTop;
   }
 
-  function setActiveBg(target) {
-    if (!stage) return;
-    const bgMap = {
-      'all': 'fw-bg-all',
-      'mission': 'fw-bg-mission',
-      'prior-state': 'fw-bg-prior',
-      'loes': 'fw-bg-prior',
-      'phase1': 'fw-bg-phase1',
-      'phase2': 'fw-bg-phase2',
-      'phase3': 'fw-bg-phase3',
-      'desired-state': 'fw-bg-desired'
+  // ---- camera math (measured at init + resize, never in the scroll hot path)--
+  function boardSpaceRect(el) {
+    // Accumulate layout offsets up to .framework-camera. offsetLeft/Top/Width/
+    // Height are pre-transform layout metrics, so this is correct even while the
+    // camera carries a transform.
+    let left = 0, top = 0, node = el;
+    while (node && node !== camera && node !== document.body) {
+      left += node.offsetLeft;
+      top += node.offsetTop;
+      node = node.offsetParent;
+    }
+    const w = el.offsetWidth, h = el.offsetHeight;
+    return { cx: left + w / 2, cy: top + h / 2, w, h };
+  }
+
+  function frameTarget(el, fill) {
+    const vpW = viewport.clientWidth;
+    const vpH = viewport.clientHeight;
+    const r = boardSpaceRect(el);
+    if (!r.w || !r.h) return { x: 0, y: 0, scale: 1 };
+    const scale = Math.min((vpW * fill) / r.w, (vpH * fill) / r.h, MAX_SCALE);
+    return {
+      x: vpW / 2 - r.cx * scale,
+      y: vpH / 2 - r.cy * scale,
+      scale
     };
-    const activeBgId = bgMap[target] || 'fw-bg-all';
-    
-    stage.querySelectorAll('.framework-bg-photo').forEach(photo => {
-      const active = photo.id === activeBgId;
-      photo.classList.toggle('active', active);
+  }
+
+  function computeBeats() {
+    regionEls = Array.from(board.querySelectorAll('[data-framework-region]'));
+    beats = BEATS.map(b => {
+      const targetEl = b.target ? board.querySelector(b.target) : board;
+      if (targetEl && targetEl !== board && regionEls.indexOf(targetEl) === -1) {
+        regionEls.push(targetEl);
+      }
+      const t = targetEl ? frameTarget(targetEl, b.fill) : { x: 0, y: 0, scale: 1 };
+      return { x: t.x, y: t.y, scale: t.scale, targetEl };
     });
   }
 
-  function updateTelemetry(target, x, y, scale) {
-    if (!stage) return;
-    const valSector = stage.querySelector('#hud-val-sector');
-    const valCoords = stage.querySelector('#hud-val-coords');
-    const valZoom = stage.querySelector('#hud-val-zoom');
-    
-    if (valSector) {
-      const sectorNames = {
-        'all': 'OVERVIEW',
-        'mission': 'CMD MISSION',
-        'prior-state': 'BASELINE 2025',
-        'loes': 'STRAT LOES',
-        'phase1': 'PH1 BUILD',
-        'phase2': 'PH2 IMPROVE',
-        'phase3': 'PH3 REFINE',
-        'desired-state': 'OUTCOMES 2027'
-      };
-      valSector.textContent = sectorNames[target] || target.toUpperCase();
-    }
-    
-    if (valCoords) {
-      valCoords.textContent = `${x.toFixed(0)} / ${y.toFixed(0)}`;
-    }
-    
-    if (valZoom) {
-      valZoom.textContent = `${(scale * 100).toFixed(0)}%`;
-    }
+  function setActivePhoto(key) {
+    if (!photoLayer) return;
+    photoLayer.querySelectorAll('.framework-bg-photo').forEach(p => {
+      p.classList.toggle('active', p.dataset.bg === key);
+    });
   }
 
-  function applyFocus(target) {
-    if (!stage) return;
-    const slideDeck = stage.querySelector('.framework-slide-deck');
-    const slide = stage.querySelector('.framework-slide');
-    if (!slideDeck || !slide) return;
-
-    if (target === currentTarget) return;
-    currentTarget = target;
-
-    // Helper to calculate coordinates relative to .framework-slide
-    function getCenterRelativeToSlide(el) {
-      let left = 0;
-      let top = 0;
-      let curr = el;
-      while (curr && curr !== slide && curr !== document.body) {
-        left += curr.offsetLeft;
-        top += curr.offsetTop;
-        curr = curr.offsetParent;
-      }
-      return {
-        x: left + el.offsetWidth / 2,
-        y: top + el.offsetHeight / 2
-      };
-    }
-
-    // 1. Reset cell active states and blur class on slide
-    slide.classList.remove('blur-back');
-    const allElements = slide.querySelectorAll(
-      '.prior-state-box, .desired-state-box, .slide-mission-box, .matrix-header-cell:not(.empty), .matrix-cell'
-    );
-    allElements.forEach(el => el.classList.remove('active-pop'));
-
-    // 2. Map cells belonging to the current focus scene
-    let activeElements = [];
-    let scale = 1.25;
-
-    if (target === 'mission') {
-      activeElements = [slide.querySelector('#slide-element-mission')];
-    } else if (target === 'prior-state') {
-      activeElements = [slide.querySelector('#slide-element-prior-state')];
-    } else if (target === 'desired-state') {
-      activeElements = [slide.querySelector('#slide-element-desired-state')];
-    } else if (target === 'phase1') {
-      activeElements = [
-        slide.querySelector('#matrix-header-p1'),
-        slide.querySelector('#cell-p1-loe1'),
-        slide.querySelector('#cell-p1-loe2'),
-        slide.querySelector('#cell-p1-loe3')
-      ];
-      scale = 1.15; // slightly smaller scale to fit column elements
-    } else if (target === 'phase2') {
-      activeElements = [
-        slide.querySelector('#matrix-header-p2'),
-        slide.querySelector('#cell-p2-loe1'),
-        slide.querySelector('#cell-p2-loe2'),
-        slide.querySelector('#cell-p2-loe3')
-      ];
-      scale = 1.15;
-    } else if (target === 'phase3') {
-      activeElements = [
-        slide.querySelector('#matrix-header-p3'),
-        slide.querySelector('#cell-p3-loe1'),
-        slide.querySelector('#cell-p3-loe2'),
-        slide.querySelector('#cell-p3-loe3')
-      ];
-      scale = 1.15;
-    }
-
-    activeElements = activeElements.filter(Boolean);
-
-    // 3. Compute target offsets relative to center dynamically
-    let dx = 0;
-    let dy = 0;
-    const cx = slide.offsetWidth / 2;
-    const cy = slide.offsetHeight / 2;
-
-    if (activeElements.length > 0) {
-      slide.classList.add('blur-back');
-      activeElements.forEach(el => el.classList.add('active-pop'));
-
-      if (activeElements.length === 1) {
-        const center = getCenterRelativeToSlide(activeElements[0]);
-        dx = cx - center.x;
-        dy = cy - center.y;
-      } else {
-        // Compute column X-center using header and Y-center using middle cell
-        const header = activeElements[0];
-        const middleCell = activeElements[2] || activeElements[1];
-        const headerCenter = getCenterRelativeToSlide(header);
-        const middleCenter = getCenterRelativeToSlide(middleCell);
-        dx = cx - headerCenter.x;
-        dy = cy - middleCenter.y;
-      }
-    }
-
-    // 4. Update backdrop scrim photo
-    setActiveBg(target);
-
-    // 5. Update HUD telemetry display values
-    updateTelemetry(target, dx, dy, activeElements.length > 0 ? scale : 1.0);
-
-    // 6. Smoothly animate transforms with GSAP
-    const gsap = window.gsap;
-    if (gsap && !prefersReducedMotion()) {
-      // Keep main deck centered and unrotated
-      gsap.to(slideDeck, {
-        scale: 1,
-        x: 0,
-        y: 0,
-        rotationX: 0,
-        rotationY: 0,
-        duration: 0.6,
-        ease: 'power2.out',
-        overwrite: 'auto'
-      });
-      gsap.to(slide, {
-        rotationX: 0,
-        rotationY: 0,
-        duration: 0.6,
-        ease: 'power2.out',
-        overwrite: 'auto'
-      });
-
-      // Animate active cells/columns outwards and center them, reset non-active cells
-      allElements.forEach(el => {
-        const isActive = activeElements.includes(el);
-        gsap.to(el, {
-          x: isActive ? dx : 0,
-          y: isActive ? dy : 0,
-          scale: isActive ? scale : 1.0,
-          duration: 0.65,
-          ease: 'power2.out',
-          overwrite: 'auto'
-        });
-      });
-    } else {
-      // Reduced motion direct fallback / CSS inline fallback
-      slideDeck.style.transform = 'none';
-      slide.style.transform = 'none';
-      allElements.forEach(el => {
-        const isActive = activeElements.includes(el);
-        if (isActive) {
-          el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
-        } else {
-          el.style.transform = 'none';
-        }
-      });
-    }
-
-    // Apply focus class name to slide
-    slide.className = 'framework-slide';
-    const classMap = {
-      'all': 'focus-all',
-      'mission': 'focus-mission',
-      'prior-state': 'focus-prior',
-      'loes': 'focus-prior',
-      'phase1': 'focus-p1',
-      'phase2': 'focus-p2',
-      'phase3': 'focus-p3',
-      'desired-state': 'focus-desired'
-    };
-    const focusClass = classMap[target] || `focus-${target}`;
-    slide.classList.add(focusClass);
-    if (activeElements.length > 0) {
-      slide.classList.add('blur-back');
-    }
-
-    // Update bottom stepper highlighted state
-    setActiveRail(target);
+  function applyDim(targetEl) {
+    const wholeBoard = (targetEl === board || !targetEl);
+    regionEls.forEach(el => {
+      el.classList.toggle('is-focus', !wholeBoard && el === targetEl);
+      el.classList.toggle('is-dim', !wholeBoard && el !== targetEl);
+    });
+    board.classList.toggle('board-overview', wholeBoard);
   }
 
-  function setActiveRail(target) {
-    if (!stage) return;
-    const stepMap = {
-      'all': 'fw-step-all',
-      'mission': 'fw-step-mission',
-      'prior-state': 'fw-step-prior',
-      'loes': 'fw-step-prior',
-      'phase1': 'fw-step-phase1',
-      'phase2': 'fw-step-phase2',
-      'phase3': 'fw-step-phase3',
-      'desired-state': 'fw-step-desired'
-    };
-    const targetStepId = stepMap[target] || 'fw-step-all';
-
-    stage.querySelectorAll('.framework-progress-step').forEach(step => {
-      const active = step.id === targetStepId;
+  function setActiveRail(railId) {
+    railSteps.forEach(step => {
+      const active = step.dataset.rail === railId;
       step.classList.toggle('active', active);
       step.setAttribute('aria-current', active ? 'step' : 'false');
     });
   }
 
-  function wireRail() {
-    stage.querySelectorAll('.framework-progress-step').forEach(step => {
-      const onClick = () => {
-        const sceneId = step.dataset.target;
-        const scene = stage.querySelector(`#${sceneId}`);
-        if (!scene) return;
+  // ---- activate a beat ------------------------------------------------------
+  function activate(index, opts) {
+    if (index < 0 || index >= beats.length || index === activeIndex) return;
+    activeIndex = index;
+    const meta = BEATS[index];
+    const b = beats[index];
+    if (stage) stage.dataset.activeBeat = meta.id;
+    setActivePhoto(meta.photo);
+    applyDim(b.targetEl);
 
-        if (lenis) {
-          lenis.scrollTo(scene, { offset: 0 });
-        } else {
-          scene.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
-        }
-      };
-      step.addEventListener('click', onClick);
-      cleanupFns.push(() => step.removeEventListener('click', onClick));
-    });
+    if (cinema) {
+      cinema.classList.toggle('is-start', index === 0);
+    }
+
+    const detail = stage.querySelector('.framework-detail');
+    if (detail) {
+      const overview = (index === 0 || index === BEATS.length - 1 || b.targetEl === board);
+      if (overview) {
+        detail.classList.remove('is-visible');
+      } else {
+        const full = b.targetEl && b.targetEl.querySelector('.cell-full');
+        const prose = meta.text ? `<p class="detail-prose">${meta.text}</p>` : '';
+        const bullets = full ? full.innerHTML : '';
+        detail.querySelector('.detail-eyebrow').textContent = (meta.eyebrow || '');
+        detail.querySelector('.detail-body').innerHTML = prose + bullets;
+        detail.classList.add('is-visible');
+      }
+    }
+
+    setActiveRail(meta.rail);
+
+    // In scrub mode the timeline owns the camera; only drive it here in Stage 1.
+    if (!USE_SCRUB) {
+      const gsap = window.gsap;
+      if (gsap && !(opts && opts.instant) && !prefersReducedMotion()) {
+        gsap.to(camera, { x: b.x, y: b.y, scale: b.scale, duration: CAMERA_DURATION, ease: CAMERA_EASE, overwrite: 'auto' });
+      } else if (gsap) {
+        gsap.set(camera, { x: b.x, y: b.y, scale: b.scale });
+      } else {
+        camera.style.transform = `translate3d(${b.x}px, ${b.y}px, 0) scale(${b.scale})`;
+      }
+    }
   }
 
+  // ---- invisible scroll markers (one 100vh marker per beat) -----------------
+  function buildMarkers() {
+    beatsEl.innerHTML = '';
+    BEATS.forEach((b, i) => {
+      const m = document.createElement('section');
+      m.className = 'framework-beat';
+      m.id = `fb-${b.id}`;
+      m.dataset.index = String(i);
+      m.setAttribute('aria-hidden', 'true');
+      beatsEl.appendChild(m);
+    });
+    // The marker stack defines the scroll length; the cinema sticks within it.
+    stageInner.style.height = `${BEATS.length * 100}vh`;
+  }
+
+  // ---- motion layer: Lenis + ScrollTrigger via scrollerProxy (from landing) --
   function initMotionLayer() {
-    if (!stage || !content || !hasMotionLibraries()) return false;
-
     const gsap = window.gsap;
-
+    const ScrollTrigger = window.ScrollTrigger;
     try {
-      // Setup Lenis scroll wrapper for smooth scrolling
+      gsap.registerPlugin(ScrollTrigger);
+
       lenis = new window.Lenis({
         wrapper: stage,
-        content,
+        content: stageInner,
         duration: 1.1,
         easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
         smoothWheel: true,
@@ -296,89 +312,103 @@
         syncTouch: false
       });
 
-      lenisRaf = time => {
-        if (lenis) lenis.raf(time * 1000);
-      };
+      ScrollTrigger.scrollerProxy(stage, {
+        scrollTop(value) {
+          if (arguments.length) lenis.scrollTo(value, { immediate: true });
+          return lenisScrollOffset() ?? stage.scrollTop;
+        },
+        getBoundingClientRect() {
+          const r = stage.getBoundingClientRect();
+          return { top: r.top, left: r.left, width: r.width, height: r.height };
+        }
+      });
 
+      lenisRaf = time => { if (lenis) lenis.raf(time * 1000); };
       gsap.ticker.add(lenisRaf);
       gsap.ticker.lagSmoothing(0);
 
-      // Listen to Lenis scroll event to update active scene
-      lenis.on('scroll', () => {
-        updateActiveSceneFallback();
-      });
+      lenis.on('scroll', () => { ScrollTrigger.update(); });
+
+      if (USE_SCRUB) buildScrubTimeline();
 
       const onResize = () => {
         if (lenis && typeof lenis.resize === 'function') lenis.resize();
-        updateActiveSceneFallback();
+        computeBeats();
+        if (USE_SCRUB) { rebuildScrubTimeline(); }
+        else if (activeIndex >= 0) { activate(activeIndex, { instant: true }); }
+        ScrollTrigger.refresh();
       };
       window.addEventListener('resize', onResize);
       cleanupFns.push(() => window.removeEventListener('resize', onResize));
 
       if (typeof lenis.resize === 'function') lenis.resize();
-      updateActiveSceneFallback();
+      ScrollTrigger.refresh();
       return true;
-    } catch (error) {
-      console.warn('Framework Scroll: Motion layer failed to load:', error);
+    } catch (err) {
+      console.warn('[framework] motion layer failed:', err);
       teardownMotion();
       return false;
     }
   }
 
-  function teardownMotion() {
+  // ---- Stage 2: single scrubbed camera timeline -----------------------------
+  let scrubTimeline = null;
+  function buildScrubTimeline() {
     const gsap = window.gsap;
-
-    while (motionTriggers.length) {
-      const trigger = motionTriggers.pop();
-      if (trigger && typeof trigger.kill === 'function') trigger.kill();
-    }
-
-    if (gsap) {
-      if (lenisRaf) gsap.ticker.remove(lenisRaf);
-      if (stage) {
-        gsap.killTweensOf(stage.querySelector('.framework-slide-deck'));
-        gsap.killTweensOf(stage.querySelectorAll('.narrative-card'));
+    scrubTimeline = gsap.timeline({
+      defaults: { ease: SCRUB_EASE },
+      scrollTrigger: {
+        trigger: beatsEl,
+        scroller: stage,
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: 0.5,
+        snap: {
+          snapTo: 1 / (BEATS.length - 1),   // one stop per beat
+          duration: { min: 0.25, max: 0.5 },
+          delay: 0.05,
+          ease: 'power2.inOut',
+          inertia: false                    // don't coast past — lock onto the nearest section
+        }
       }
+    });
+    gsap.set(camera, { x: beats[0].x, y: beats[0].y, scale: beats[0].scale });
+    beats.forEach((b, i) => {
+      if (i === 0) return;
+      scrubTimeline.to(camera, { x: b.x, y: b.y, scale: b.scale }, i - 1);
+    });
+    if (scrubTimeline.scrollTrigger) motionTriggers.push(scrubTimeline.scrollTrigger);
+  }
+  function rebuildScrubTimeline() {
+    if (scrubTimeline) {
+      if (scrubTimeline.scrollTrigger) scrubTimeline.scrollTrigger.kill();
+      scrubTimeline.kill();
+      scrubTimeline = null;
     }
-
-    if (lenis) {
-      lenis.destroy();
-      lenis = null;
-    }
-
-    lenisRaf = null;
+    buildScrubTimeline();
   }
 
-  function init(selector = '#framework-stage') {
-    destroy();
-    stage = document.querySelector(selector);
-    if (!stage) return;
-    content = stage.querySelector('.framework-stage-inner') || stage;
+  // ---- scene detection (drives caption/photo/dim/rail + Stage-1 camera) -----
+  function observeBeats() {
+    sceneObserver = new IntersectionObserver(() => { pickActive(); }, {
+      root: stage,
+      threshold: [0.25, 0.5, 0.75],
+      rootMargin: '-25% 0px -45% 0px'
+    });
+    Array.from(beatsEl.children).forEach(m => sceneObserver.observe(m));
+  }
 
-    stage.scrollTop = 0;
-    stage.classList.add('js-enhanced');
-    currentTarget = null; // Reset target on init
-    applyFocus('all');
-    wireRail();
-
-    // (Mousemove tilt event listener removed to satisfy user choice)
-
-    const hasObserver = 'IntersectionObserver' in window;
-    const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && hasMotionLibraries();
-
-    if (!hasObserver) {
-      wireScrollTrackingFallback();
-      return;
-    }
-
-    if (motionAllowed && initMotionLayer()) {
-      // Also bind the standard scroll event on the stage as a native failsafe
-      wireScrollTrackingFallback();
-      return;
-    }
-
-    // Standard scroll fallback if motion/libraries are not supported
-    wireScrollTrackingFallback();
+  function pickActive() {
+    const markers = Array.from(beatsEl.children);
+    const sr = stage.getBoundingClientRect();
+    const center = sr.top + sr.height * 0.5;
+    let best = -1, bestDist = Infinity;
+    markers.forEach((m, i) => {
+      const r = m.getBoundingClientRect();
+      const d = Math.abs((r.top + r.height * 0.5) - center);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    if (best >= 0) activate(best);
   }
 
   function wireScrollTrackingFallback() {
@@ -386,50 +416,107 @@
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => {
-        ticking = false;
-        updateActiveSceneFallback();
-      });
+      requestAnimationFrame(() => { ticking = false; pickActive(); });
     };
-
     stage.addEventListener('scroll', onScroll, { passive: true });
     cleanupFns.push(() => stage.removeEventListener('scroll', onScroll));
-    updateActiveSceneFallback();
   }
 
-  function updateActiveSceneFallback() {
-    if (!stage) return;
-    const scenes = Array.from(stage.querySelectorAll('.framework-scroll-scene'));
-    const stageRect = stage.getBoundingClientRect();
-    const stageCenter = stageRect.top + (stageRect.height * 0.5);
-    let activeScene = null;
-    let activeDistance = Infinity;
-
-    scenes.forEach(scene => {
-      const rect = scene.getBoundingClientRect();
-      const distance = Math.abs((rect.top + rect.height * 0.5) - stageCenter);
-      if (distance < activeDistance) {
-        activeDistance = distance;
-        activeScene = scene;
-      }
+  // ---- rail -----------------------------------------------------------------
+  function wireRail() {
+    railSteps.forEach(step => {
+      const onClick = () => {
+        const railId = step.dataset.rail;
+        const targetId = RAIL_TARGETS[railId] || railId;
+        const i = BEATS.findIndex(b => b.id === targetId);
+        if (i < 0) return;
+        const marker = beatsEl.children[i];
+        if (!marker) return;
+        if (lenis) lenis.scrollTo(marker, { offset: 0 });
+        else marker.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      };
+      step.addEventListener('click', onClick);
+      cleanupFns.push(() => step.removeEventListener('click', onClick));
     });
+  }
 
-    if (activeScene) {
-      applyFocus(activeScene.dataset.target);
+  // ---- teardown -------------------------------------------------------------
+  function teardownMotion() {
+    const gsap = window.gsap;
+    while (motionTriggers.length) {
+      const t = motionTriggers.pop();
+      if (t && typeof t.kill === 'function') t.kill();
     }
+    if (scrubTimeline) { scrubTimeline.kill(); scrubTimeline = null; }
+    if (gsap) {
+      if (lenisRaf) gsap.ticker.remove(lenisRaf);
+      if (camera) gsap.killTweensOf(camera);
+    }
+    if (lenis) { lenis.destroy(); lenis = null; }
+    lenisRaf = null;
+  }
+
+  // ---- init / destroy -------------------------------------------------------
+  function cacheDom() {
+    stageInner = stage.querySelector('.framework-stage-inner');
+    cinema     = stage.querySelector('.framework-cinema');
+    viewport   = stage.querySelector('.framework-viewport');
+    camera     = stage.querySelector('.framework-camera');
+    board      = stage.querySelector('.framework-board');
+    photoLayer = stage.querySelector('.framework-photo-layer');
+    beatsEl    = stage.querySelector('.framework-beats');
+    railSteps  = Array.from(stage.querySelectorAll('.framework-progress-step'));
+    return stageInner && cinema && viewport && camera && board && beatsEl;
+  }
+
+  function init(selector = '#framework-stage') {
+    destroy();
+    stage = document.querySelector(selector);
+    if (!stage) return;
+    if (!cacheDom()) { console.warn('[framework] required DOM missing — check renderFramework markup'); return; }
+
+    stage.scrollTop = 0;
+    stage.classList.add('js-enhanced');
+    activeIndex = -1;
+
+    buildMarkers();
+    computeBeats();
+    wireRail();
+
+    const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && !isNarrowViewport() &&
+      hasMotionLibraries() && ('IntersectionObserver' in window);
+
+    if (motionAllowed && initMotionLayer()) {
+      observeBeats();
+      activate(0, { instant: true });   // establishing shot
+      pickActive();
+      return;
+    }
+
+    // ---- static fallback: full board lit, native scroll updates caption -----
+    if (window.gsap) window.gsap.set(camera, { x: beats[0].x, y: beats[0].y, scale: beats[0].scale });
+    else camera.style.transform = `translate3d(${beats[0].x}px, ${beats[0].y}px, 0) scale(${beats[0].scale})`;
+    board.classList.add('board-overview');
+    if ('IntersectionObserver' in window) observeBeats();
+    wireScrollTrackingFallback();
+    activate(0, { instant: true });
+    pickActive();
   }
 
   function destroy() {
     teardownMotion();
-
+    if (sceneObserver) { sceneObserver.disconnect(); sceneObserver = null; }
     while (cleanupFns.length) {
-      const cleanup = cleanupFns.pop();
-      if (typeof cleanup === 'function') cleanup();
+      const fn = cleanupFns.pop();
+      if (typeof fn === 'function') fn();
     }
-
-    if (stage) stage.classList.remove('js-enhanced');
-    stage = null;
-    content = null;
+    if (stage) {
+      stage.classList.remove('js-enhanced');
+      delete stage.dataset.activeBeat;
+    }
+    stage = stageInner = cinema = viewport = camera = board = photoLayer = beatsEl = null;
+    railSteps = null;
+    beats = []; regionEls = []; activeIndex = -1;
   }
 
   window.FrameworkScroll = { init, destroy };
