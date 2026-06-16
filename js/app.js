@@ -2105,6 +2105,30 @@ const App = {
     });
   },
 
+  deleteMetricMonthEntries(metricId, monthKey) {
+    const metric = this.getMetricDefinition(metricId);
+    if (!metric || !this.metricUsesReportAggregation(metric)) return;
+
+    const normalizedMonth = this.metricMonthKey(monthKey);
+    if (!normalizedMonth) return;
+
+    const all = this.getMetricStore();
+    const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
+    const matchingEntries = entries.filter(entry => this.metricMonthKey(entry.date) === normalizedMonth);
+    if (!matchingEntries.length) return;
+
+    const monthLabel = this.metricMonthLabel(normalizedMonth);
+    const rawEntryLabel = `${matchingEntries.length} raw ${matchingEntries.length === 1 ? 'entry' : 'entries'}`;
+
+    this.confirmAction(`Delete all ${rawEntryLabel} from ${monthLabel}?`, () => {
+      const allCopy = { ...this.getMetricStore() };
+      const entriesCopy = Array.isArray(allCopy[metricId]) ? [...allCopy[metricId]] : [];
+      allCopy[metricId] = entriesCopy.filter(entry => this.metricMonthKey(entry.date) !== normalizedMonth);
+      Sync.saveMetricSeries([metricId], allCopy);
+      this.refreshMetricDisplay(metricId);
+    });
+  },
+
   deleteMetricGroupEntry(groupId, seriesId, entryIndex) {
     const found = this.getMetricGroupDefinition(groupId);
     if (!found) return;
@@ -2256,14 +2280,17 @@ const App = {
       return `<tr><td class="metric-log-empty" colspan="3">No entries yet.</td></tr>`;
     }
 
-    const canDelete = options.canDelete ?? !this.metricUsesReportAggregation(metric);
+    const isMonthlyAggregateRow = this.metricUsesReportAggregation(metric) && !options.rawEntries;
+    const canDelete = options.canDelete ?? true;
     return entries.map((entry, index) => ({ entry, index })).reverse().map(({ entry, index }) => `
       <tr>
         <td>${this.escapeHtml(this.metricEntryDateLabel(entry))}</td>
         <td class="metric-log-value">${this.escapeHtml(this.formatMetricValue(metric, entry.value))}</td>
         <td class="metric-log-action">
           ${canDelete
-            ? `<button class="metric-delete-btn" type="button" onclick="App.deleteMetricEntry('${metric.id}', ${index})" aria-label="Delete ${this.escapeHtml(this.metricEntryDateLabel(entry))} entry for ${this.escapeHtml(metric.name)}">Delete</button>`
+            ? isMonthlyAggregateRow
+              ? `<button class="metric-delete-btn" type="button" onclick="App.deleteMetricMonthEntries('${metric.id}', '${this.escapeHtml(entry.date)}')" aria-label="Delete all ${this.escapeHtml(this.metricEntryDateLabel(entry))} entries for ${this.escapeHtml(metric.name)}">Delete</button>`
+              : `<button class="metric-delete-btn" type="button" onclick="App.deleteMetricEntry('${metric.id}', ${index})" aria-label="Delete ${this.escapeHtml(this.metricEntryDateLabel(entry))} entry for ${this.escapeHtml(metric.name)}">Delete</button>`
             : `<span class="metric-log-muted">${this.escapeHtml(entry.sourceCount ? `${entry.sourceCount} raw ${entry.sourceCount === 1 ? 'entry' : 'entries'}` : 'Monthly total')}</span>`}
         </td>
       </tr>
@@ -2465,7 +2492,7 @@ const App = {
                 </tr>
               </thead>
               <tbody>
-                ${this.renderMetricRows(metric, rawEntries, { canDelete: true })}
+                ${this.renderMetricRows(metric, rawEntries, { canDelete: true, rawEntries: true })}
               </tbody>
             </table>
           </div>
