@@ -817,6 +817,48 @@ Always explain what changes or deletes you are proposing, and append the command
     throw new Error(`Metric ID "${metricId}" is invalid. Please use a valid ID from the context.`);
   },
 
+  metricUsesReportAggregation(metric) {
+    return metric?.aggregation === "monthly-sum";
+  },
+
+  metricMonthKey(dateValue) {
+    const raw = String(dateValue || "").trim();
+    if (/^\d{4}-\d{2}/.test(raw)) return raw.slice(0, 7);
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  },
+
+  metricMonthLabel(monthKey) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(monthKey || ""));
+    if (!match) return monthKey || "";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[Number(match[2]) - 1]} ${match[1]}`;
+  },
+
+  getMetricReportEntries(metric, rawEntries) {
+    const entries = Array.isArray(rawEntries) ? [...rawEntries] : [];
+    entries.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    if (!this.metricUsesReportAggregation(metric)) return entries;
+
+    const buckets = new Map();
+    entries.forEach(entry => {
+      const key = this.metricMonthKey(entry.date);
+      const value = Number(entry.value);
+      if (!key || !Number.isFinite(value)) return;
+      if (!buckets.has(key)) {
+        buckets.set(key, { date: key, label: this.metricMonthLabel(key), value: 0, sourceCount: 0 });
+      }
+      const bucket = buckets.get(key);
+      bucket.value += value;
+      bucket.sourceCount += 1;
+    });
+
+    return Array.from(buckets.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(bucket => ({ ...bucket, value: Math.round(bucket.value * 10) / 10 }));
+  },
+
   updateMetricLocal(metricId, value, dateString) {
     const date = this.normalizeDate(dateString);
     const val = Number(value);
@@ -1163,8 +1205,8 @@ Always explain what changes or deletes you are proposing, and append the command
   },
 
   summarizeMetric(metric, metricStore) {
-    const entries = Array.isArray(metricStore[metric.id]) ? [...metricStore[metric.id]] : [];
-    entries.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    const rawEntries = Array.isArray(metricStore[metric.id]) ? [...metricStore[metric.id]] : [];
+    const entries = this.getMetricReportEntries(metric, rawEntries);
     const latest = entries[entries.length - 1] || null;
     const previous = entries[entries.length - 2] || null;
     const goalStatus = latest ? this.metricGoalStatus(metric, latest.value) : "no-data";
@@ -1194,6 +1236,8 @@ Always explain what changes or deletes you are proposing, and append the command
       goal: metric.goal ?? null,
       direction: metric.direction || "neutral",
       period: metric.period || null,
+      aggregation: metric.aggregation || null,
+      rawEntryCount: rawEntries.length,
       entryCount: entries.length,
       latest,
       previous,

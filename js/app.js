@@ -1553,6 +1553,89 @@ const App = {
     return all[metricId] || [];
   },
 
+  metricUsesReportAggregation(metric) {
+    return metric?.aggregation === 'monthly-sum';
+  },
+
+  getMetricDisplayEntries(metricOrId, rawEntries) {
+    const metric = typeof metricOrId === 'string' ? this.getMetricDefinition(metricOrId) : metricOrId;
+    if (!metric) return [];
+    const entries = Array.isArray(rawEntries) ? [...rawEntries] : [...this.getMetricEntries(metric.id)];
+    entries.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    if (!this.metricUsesReportAggregation(metric)) return entries;
+    return this.aggregateMetricEntriesByMonth(entries);
+  },
+
+  aggregateMetricEntriesByMonth(entries) {
+    const buckets = new Map();
+    entries.forEach(entry => {
+      const key = this.metricMonthKey(entry.date);
+      const value = Number(entry.value);
+      if (!key || !Number.isFinite(value)) return;
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          date: key,
+          label: this.metricMonthLabel(key),
+          value: 0,
+          sourceEntries: []
+        });
+      }
+      const bucket = buckets.get(key);
+      bucket.value += value;
+      bucket.sourceEntries.push(entry);
+    });
+    return Array.from(buckets.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(bucket => ({
+        ...bucket,
+        value: Math.round(bucket.value * 10) / 10,
+        sourceCount: bucket.sourceEntries.length
+      }));
+  },
+
+  metricMonthKey(dateValue) {
+    const raw = String(dateValue || '').trim();
+    if (/^\d{4}-\d{2}/.test(raw)) return raw.slice(0, 7);
+    const parsed = this.parseLocalDate(raw);
+    if (!parsed || isNaN(parsed.getTime())) return null;
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  },
+
+  metricMonthLabel(monthKey) {
+    const match = /^(\d{4})-(\d{2})$/.exec(String(monthKey || ''));
+    if (!match) return monthKey || '';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[Number(match[2]) - 1]} ${match[1]}`;
+  },
+
+  metricEntryDateLabel(entry) {
+    return entry?.label || entry?.date || '';
+  },
+
+  metricDateInputLabel(metric) {
+    return this.metricUsesReportAggregation(metric) ? 'Referral Date' : this.metricPeriodLabel(metric);
+  },
+
+  metricDateColumnLabel(metric) {
+    return this.metricUsesReportAggregation(metric) ? 'Month' : 'Date';
+  },
+
+  metricHistorySummaryText(metric, entries) {
+    if (this.metricUsesReportAggregation(metric)) {
+      return `Monthly totals (${entries.length} ${entries.length === 1 ? 'month' : 'months'})`;
+    }
+    return `Data log (${entries.length} ${entries.length === 1 ? 'entry' : 'entries'})`;
+  },
+
+  metricExpandedCountText(metric, entries) {
+    if (this.metricUsesReportAggregation(metric)) {
+      return `${entries.length} ${entries.length === 1 ? 'month' : 'months'} reported`;
+    }
+    return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} saved`;
+  },
+
   addMetricEntry(metricId) {
     const valInput = document.getElementById(`metric-val-${metricId}`);
     const dateInput = document.getElementById(`metric-date-${metricId}`);
@@ -1610,7 +1693,7 @@ const App = {
     const chart = document.getElementById(`chart-${metricId}`);
     const metric = this.getMetricDefinition(metricId);
     if (!chart || !metric) return;
-    const entries = this.getMetricEntries(metricId);
+    const entries = this.getMetricDisplayEntries(metric);
     chart.innerHTML = this.renderMetricChart(metric, entries);
   },
 
@@ -1727,7 +1810,15 @@ const App = {
   },
 
   metricPeriodLabel(metricOrGroup) {
-    return metricOrGroup?.period === 'day' ? 'Day' : 'Week';
+    if (metricOrGroup?.period === 'day') return 'Day';
+    if (metricOrGroup?.period === 'month') return 'Month';
+    return 'Week';
+  },
+
+  metricPeriodAdverb(metricOrGroup) {
+    if (metricOrGroup?.period === 'day') return 'daily';
+    if (metricOrGroup?.period === 'month') return 'monthly';
+    return 'weekly';
   },
 
   metricTargetText(metric) {
@@ -1735,9 +1826,9 @@ const App = {
       return `Goal: ${metric.direction === 'lower' ? 'under' : 'at least'} ${this.formatMetricValue(metric, metric.goal)}`;
     }
     if (metric.direction === 'neutral') {
-      return `Track ${this.metricPeriodLabel(metric).toLowerCase()} count`;
+      return `Track ${this.metricPeriodAdverb(metric)} count`;
     }
-    return `Track weekly volume (${metric.direction} is better)`;
+    return `Track ${this.metricPeriodAdverb(metric)} volume (${metric.direction} is better)`;
   },
 
   metricLatestText(metric, entries) {
@@ -1749,7 +1840,7 @@ const App = {
   metricStatus(metric, entries) {
     if (!entries.length) return { label: 'Awaiting first entry', tone: 'neutral' };
     if (metric.goal === null || metric.goal === undefined) {
-      return { label: metric.direction === 'neutral' ? 'Tracking count' : 'Tracking volume', tone: 'neutral' };
+      return { label: metric.direction === 'neutral' ? `Tracking ${this.metricPeriodAdverb(metric)} count` : `Tracking ${this.metricPeriodAdverb(metric)} volume`, tone: 'neutral' };
     }
 
     const latest = entries[entries.length - 1].value;
@@ -1759,7 +1850,10 @@ const App = {
   },
 
   metricTrend(metric, entries) {
-    if (entries.length < 2) return { label: 'Need 2 entries for trend', tone: 'neutral' };
+    if (entries.length < 2) {
+      const period = this.metricPeriodLabel(metric).toLowerCase();
+      return { label: `Need 2 ${period}s for trend`, tone: 'neutral' };
+    }
     const previous = entries[entries.length - 2].value;
     const latest = entries[entries.length - 1].value;
     const delta = Math.round((latest - previous) * 10) / 10;
@@ -1796,7 +1890,7 @@ const App = {
       return `
         <div class="metric-chart-empty ${isExpanded ? 'expanded' : ''}">
           <strong>No data entered</strong>
-          <span>Add ${this.metricPeriodLabel(metric).toLowerCase()} values to begin the trend line.</span>
+          <span>Add dated values to begin the ${this.metricPeriodAdverb(metric)} trend line.</span>
         </div>`;
     }
 
@@ -1804,8 +1898,8 @@ const App = {
       const entry = entries[0];
       return `
         <div class="metric-chart-empty ${isExpanded ? 'expanded' : ''}">
-          <strong>1 entry saved</strong>
-          <span>${this.escapeHtml(entry.date)} • ${this.escapeHtml(this.formatMetricValue(metric, entry.value))}</span>
+          <strong>1 ${this.metricPeriodLabel(metric).toLowerCase()} saved</strong>
+          <span>${this.escapeHtml(this.metricEntryDateLabel(entry))} • ${this.escapeHtml(this.formatMetricValue(metric, entry.value))}</span>
           <span>Add one more entry to draw the line.</span>
         </div>`;
     }
@@ -1839,9 +1933,9 @@ const App = {
     const circles = points.map(p => `
       <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point"></circle>
       <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="12" fill="transparent" style="cursor: pointer;"
-        onmouseenter="App.showTooltip(event, '${this.escapeHtml(p.entry.date)}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')"
+        onmouseenter="App.showTooltip(event, '${this.escapeHtml(this.metricEntryDateLabel(p.entry))}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')"
         onmouseleave="App.hideTooltip()"
-        onmousemove="App.showTooltip(event, '${this.escapeHtml(p.entry.date)}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')">
+        onmousemove="App.showTooltip(event, '${this.escapeHtml(this.metricEntryDateLabel(p.entry))}', '${this.escapeHtml(this.formatMetricValue(metric, p.entry.value))}')">
       </circle>
     `).join('');
 
@@ -1853,15 +1947,15 @@ const App = {
         ${circles}
       </svg>
       <div class="metric-chart-dates">
-        <span>${this.escapeHtml(entries[0].date)}</span>
-        <span>${this.escapeHtml(entries[entries.length - 1].date)}</span>
+        <span>${this.escapeHtml(this.metricEntryDateLabel(entries[0]))}</span>
+        <span>${this.escapeHtml(this.metricEntryDateLabel(entries[entries.length - 1]))}</span>
       </div>`;
   },
 
   metricGroupSeriesData(group) {
     return group.series.map(series => ({
       ...series,
-      entries: this.getMetricEntries(series.id)
+      entries: this.getMetricDisplayEntries({ ...series, period: group.period })
     }));
   },
 
@@ -1883,7 +1977,7 @@ const App = {
   },
 
   metricSeriesLatest(series) {
-    const entries = this.getMetricEntries(series.id);
+    const entries = this.getMetricDisplayEntries(series);
     return entries.length ? entries[entries.length - 1] : null;
   },
 
@@ -1954,9 +2048,9 @@ const App = {
       const circles = points.map(point => `
         <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="${isExpanded ? 4.5 : 3.5}" class="metric-chart-point" style="fill:${series.color};"></circle>
         <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="12" fill="transparent" style="cursor: pointer;"
-          onmouseenter="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(point.entry.date)}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')"
+          onmouseenter="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(this.metricEntryDateLabel(point.entry))}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')"
           onmouseleave="App.hideTooltip()"
-          onmousemove="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(point.entry.date)}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')">
+          onmousemove="App.showTooltip(event, '${this.escapeHtml(series.name)} • ${this.escapeHtml(this.metricEntryDateLabel(point.entry))}', '${this.escapeHtml(this.formatMetricValue(series, point.entry.value))}')">
         </circle>
       `).join('');
       return `${line}${circles}`;
@@ -1975,11 +2069,11 @@ const App = {
 
   updateMetricTable(metricId, entries) {
     const summary = document.getElementById(`metric-summary-${metricId}`);
-    if (summary) summary.textContent = `Data log (${entries.length} ${entries.length === 1 ? 'entry' : 'entries'})`;
-    
+    const metric = this.getMetricDefinition(metricId);
+    if (summary && metric) summary.textContent = this.metricHistorySummaryText(metric, entries);
+
     const tbody = document.getElementById(`metric-tbody-${metricId}`);
     if (!tbody) return;
-    const metric = this.getMetricDefinition(metricId);
     tbody.innerHTML = this.renderMetricRows(metric, entries);
   },
 
@@ -2035,7 +2129,7 @@ const App = {
   refreshMetricDisplay(metricId) {
     const metric = this.getMetricDefinition(metricId);
     if (!metric) return;
-    const entries = this.getMetricEntries(metricId);
+    const entries = this.getMetricDisplayEntries(metric);
     const status = this.metricStatus(metric, entries);
     const trend = this.metricTrend(metric, entries);
 
@@ -2157,24 +2251,27 @@ const App = {
     if (panel) panel.innerHTML = this.renderExpandedMetricContent(found.serviceLine);
   },
 
-  renderMetricRows(metric, entries) {
+  renderMetricRows(metric, entries, options = {}) {
     if (!metric || !entries.length) {
       return `<tr><td class="metric-log-empty" colspan="3">No entries yet.</td></tr>`;
     }
 
+    const canDelete = options.canDelete ?? !this.metricUsesReportAggregation(metric);
     return entries.map((entry, index) => ({ entry, index })).reverse().map(({ entry, index }) => `
       <tr>
-        <td>${this.escapeHtml(entry.date)}</td>
+        <td>${this.escapeHtml(this.metricEntryDateLabel(entry))}</td>
         <td class="metric-log-value">${this.escapeHtml(this.formatMetricValue(metric, entry.value))}</td>
         <td class="metric-log-action">
-          <button class="metric-delete-btn" type="button" onclick="App.deleteMetricEntry('${metric.id}', ${index})" aria-label="Delete ${this.escapeHtml(entry.date)} entry for ${this.escapeHtml(metric.name)}">Delete</button>
+          ${canDelete
+            ? `<button class="metric-delete-btn" type="button" onclick="App.deleteMetricEntry('${metric.id}', ${index})" aria-label="Delete ${this.escapeHtml(this.metricEntryDateLabel(entry))} entry for ${this.escapeHtml(metric.name)}">Delete</button>`
+            : `<span class="metric-log-muted">${this.escapeHtml(entry.sourceCount ? `${entry.sourceCount} raw ${entry.sourceCount === 1 ? 'entry' : 'entries'}` : 'Monthly total')}</span>`}
         </td>
       </tr>
     `).join('');
   },
 
   renderMetricCard(metric) {
-    const entries = this.getMetricEntries(metric.id);
+    const entries = this.getMetricDisplayEntries(metric);
     const status = this.metricStatus(metric, entries);
     const trend = this.metricTrend(metric, entries);
     const isExpanded = this.expandedMetricId === metric.id;
@@ -2208,7 +2305,7 @@ const App = {
 
         <form class="metric-entry-form" onsubmit="App.addMetricEntry('${metric.id}'); return false;">
           <label>
-            <span>${this.escapeHtml(this.metricPeriodLabel(metric))}</span>
+            <span>${this.escapeHtml(this.metricDateInputLabel(metric))}</span>
             <input type="date" id="metric-date-${metric.id}" value="${this.getLocalToday()}">
           </label>
           <label>
@@ -2219,12 +2316,12 @@ const App = {
         </form>
 
         <details class="metric-log">
-          <summary id="metric-summary-${metric.id}">View/Manage Entry History</summary>
+          <summary id="metric-summary-${metric.id}">${this.escapeHtml(this.metricHistorySummaryText(metric, entries))}</summary>
           <div class="metric-log-table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>${this.escapeHtml(this.metricDateColumnLabel(metric))}</th>
                   <th>Value</th>
                   <th>Action</th>
                 </tr>
@@ -2351,9 +2448,28 @@ const App = {
       return '';
     }
 
-    const entries = this.getMetricEntries(metric.id);
+    const rawEntries = this.getMetricEntries(metric.id);
+    const entries = this.getMetricDisplayEntries(metric, rawEntries);
     const status = this.metricStatus(metric, entries);
     const trend = this.metricTrend(metric, entries);
+    const rawEntryManagement = this.metricUsesReportAggregation(metric) ? `
+        <div class="metric-expanded-log">
+          <div class="metric-expanded-log-title">Raw Entry Management</div>
+          <div class="metric-log-table-wrap expanded">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Value</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${this.renderMetricRows(metric, rawEntries, { canDelete: true })}
+              </tbody>
+            </table>
+          </div>
+        </div>` : '';
 
     return `
       <section class="metric-expanded-panel" id="metric-expanded-panel" tabindex="-1" aria-label="${this.escapeHtml(metric.name)} expanded metric view">
@@ -2377,17 +2493,17 @@ const App = {
             </div>
             ${this.renderMetricBadge(status.label, status.tone)}
             ${this.renderMetricBadge(trend.label, trend.tone)}
-            <span class="metric-expanded-count">${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} saved</span>
+            <span class="metric-expanded-count">${this.escapeHtml(this.metricExpandedCountText(metric, entries))}</span>
           </aside>
         </div>
 
         <div class="metric-expanded-log">
-          <div class="metric-expanded-log-title">Entry History</div>
+          <div class="metric-expanded-log-title">${this.metricUsesReportAggregation(metric) ? 'Monthly Totals' : 'Entry History'}</div>
           <div class="metric-log-table-wrap expanded">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>${this.escapeHtml(this.metricDateColumnLabel(metric))}</th>
                   <th>Value</th>
                   <th>Action</th>
                 </tr>
@@ -2398,6 +2514,7 @@ const App = {
             </table>
           </div>
         </div>
+        ${rawEntryManagement}
       </section>`;
   },
 
@@ -2550,7 +2667,14 @@ const App = {
     const featured = metrics.filter(metric => metric.featured);
     const standard = metrics.filter(metric => !metric.featured);
     const groups = sl.metricGroups || [];
-    const trackerLabel = groups.some(group => group.period === 'day') ? 'Daily Tracked Metrics' : 'Weekly Tracked Metrics';
+    const periods = [...metrics.map(metric => metric.period), ...groups.map(group => group.period)].filter(Boolean);
+    const trackerLabel = groups.some(group => group.period === 'day') || periods.every(period => period === 'day')
+      ? 'Daily Tracked Metrics'
+      : periods.length && periods.every(period => period === 'month')
+        ? 'Monthly Tracked Metrics'
+        : periods.includes('month')
+          ? 'Tracked Metrics'
+          : 'Weekly Tracked Metrics';
     const trackerDescription = sl.id === 'pcsl'
       ? 'Track access, care model volume, and virtual care trends by week. Expand a graph for detail or delete an accidental entry from the data log.'
       : `Track ${sl.abbr || sl.name} performance trends. Featured totals stay above combined breakdown graphs, and each accidental value can be deleted from the data log.`;
@@ -2901,7 +3025,7 @@ const App = {
     // Single metrics
     if (sl.trackedMetrics) {
       sl.trackedMetrics.forEach(m => {
-        const entries = this.getMetricEntries(m.id);
+        const entries = this.getMetricDisplayEntries(m);
         const status = this.metricStatus(m, entries);
         dots.push(`<span class="meeting-status-dot ${status.tone}" title="${this.escapeHtml(m.name)}: ${status.label}"></span>`);
       });
@@ -2911,7 +3035,7 @@ const App = {
     if (sl.metricGroups) {
       sl.metricGroups.forEach(g => {
         g.series.forEach(s => {
-          const entries = this.getMetricEntries(s.id);
+          const entries = this.getMetricDisplayEntries({ ...s, period: g.period });
           const status = this.metricStatus(s, entries);
           dots.push(`<span class="meeting-status-dot ${status.tone}" title="${this.escapeHtml(s.name)}: ${status.label}"></span>`);
         });
@@ -3322,7 +3446,7 @@ const App = {
         <div style="font-size:0.75rem; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Single Metrics</div>
         <div style="margin-bottom:1.5rem;">
           ${trackedMetrics.map(m => {
-            const entries = this.getMetricEntries(m.id);
+            const entries = this.getMetricDisplayEntries(m);
             return `
               <div class="meeting-metric-row">
                 <div class="meeting-metric-info" style="max-width:55%;">
@@ -3355,7 +3479,7 @@ const App = {
               </div>
             </div>
             ${group.series.map(series => {
-              const entries = this.getMetricEntries(series.id);
+              const entries = this.getMetricDisplayEntries({ ...series, period: group.period });
               return `
                 <div class="meeting-metric-row" style="padding:6px 0;">
                   <div class="meeting-metric-info" style="max-width:60%;">
@@ -3603,7 +3727,7 @@ const App = {
     
     (sl.trackedMetrics || []).forEach(m => {
       if (m.goal !== null && m.goal !== undefined) {
-        const entries = this.getMetricEntries(m.id);
+        const entries = this.getMetricDisplayEntries(m);
         if (entries.length) {
           totalMetrics++;
           const latest = entries[entries.length - 1].value;
@@ -3617,7 +3741,7 @@ const App = {
     (sl.metricGroups || []).forEach(g => {
       g.series.forEach(s => {
         if (s.goal !== null && s.goal !== undefined) {
-          const entries = this.getMetricEntries(s.id);
+          const entries = this.getMetricDisplayEntries({ ...s, period: g.period });
           if (entries.length) {
             totalMetrics++;
             const latest = entries[entries.length - 1].value;
@@ -3923,7 +4047,7 @@ const App = {
 
     const checkMetric = (m) => {
       if (m.goal !== null && m.goal !== undefined) {
-        const entries = this.getMetricEntries(m.id);
+        const entries = this.getMetricDisplayEntries(m);
         if (entries.length) {
           totalGoalMetrics++;
           const latest = entries[entries.length - 1].value;
@@ -4011,7 +4135,7 @@ const App = {
     // --- Metric Spotlight: find the single biggest WIN across all metrics ---
     let bestWin = null;
     const scanMetric = (metric, slName) => {
-      const entries = this.getMetricEntries(metric.id);
+      const entries = this.getMetricDisplayEntries(metric);
       if (entries.length < 2) return;
       const prev = entries[entries.length - 2].value;
       const latest = entries[entries.length - 1].value;
@@ -4333,7 +4457,7 @@ const App = {
       }, 0);
     } else {
       trackedCharts = (sl.trackedMetrics || []).map(m => {
-        const entries = this.getMetricEntries(m.id);
+        const entries = this.getMetricDisplayEntries(m);
         const deltaHtml = this.getMetricDeltaHtml(m, entries);
         return `
           <div class="presentation-chart-container">

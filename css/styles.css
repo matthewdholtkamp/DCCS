@@ -2136,8 +2136,15 @@ textarea:focus-visible {
 }
 
 .metric-log-action {
-  width: 76px;
+  width: 96px;
   text-align: right !important;
+}
+
+.metric-log-muted {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .metric-series-name {

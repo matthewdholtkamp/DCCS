@@ -106,7 +106,7 @@ const FRAMEWORK = {
       icon: "brain",
       clinics: ["Outpatient Mental Health", "Building 822 — Trainee Walk-in BH", "SUDCC", "Child & Family BHS", "Family Advocacy Program"],
       trackedMetrics: [
-        { id: "mh-active-duty-off-post", name: "Active Duty Referred Off Post This Week", unit: "referrals", goal: null, direction: "neutral", period: "week", featured: true },
+        { id: "mh-active-duty-off-post", name: "Active Duty Referred Off Post This Month", unit: "referrals", goal: null, direction: "neutral", period: "month", aggregation: "monthly-sum", featured: true },
         { id: "mh-brave-usage", name: "BRAVE Program Usage", unit: "sessions", goal: null, direction: "higher", period: "week", featured: true }
       ],
       tasks: [
