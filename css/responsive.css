@@ -212,7 +212,7 @@
     width: 100%;
   }
   .metric-line-chart.expanded {
-    height: 220px;
+    height: 250px;
   }
   .metric-chart-empty.expanded {
     min-height: 220px;

@@ -369,12 +369,143 @@
     return `<span class="metric-badge ${tone}">${this.escapeHtml(text)}</span>`;
   },
 
+  metricChartAxisTitles(metricOrGroup) {
+    const period = metricOrGroup?.period;
+    const x = period === 'month' ? 'Month' : period === 'day' ? 'Date' : 'Week';
+    const y = metricOrGroup?.unit || 'Value';
+    return { x, y };
+  },
+
+  metricChartNiceNumber(range, round) {
+    if (!Number.isFinite(range) || range <= 0) return 1;
+    const exponent = Math.floor(Math.log10(range));
+    const fraction = range / Math.pow(10, exponent);
+    let niceFraction = 1;
+
+    if (round) {
+      if (fraction < 1.5) niceFraction = 1;
+      else if (fraction < 3) niceFraction = 2;
+      else if (fraction < 7) niceFraction = 5;
+      else niceFraction = 10;
+    } else {
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+    }
+
+    return niceFraction * Math.pow(10, exponent);
+  },
+
+  metricChartScale(values, options = {}) {
+    const finiteValues = values.map(Number).filter(Number.isFinite);
+    const referenceValue = Number(options.referenceValue);
+    if (Number.isFinite(referenceValue)) finiteValues.push(referenceValue);
+    if (!finiteValues.length) finiteValues.push(0, 1);
+
+    let rawMin = Math.min(...finiteValues);
+    let rawMax = Math.max(...finiteValues);
+    if (rawMin === rawMax) {
+      const pad = Math.max(Math.abs(rawMax) * 0.2, 1);
+      rawMin -= pad;
+      rawMax += pad;
+    }
+
+    const forceZero = options.forceZero ?? rawMin >= 0;
+    if (forceZero) rawMin = Math.min(0, rawMin);
+
+    const tickCount = options.tickCount || 4;
+    const niceRange = this.metricChartNiceNumber(rawMax - rawMin, false);
+    const step = this.metricChartNiceNumber(niceRange / Math.max(tickCount - 1, 1), true);
+    const min = forceZero ? 0 : Math.floor(rawMin / step) * step;
+    let max = Math.ceil(rawMax / step) * step;
+    if (max <= min) max = min + step * Math.max(tickCount - 1, 1);
+
+    const ticks = [];
+    for (let value = min, guard = 0; value <= max + step * 0.25 && guard < 10; value += step, guard++) {
+      ticks.push(Number(value.toFixed(6)));
+    }
+    if (ticks[ticks.length - 1] < max) ticks.push(max);
+
+    return { min, max, ticks };
+  },
+
+  metricChartDateTicks(labels, maxTicks) {
+    if (!labels.length) return [];
+    if (labels.length <= maxTicks) {
+      return labels.map((label, index) => ({ label, index }));
+    }
+
+    const last = labels.length - 1;
+    const indexes = new Set([0, last]);
+    for (let i = 1; i < maxTicks - 1; i++) {
+      indexes.add(Math.round((last * i) / (maxTicks - 1)));
+    }
+
+    return Array.from(indexes)
+      .sort((a, b) => a - b)
+      .map(index => ({ label: labels[index], index }));
+  },
+
+  metricChartShortDateLabel(label) {
+    const raw = String(label || '');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const dayMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (dayMatch) {
+      return `${months[Number(dayMatch[2]) - 1]} ${Number(dayMatch[3])}`;
+    }
+    if (/^\d{4}-\d{2}$/.test(raw)) {
+      return this.metricMonthLabel(raw);
+    }
+    return raw;
+  },
+
+  metricChartYFor(value, scale, plot) {
+    return plot.bottom - ((Number(value) - scale.min) / (scale.max - scale.min)) * (plot.bottom - plot.top);
+  },
+
+  renderMetricChartAxes({ width, height, plot, scale, xTicks, xForIndex, xLabel, yLabel }) {
+    const yGrid = scale.ticks.map(value => {
+      const y = this.metricChartYFor(value, scale, plot);
+      return `
+        <line x1="${plot.left}" y1="${y.toFixed(1)}" x2="${plot.right}" y2="${y.toFixed(1)}" class="metric-chart-gridline"/>
+        <text x="${plot.left - 8}" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" class="metric-chart-y-tick">${this.escapeHtml(this.formatMetricNumber(value))}</text>
+      `;
+    }).join('');
+
+    const xGrid = xTicks.map(({ label, index }) => {
+      const x = xForIndex(index);
+      return `
+        <line x1="${x.toFixed(1)}" y1="${plot.bottom}" x2="${x.toFixed(1)}" y2="${plot.bottom + 5}" class="metric-chart-tick"/>
+        <text x="${x.toFixed(1)}" y="${plot.bottom + 18}" text-anchor="middle" class="metric-chart-x-tick">${this.escapeHtml(this.metricChartShortDateLabel(label))}</text>
+      `;
+    }).join('');
+
+    const middleY = plot.top + (plot.bottom - plot.top) / 2;
+
+    return `
+      <rect x="${plot.left}" y="${plot.top}" width="${plot.right - plot.left}" height="${plot.bottom - plot.top}" class="metric-chart-plot-bg"/>
+      ${yGrid}
+      <line x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${plot.bottom}" class="metric-chart-axis-line"/>
+      <line x1="${plot.left}" y1="${plot.bottom}" x2="${plot.right}" y2="${plot.bottom}" class="metric-chart-axis-line"/>
+      ${xGrid}
+      <text x="${plot.left + (plot.right - plot.left) / 2}" y="${height - 7}" text-anchor="middle" class="metric-chart-axis-title">${this.escapeHtml(xLabel)}</text>
+      <text x="14" y="${middleY.toFixed(1)}" text-anchor="middle" class="metric-chart-axis-title metric-chart-y-title" transform="rotate(-90 14 ${middleY.toFixed(1)})">${this.escapeHtml(yLabel)}</text>
+    `;
+  },
+
   renderMetricChart(metric, entries, options = {}) {
     const variant = options.variant || 'mini';
     const isExpanded = variant === 'expanded';
-    const width = isExpanded ? 760 : 320;
-    const height = isExpanded ? 280 : 150;
-    const pad = isExpanded ? 34 : 18;
+    const isWide = isExpanded || metric.featured;
+    const width = isWide ? 760 : 360;
+    const height = isExpanded ? 310 : 190;
+    const plot = {
+      left: isWide ? 68 : 56,
+      right: width - (isWide ? 24 : 18),
+      top: isExpanded ? 18 : 16,
+      bottom: height - (isExpanded ? 58 : 48)
+    };
     const safeName = this.escapeHtml(metric.name);
 
     if (!entries.length) {
@@ -396,29 +527,36 @@
     }
 
     const values = entries.map(e => Number(e.value));
-    const scaleValues = metric.goal !== null && metric.goal !== undefined ? [...values, Number(metric.goal)] : values;
-    const rawMin = Math.min(...scaleValues);
-    const rawMax = Math.max(...scaleValues);
-    const span = Math.max(rawMax - rawMin, Math.abs(rawMax || 1) * 0.1, 1);
-    const min = rawMin >= 0 ? Math.max(0, rawMin - span * 0.14) : rawMin - span * 0.14;
-    const max = rawMax + span * 0.14;
-    const xStep = (width - pad * 2) / (entries.length - 1);
-    const yFor = value => height - pad - ((Number(value) - min) / (max - min)) * (height - pad * 2);
+    const scale = this.metricChartScale(values, {
+      referenceValue: metric.goal,
+      tickCount: isExpanded ? 5 : 4
+    });
+    const labels = entries.map(entry => this.metricEntryDateLabel(entry));
+    const xStep = (plot.right - plot.left) / (entries.length - 1);
+    const xForIndex = index => plot.left + index * xStep;
+    const yFor = value => this.metricChartYFor(value, scale, plot);
     const points = entries.map((entry, index) => ({
-      x: pad + index * xStep,
+      x: xForIndex(index),
       y: yFor(entry.value),
       entry
     }));
     const pointString = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-    const gridLines = isExpanded ? [0.25, 0.5, 0.75].map(ratio => {
-      const y = pad + ratio * (height - pad * 2);
-      return `<line x1="${pad}" y1="${y.toFixed(1)}" x2="${width - pad}" y2="${y.toFixed(1)}" class="metric-chart-gridline"/>`;
-    }).join('') : '';
+    const { x, y } = this.metricChartAxisTitles(metric);
+    const axes = this.renderMetricChartAxes({
+      width,
+      height,
+      plot,
+      scale,
+      xTicks: this.metricChartDateTicks(labels, isExpanded ? 5 : metric.featured ? 4 : 3),
+      xForIndex,
+      xLabel: x,
+      yLabel: y
+    });
     const goalLine = metric.goal !== null && metric.goal !== undefined ? (() => {
       const y = yFor(metric.goal);
       return `
-        <line x1="${pad}" y1="${y.toFixed(1)}" x2="${width - pad}" y2="${y.toFixed(1)}" class="metric-chart-goal"/>
-        ${isExpanded ? `<text x="${width - pad}" y="${Math.max(14, y - 8).toFixed(1)}" text-anchor="end" class="metric-chart-goal-label">Goal ${this.escapeHtml(this.formatMetricValue(metric, metric.goal))}</text>` : ''}
+        <line x1="${plot.left}" y1="${y.toFixed(1)}" x2="${plot.right}" y2="${y.toFixed(1)}" class="metric-chart-goal"/>
+        ${isExpanded ? `<text x="${plot.right}" y="${Math.max(14, y - 8).toFixed(1)}" text-anchor="end" class="metric-chart-goal-label">Goal ${this.escapeHtml(this.formatMetricValue(metric, metric.goal))}</text>` : ''}
       `;
     })() : '';
     const circles = points.map(p => `
@@ -432,7 +570,7 @@
 
     return `
       <svg class="metric-line-chart ${isExpanded ? 'expanded' : ''}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${safeName} trend chart" preserveAspectRatio="none">
-        ${gridLines}
+        ${axes}
         ${goalLine}
         <polyline points="${pointString}" class="metric-chart-line"/>
         ${circles}
@@ -490,9 +628,14 @@
   renderMetricGroupChart(group, options = {}) {
     const variant = options.variant || 'mini';
     const isExpanded = variant === 'expanded';
-    const width = isExpanded ? 760 : 640;
-    const height = isExpanded ? 280 : 190;
-    const pad = isExpanded ? 34 : 22;
+    const width = isExpanded ? 760 : 680;
+    const height = isExpanded ? 310 : 230;
+    const plot = {
+      left: isExpanded ? 68 : 58,
+      right: width - (isExpanded ? 24 : 22),
+      top: isExpanded ? 18 : 18,
+      bottom: height - (isExpanded ? 58 : 50)
+    };
     const seriesData = this.metricGroupSeriesData(group);
     const dates = this.metricGroupDates(group);
     const allValues = seriesData.flatMap(series => series.entries.map(entry => Number(entry.value)));
@@ -511,21 +654,29 @@
           <strong>${allValues.length} ${allValues.length === 1 ? 'value' : 'values'} saved</strong>
           <span>${this.escapeHtml(dates[0])}</span>
           <span>Add another ${this.metricPeriodLabel(group).toLowerCase()} to draw the combined lines.</span>
-        </div>`;
+      </div>`;
     }
 
-    const rawMin = Math.min(...allValues, 0);
-    const rawMax = Math.max(...allValues, 1);
-    const span = Math.max(rawMax - rawMin, Math.abs(rawMax || 1) * 0.1, 1);
-    const min = Math.max(0, rawMin - span * 0.14);
-    const max = rawMax + span * 0.14;
-    const xStep = (width - pad * 2) / (dates.length - 1);
-    const xForDate = date => pad + dates.indexOf(date) * xStep;
-    const yFor = value => height - pad - ((Number(value) - min) / (max - min)) * (height - pad * 2);
-    const gridLines = [0.25, 0.5, 0.75].map(ratio => {
-      const y = pad + ratio * (height - pad * 2);
-      return `<line x1="${pad}" y1="${y.toFixed(1)}" x2="${width - pad}" y2="${y.toFixed(1)}" class="metric-chart-gridline"/>`;
-    }).join('');
+    const scale = this.metricChartScale(allValues, {
+      tickCount: isExpanded ? 5 : 4,
+      forceZero: true
+    });
+    const dateIndexMap = new Map(dates.map((date, index) => [date, index]));
+    const xStep = (plot.right - plot.left) / (dates.length - 1);
+    const xForIndex = index => plot.left + index * xStep;
+    const xForDate = date => xForIndex(dateIndexMap.get(date) || 0);
+    const yFor = value => this.metricChartYFor(value, scale, plot);
+    const { x, y } = this.metricChartAxisTitles(group);
+    const axes = this.renderMetricChartAxes({
+      width,
+      height,
+      plot,
+      scale,
+      xTicks: this.metricChartDateTicks(dates, isExpanded ? 5 : 4),
+      xForIndex,
+      xLabel: x,
+      yLabel: y
+    });
 
     const seriesSvg = seriesData.map(series => {
       const points = series.entries.map(entry => ({
@@ -549,7 +700,7 @@
 
     return `
       <svg class="metric-line-chart metric-multi-line-chart ${isExpanded ? 'expanded' : ''}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${this.escapeHtml(group.name)} combined trend chart" preserveAspectRatio="none">
-        ${gridLines}
+        ${axes}
         ${seriesSvg}
       </svg>
       <div class="metric-chart-dates">

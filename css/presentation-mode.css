@@ -1014,7 +1014,15 @@ body.presentation-mode-active .main {
 .presentation-chart-pane-svg svg {
   width: 100%;
   height: auto;
-  max-height: 160px;
+  max-height: 210px;
+}
+
+.presentation-chart-pane-svg svg.metric-line-chart {
+  height: 210px;
+}
+
+.presentation-chart-pane-svg .metric-chart-dates {
+  width: 100%;
 }
 
 .presentation-chart-legend {

@@ -84,11 +84,11 @@
 }
 
 .metric-card.featured .metric-chart-shell {
-  min-height: 180px;
+  min-height: 212px;
 }
 
 .metric-card.featured .metric-line-chart {
-  height: 162px;
+  height: 190px;
 }
 
 .metric-card-header,
@@ -268,30 +268,36 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 150px;
+  min-height: 198px;
   margin: 0.9rem 0;
-  padding: 0.25rem;
+  padding: 0.55rem 0.6rem 0.45rem;
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  background: var(--bg-secondary);
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(0,0,0,0.18));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .metric-group-chart-shell {
-  min-height: 208px;
+  min-height: 252px;
 }
 
 .metric-line-chart {
   display: block;
   width: 100%;
-  height: 132px;
+  height: 174px;
+  overflow: visible;
 }
 
 .metric-line-chart.expanded {
-  height: 280px;
+  height: 310px;
 }
 
 .metric-multi-line-chart {
-  height: 190px;
+  height: 224px;
+}
+
+.metric-chart-plot-bg {
+  fill: rgba(255,255,255,0.018);
 }
 
 .metric-chart-line {
@@ -299,8 +305,9 @@
   stroke: var(--gold);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 2.6;
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.24));
 }
 
 .metric-chart-point {
@@ -311,9 +318,45 @@
 }
 
 .metric-chart-gridline {
-  stroke: rgba(255,255,255,0.08);
+  stroke: rgba(255,255,255,0.075);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+}
+
+.metric-chart-axis-line {
+  stroke: rgba(255,255,255,0.18);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.metric-chart-tick {
+  stroke: rgba(255,255,255,0.2);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.metric-chart-x-tick,
+.metric-chart-y-tick,
+.metric-chart-axis-title {
+  fill: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.metric-chart-y-tick {
+  fill: rgba(255,255,255,0.5);
+}
+
+.metric-chart-axis-title {
+  fill: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.metric-chart-y-title {
+  text-transform: none;
 }
 
 .metric-chart-goal {
@@ -333,9 +376,10 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--text-muted);
   font-size: 0.64rem;
+  font-weight: 700;
 }
 
 .metric-chart-empty {
