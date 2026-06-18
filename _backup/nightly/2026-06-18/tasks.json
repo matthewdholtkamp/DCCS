@@ -1,0 +1,490 @@
+{
+  "pcsl-p1-4": {
+    "kpiDates": {
+      "1": "2026-01-01",
+      "custom-1": "2025-10-01",
+      "custom-0": "2026-04-07",
+      "custom-2": "2025-12-03"
+    },
+    "deletedKpis": {
+      "0": true
+    },
+    "kpis": {
+      "1": true,
+      "custom-1": true,
+      "custom-2": true,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T12:23:31.306Z",
+    "customKpis": [
+      "Optimize SRP - walk-ins when able, large groups scheduled",
+      "Group encounters in PCSL (BC / Shaving / body fat )",
+      "PCSL not doing PHAs"
+    ],
+    "status": "complete"
+  },
+  "cc-p1-3": {
+    "status": "complete",
+    "_ts": "2026-06-14T11:58:36.915Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "2": true,
+      "3": true
+    },
+    "kpiDates": {
+      "0": "2025-10-01",
+      "1": "2025-12-01",
+      "2": "2025-11-04",
+      "3": "2025-09-01"
+    }
+  },
+  "mh-p2-1": {
+    "customKpis": [
+      "Targeted care model tracked and automated",
+      "Tracking Number of AD Sent off post year over year",
+      "50% decrease in AD sent off post Year over year (in the setting of less providers)"
+    ],
+    "kpis": {
+      "custom-1": true,
+      "custom-0": true,
+      "custom-2": true
+    },
+    "_ts": "2026-06-14T12:52:53.342Z",
+    "kpiDates": {
+      "custom-0": "2026-05-31",
+      "custom-2": "2026-05-01",
+      "custom-1": "2026-06-01"
+    }
+  },
+  "mh-p1-2": {
+    "status": "complete",
+    "kpiDates": {
+      "0": "2025-10-09"
+    },
+    "kpis": {
+      "0": true
+    },
+    "_ts": "2026-06-14T12:49:03.661Z"
+  },
+  "mh-p1-1": {
+    "kpis": {
+      "0": false,
+      "1": false
+    },
+    "_ts": "2026-06-14T12:48:36.024Z",
+    "kpiDates": {
+      "0": "2025-10-14",
+      "1": "2026-06-14"
+    }
+  },
+  "pcsl-p1-3": {
+    "kpiDates": {
+      "0": "2026-03-12",
+      "1": "2026-03-12",
+      "custom-0": "2026-04-07",
+      "custom-1": "2026-04-07",
+      "custom-2": "2026-06-17"
+    },
+    "_ts": "2026-06-14T12:20:13.831Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-2": true,
+      "custom-0": true,
+      "custom-1": true
+    },
+    "customKpis": [
+      "Move Immunization to individual clinics (OccHealth / Peds / FM / SRP )",
+      "Optimize Allergy Clinic",
+      "Infusion Clinic Optimized, Placed under PCSL"
+    ],
+    "status": "complete"
+  },
+  "surg-p2-3": {
+    "status": "in-progress"
+  },
+  "cc-p1-2": {
+    "status": "complete",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T13:09:02.223Z",
+    "kpiDates": {
+      "0": "2025-09-03",
+      "1": "2025-09-01",
+      "custom-0": "2026-01-02"
+    },
+    "customKpis": [
+      "SOP of what VA sharing patients that can be admitted to GLWCH IPBH"
+    ]
+  },
+  "pcsl-p2-2": {
+    "kpiDates": {
+      "0": "2026-04-07",
+      "custom-0": "2025-11-04"
+    },
+    "kpis": {
+      "0": true,
+      "1": false,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T13:08:28.609Z",
+    "customKpis": [
+      "SOP of what VA sharing patients that can be admitted to GLWCH MOD"
+    ]
+  },
+  "cc-p1-1": {
+    "deletedKpis": {
+      "1": false,
+      "2": true
+    },
+    "kpiDates": {
+      "0": "2026-06-03",
+      "1": "2026-06-14",
+      "custom-2": "2026-04-22",
+      "custom-0": "2026-02-11",
+      "custom-1": "2026-04-08",
+      "custom-3": "2026-06-14"
+    },
+    "_ts": "2026-06-14T12:24:16.964Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-0": true,
+      "custom-3": true,
+      "custom-1": true,
+      "custom-2": true
+    },
+    "customKpis": [
+      "OpenEvidence used by all BDE/BN Surgeons",
+      "ADTMC+ website published to all",
+      "MSK Tool Published",
+      "OpenEvidence widely used by Physicians"
+    ],
+    "status": "complete"
+  },
+  "msc-p1-1": {
+    "_ts": "2026-06-14T11:56:47.573Z",
+    "kpis": {
+      "0": true,
+      "1": true
+    },
+    "kpiDates": {
+      "0": "2025-09-01",
+      "1": "2026-01-01"
+    },
+    "status": "complete"
+  },
+  "surg-p2-1": {
+    "status": "in-progress",
+    "kpiDates": {},
+    "_ts": "2026-06-17T01:55:48.054Z",
+    "kpis": {
+      "0": false
+    },
+    "customKpis": [
+      "Efficiency metrics established (MOPs and MOEs)",
+      "SOP for D/C medication for afternoon surgery completed IOT facilitate  timely D/C",
+      "Sterilizer fixed",
+      "Correct Equipement (OR Sets) ordered/rented for sustained operations (176 surgeries / month)"
+    ]
+  },
+  "pcsl-p1-1": {
+    "customKpis": [
+      "Weekly tracking of Access to care metrics - Hawthorne Effect in effect"
+    ],
+    "kpiDates": {
+      "0": "2025-08-01",
+      "1": "2027-01-02",
+      "custom-0": "2025-09-02"
+    },
+    "_ts": "2026-06-14T12:12:09.930Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-0": true
+    },
+    "status": "complete"
+  },
+  "mh-p2-3": {
+    "_ts": "2026-06-14T12:54:07.207Z",
+    "customKpis": [
+      "Time to intake tracker (acute appointments)"
+    ]
+  },
+  "ed-p1-1": {
+    "status": "complete",
+    "kpiDates": {},
+    "_ts": "2026-06-17T15:29:09.818Z",
+    "kpis": {
+      "0": false,
+      "1": true,
+      "2": true,
+      "custom-1": true,
+      "custom-0": true
+    },
+    "customKpis": [
+      "Fast track trailed (not sustainable due to staffing shortages)",
+      "ER Physician work off post - push VA patient to GLWCH Inpatient service (optimizing VA Sharing agreement)"
+    ]
+  },
+  "surg-p1-1": {
+    "customKpis": [
+      "Obtain/ recruit antiquate Ortho Surgeons",
+      "Expectation given (2 ORs open every Business day goal of 4 cases per OR per day)"
+    ],
+    "kpiDates": {
+      "0": "2025-09-01",
+      "1": "2026-04-07",
+      "custom-0": "2026-06-01",
+      "custom-1": "2025-09-01"
+    },
+    "deletedKpis": {
+      "1": false
+    },
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-1": true,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T12:39:30.458Z",
+    "status": "complete"
+  },
+  "cc-p2-1": {
+    "status": "in-progress",
+    "notes": "",
+    "customKpis": [
+      "Need a Decon team - Analysis completed by 30 June 2026"
+    ],
+    "kpis": {
+      "0": true,
+      "1": true
+    },
+    "_ts": "2026-06-14T12:09:11.224Z",
+    "deletedKpis": {
+      "0": false,
+      "1": false,
+      "2": true
+    },
+    "kpiDates": {
+      "0": "2026-06-03",
+      "1": "2026-06-03"
+    }
+  },
+  "msc-p1-2": {
+    "status": "complete",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T11:57:14.388Z",
+    "kpiDates": {
+      "0": "2025-08-28",
+      "1": "2025-08-28",
+      "custom-0": "2026-02-04"
+    },
+    "customKpis": [
+      "Publish Coding Documentation"
+    ]
+  },
+  "ed-p1-2": {
+    "status": "complete",
+    "kpis": {
+      "0": true
+    },
+    "kpiDates": {
+      "0": "2026-06-03"
+    }
+  },
+  "pcsl-p2-4": {
+    "_ts": "2026-06-16T18:32:27.641Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "2": true
+    },
+    "kpiDates": {
+      "0": "2026-06-16",
+      "1": "2026-06-16",
+      "2": "2026-06-16"
+    },
+    "deletedKpis": {
+      "3": true
+    }
+  },
+  "pcsl-p2-1": {
+    "customKpis": [
+      "HEDIS baseline constructed using ClinicOps data from off post care",
+      "Acute appointment <2 days > 3 months (<24hr not possible due to how metrics are measured)"
+    ],
+    "kpis": {
+      "0": false,
+      "1": true,
+      "2": false,
+      "custom-1": true
+    },
+    "_ts": "2026-06-16T18:35:47.971Z",
+    "kpiDates": {
+      "1": "2025-10-27",
+      "2": "2026-06-16",
+      "custom-1": "2026-03-01"
+    },
+    "deletedKpis": {
+      "0": true
+    },
+    "status": "in-progress"
+  },
+  "pcsl-p1-2": {
+    "kpiDates": {
+      "0": "2025-09-30",
+      "1": "2025-09-30",
+      "2": "2025-09-02",
+      "3": "2026-01-30",
+      "4": "2026-01-30",
+      "custom-0": "2026-01-30"
+    },
+    "_ts": "2026-06-14T12:16:19.507Z",
+    "kpis": {
+      "0": true,
+      "1": true,
+      "2": true,
+      "3": true,
+      "4": true,
+      "custom-0": true
+    },
+    "customKpis": [
+      "Tracking Medic encounters"
+    ],
+    "status": "complete"
+  },
+  "msc-p2-1": {
+    "status": "in-progress",
+    "kpiDates": {
+      "0": "2026-06-03",
+      "custom-0": "2026-05-29"
+    },
+    "_ts": "2026-06-14T11:59:00.522Z",
+    "kpis": {
+      "0": true,
+      "custom-0": true
+    },
+    "customKpis": [
+      "Operationalize Trainee flow on off hours",
+      "Standardize and enforce ADTMC and MSK Tools",
+      "PI projects to have injuries with training phases pipeline"
+    ]
+  },
+  "_lastUpdated": 1781016989202,
+  "msc-p2-3": {
+    "notes": "Need to work with KM to get this up and running, CAC has a site that is looks like it will do this in the future. \n\nProfile reviews started well but has fallen off. ",
+    "status": "in-progress",
+    "kpiDates": {
+      "custom-2": "2026-05-13",
+      "custom-0": "2026-03-04",
+      "custom-3": "2026-02-03",
+      "custom-1": "2026-04-29"
+    },
+    "kpis": {
+      "custom-2": true,
+      "custom-0": true,
+      "custom-3": true,
+      "custom-1": true
+    },
+    "_ts": "2026-06-14T12:08:22.588Z",
+    "customKpis": [
+      "Profile Review continue monthly for BDEs.",
+      "Vantage Missed appointment completed, published",
+      "Automated tracking of Trainees presenting to ER down to Company level publish and out to BDE Surgeons",
+      "EPTS/4707 tracker published IOT follow trends published",
+      "Unit Readiness tracker in PowerBI or Vantage"
+    ]
+  },
+  "ed-p2-1": {
+    "status": "in-progress",
+    "kpis": {
+      "custom-0": true,
+      "custom-8": true,
+      "custom-1": false,
+      "custom-7": true
+    },
+    "_ts": "2026-06-14T13:10:45.392Z",
+    "kpiDates": {
+      "custom-0": "2026-06-14",
+      "custom-7": "2026-06-08",
+      "custom-8": "2026-06-01"
+    },
+    "deletedKpis": {
+      "0": true,
+      "1": true
+    },
+    "customKpis": [
+      "LWBS Rate (patients waiting >1 hr): Reduce to <1% within 14 days",
+      "Door-to-Provider Time (peak hours 4–8 PM): Achieve <25 minutes",
+      "Door-to-Bed Time (6–10 AM): Achieve <10 minutes",
+      "Door-to-IV/Lab Draw (ESI 2/3): Achieve <15 minutes",
+      "NISO Utilization (eligible complaints): >80% compliance",
+      "ESI 4/5 LOS (no diagnostics): <45 minutes",
+      "Medic-Facilitated Low-Acuity Discharges: >40% of eligible patients",
+      "Timeline: 14-day phased rollout beginning June 8, 2026",
+      "Comprehensive Nursing huddle established (due to size of new hospital ER)"
+    ]
+  },
+  "mh-p2-2": {
+    "customKpis": [
+      "BRAVE numbers tracked"
+    ],
+    "_ts": "2026-06-14T12:50:37.253Z"
+  },
+  "surg-p2-2": {
+    "status": "in-progress"
+  },
+  "pcsl-p2-3": {
+    "_ts": "2026-06-16T18:32:52.752Z",
+    "kpis": {
+      "2": true
+    },
+    "kpiDates": {
+      "2": "2026-03-04"
+    },
+    "deletedKpis": {
+      "0": true,
+      "1": true,
+      "3": true
+    }
+  },
+  "msc-p1-3": {
+    "status": "complete",
+    "kpiDates": {
+      "0": "2025-09-25"
+    },
+    "kpis": {
+      "0": true
+    },
+    "_ts": "2026-06-14T11:57:26.723Z"
+  },
+  "msc-p2-2": {
+    "customKpis": [
+      "DCAMs 100% at BDEs",
+      "ASL published",
+      "ASL followed by BDEs and enforced by MEDLOG at MEDDAC"
+    ],
+    "kpis": {
+      "custom-1": true,
+      "custom-0": true
+    },
+    "_ts": "2026-06-14T12:04:54.227Z",
+    "deletedKpis": {
+      "0": true
+    },
+    "kpiDates": {
+      "custom-1": "2026-03-03",
+      "custom-0": "2026-04-01"
+    },
+    "status": "in-progress"
+  }
+}
