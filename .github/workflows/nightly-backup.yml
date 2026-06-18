@@ -5,9 +5,6 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -29,18 +26,9 @@ jobs:
           export BACKUP_DIR_NAME="nightly/$(date +'%Y-%m-%d')"
           node scripts/backup_firestore.mjs
 
-      - name: Prune Old Backups
-        run: |
-          node scripts/prune_backups.mjs
-
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add _backup/nightly/
-          if git diff --cached --quiet; then
-            echo "No new backup files to commit."
-          else
-            git commit -m "chore: nightly backup $(date +'%Y-%m-%d') [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
+      - name: Upload backup as GitHub Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firestore-backup-${{ github.run_id }}
+          path: _backup/nightly/
+          retention-days: 90

@@ -9,6 +9,8 @@ EFFICIENCY_PLAN.md
 REPOMAP.md
 STATE.md
 CODEX_DEBUG_PLAN*.md
+work_log.md
+firestore.rules.proposed
 
 # Local test/utility files
 test.js
