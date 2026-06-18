@@ -186,6 +186,85 @@ const FRAMEWORK = {
     { id: "cc-p3-1", title: "Execute Deliberate Professional Development", phase: 3, loe: 2, status: "not-started", description: "Publish LPD calendar across all service lines. Focus on AI integration, best practice guidelines, and better patient care — not just workflow. All LPDs published on this portal.", kpis: ["Publish OPD calendar (published here on this page)", "Complete quarterly counseling by clinic leaders (MAJ Tobin, MAJ Chang)", "LPDs focus on AI integration and best practice guidelines"] },
     { id: "cc-p3-2", title: "Enforce Military Readiness & Education Standards", phase: 3, loe: 2, status: "not-started", description: "Set up PME timeline for all eligible providers. SOPs, protocols, and best practice guidelines established. Track military readiness.", kpis: ["Timeline for everybody to go to their next PME", "100% PME attendance for eligible (providers only)", "SOPs, protocols, and best practice guidelines established"] },
     { id: "cc-p3-3", title: "Execute Deliberate Leadership Transition Plan", phase: 3, loe: 2, status: "not-started", description: "When key leaders PCS or transition, ensure a deliberate transition plan is in place. Mentor high-potential subordinates to take ownership of key processes.", kpis: ["Deliberate plan in place when MAJ Chang leaves", "Deliberate leadership transition plan executed"] }
+  ],
+  
+  // Cinematic presentation beats for the framework view
+  beats: [
+    { id:'establish', target:null,         fill:0.95, photo:'dark',   rail:'overview',
+      eyebrow:'DCCS / MSCoE SURGEON · OPERATIONAL DESIGN 2027',
+      text:'This is the campaign — one slide, three years, three lines of effort. Let me walk you through it.' },
+
+    { id:'mission', target:'#b-mission',   fill:0.68, photo:'dark',   rail:'mission',
+      eyebrow:'COMMAND MISSION',
+      text:'My mission: continuously synchronize medical efforts across GLWCH and the MSCoE footprint to deliver the right care, at the right place, at the right time — building a medically ready force, developing a ready medical force, and achieving seamless MSCoE integration — to enable the training mission.' },
+
+    { id:'current', target:'#b-current',   fill:0.62, photo:'old',    rail:'prior',
+      eyebrow:'2025 · PRIOR STATE',
+      text:"Here's where we started — a reactive system underperforming on DHA scorecards. Critical staffing gaps that put missions at risk, primary-care access we couldn't sustain, an overloaded ER, and accountability gaps straining the MSCoE partnership. That's the problem we're solving." },
+
+    { id:'p1', target:'#b-p1',             fill:0.55, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · BUILD — NOW TO 1 MAR 26',
+      text:'Phase One — Build. Before we move into the new hospital, we stabilize. Main effort is LOE 3, MSCoE Integration — the trainee care model has to work first. The decisive point is the move itself.' },
+
+    { id:'p1-loe1', target:'#b-p1-loe1',   fill:0.62, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · LOE 1 — MEDICALLY READY FORCE',
+      text:'In Build, LOE 1 fixes fundamentals: optimize primary-care access, trainee ER flow, and surgical throughput; designate the no-fail missions — OB and trainee behavioral health — so they never break; and stand up the care ladder so patients are seen at the right level: medic, nurse, PA/NP, then physician.' },
+
+    { id:'p1-loe2', target:'#b-p1-loe2',   fill:0.62, photo:'old',    rail:'p1',
+      eyebrow:'PHASE 1 · LOE 2 — READY MEDICAL FORCE',
+      text:'LOE 2 builds the team. Introduce the efficiency tools — OpenEvidence and Ask Sage — through deliberate LPDs. Put the right people in the right jobs with clear roles and deliberate counseling. Enforce the basics — 100% BLS, timely record closure, no pencil-whipping credentials. And run a functional needs analysis to man toward nurses, social workers, and APPs over physicians.' },
+
+    { id:'p1-loe3', target:'#b-p1-loe3',   fill:0.62, photo:'old',    rail:'p1', mainEffort:true,
+      eyebrow:'PHASE 1 · LOE 3 — MSCoE INTEGRATION',
+      text:'This is the main effort. The trainee care model — TOMS, CTMC, and ER — right care, right place, right time. I establish the Surgeon\u2019s oversight across the brigades to find and fill readiness gaps, stand up Executive Medicine for key leaders, and protect clinic access by making the SRP a single walk-in point.' },
+
+    { id:'dp1', target:'#b-dp1',           fill:0.46, photo:'new',    rail:'p2',
+      eyebrow:'DECISIVE POINT 1 · HOSPITAL MOVE',
+      text:'Decisive point one — we move into the new hospital. Everything in Build is timed to make that move clean.' },
+
+    { id:'p2', target:'#b-p2',             fill:0.55, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · IMPROVE — 1 MAR TO 1 OCT 26',
+      text:'Phase Two — Improve. Now we leverage the new facility. Main effort shifts to LOE 1, Medically Ready Force, and we drive to hit every DHA metric. This phase culminates at the Hospital Commander\u2019s change of command.' },
+
+    { id:'p2-loe1', target:'#b-p2-loe1',   fill:0.62, photo:'new',    rail:'p2', mainEffort:true,
+      eyebrow:'PHASE 2 · LOE 1 — MEDICALLY READY FORCE',
+      text:'Main effort. Meet the DHA targets — acutes under 24 hours, follow-ups under 7 days, 90% HEDIS. Use the new building to run the medic-led ER fast track and push surgical throughput to 176 cases a month. Scale group and technician-led behavioral health to expand access with fewer providers.' },
+
+    { id:'p2-loe2', target:'#b-p2-loe2',   fill:0.62, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · LOE 2 — READY MEDICAL FORCE',
+      text:'Man to the functional needs analysis — RN, SW, and APP over physicians, the Surgeon excepted — and build a predictable six-month staffing model instead of reacting to every PCS and deployment. Reorganize clinics and empanelment for efficiency, and formalize telehealth and asynchronous care to cover gaps and stop network leakage.' },
+
+    { id:'p2-loe3', target:'#b-p2-loe3',   fill:0.62, photo:'new',    rail:'p2',
+      eyebrow:'PHASE 2 · LOE 3 — MSCoE INTEGRATION',
+      text:'Move logistics from reactive to predictive: brigade ASLs, tracked burn rates, a TDA matched to FORSCOM, a DCAMs-trained medic in each brigade on a data-driven spend plan. Standardize operations — OPORD medical annexes, BAS SOPs — and build the automated readiness tracker: Army Vantage into a Power BI dashboard.' },
+
+    { id:'dp2', target:'#b-dp2',           fill:0.46, photo:'change', rail:'p3',
+      eyebrow:'DECISIVE POINT 2 · CHANGE OF COMMAND',
+      text:'Decisive point two — the change of command. By here, the systems have to run without me holding them up.' },
+
+    { id:'p3', target:'#b-p3',             fill:0.55, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · REFINE — 1 OCT 26 TO 1 JUL 27',
+      text:'Phase Three — Refine. We stop chasing metrics and start embedding a culture of continuous improvement. Main effort is LOE 2, Ready Medical Force — this phase is about handing it off intact.' },
+
+    { id:'p3-loe1', target:'#b-p3-loe1',   fill:0.62, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · LOE 1 — MEDICALLY READY FORCE',
+      text:'Charter formal PI projects: root-cause the primary-care flow and access problems, and root-cause the surgical line to hold 176 cases — anesthesia constraints, on-time first starts, OR turnover. And put AI decision support at the point of care so every provider works to the evidence.' },
+
+    { id:'p3-loe2', target:'#b-p3-loe2',   fill:0.62, photo:'field',  rail:'p3', mainEffort:true,
+      eyebrow:'PHASE 3 · LOE 2 — READY MEDICAL FORCE',
+      text:'Main effort. Publish and run a six-month LPD calendar with quarterly deliberate counseling for everyone. Enforce military readiness and PME. And execute a deliberate leadership transition — formally mentor the people who\u2019ll own the PI projects and brief the dashboards after I\u2019m gone.' },
+
+    { id:'p3-loe3', target:'#b-p3-loe3',   fill:0.62, photo:'field',  rail:'p3',
+      eyebrow:'PHASE 3 · LOE 3 — MSCoE INTEGRATION',
+      text:'Institutionalize the improvement loop — AARs after every major exercise feeding back into MEDLOG and BAS SOPs. Make readiness a standing, predictive topic in the MSCoE battle rhythm. And reach true predictive logistics off a full year of consumption data.' },
+
+    { id:'desired', target:'#b-desired',   fill:0.62, photo:'award',  rail:'desired',
+      eyebrow:'2027 · DESIRED STATE',
+      text:"Here's where we land — a high-reliability organization that consistently exceeds DHA standards, an integrated trainee care model, a technologically empowered staff, and accountable unit integration with predictive supply lines. The right care, right place, right time — by design." },
+
+    { id:'close', target:null,             fill:0.95, photo:'award',  rail:'desired',
+      eyebrow:'WORK SMART · MOVE FAST · BE NICE',
+      text:'That\u2019s the plan — three phases, three lines of effort, one mission. The close returns to the whole operational picture so the board can stand on its own.' }
   ]
 };
 

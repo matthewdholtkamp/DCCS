@@ -1,0 +1,63 @@
+/* ===== SIDEBAR ===== */
+.sidebar {
+  position: fixed; top: 64px; left: 0; bottom: 0; z-index: 50;
+  width: 292px; padding: 1.25rem 1rem; overflow-y: auto;
+  background: var(--bg-primary); backdrop-filter: blur(10px);
+  border-right: 1px solid var(--border-subtle);
+}
+.sidebar-title {
+  display: block; padding: 1rem; margin-bottom: 1.25rem;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius);
+  background: var(--bg-glass); color: var(--text-primary);
+}
+.sidebar-title:hover,
+.sidebar-title.active {
+  border-color: var(--border-accent); box-shadow: var(--shadow-glow);
+}
+.sidebar-title-main {
+  display: block; color: var(--gold); font-size: 0.8rem; font-weight: 800;
+  letter-spacing: 1.8px; text-transform: uppercase;
+}
+.sidebar-title-year { display: block; color: var(--text-secondary); font-size: 1.25rem; font-weight: 800; margin-top: 2px; }
+.sidebar-section-label {
+  color: var(--text-muted); font-size: 11px; font-weight: 800;
+  letter-spacing: 2px; text-transform: uppercase; margin: 0 0 0.75rem 0.25rem;
+}
+.sidebar-links { display: grid; gap: 8px; }
+.sidebar-link {
+  display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 10px;
+  padding: 0.75rem; border-radius: var(--radius); border: 1px solid transparent;
+  color: var(--text-secondary); background: transparent;
+}
+.sidebar-link:hover,
+.sidebar-link.active {
+  color: var(--text-primary); background: rgba(255,255,255,0.045); border-color: var(--border-accent);
+}
+.service-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 28px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.sidebar-link:hover .service-mark,
+.sidebar-link.active .service-mark,
+.sl-detail-icon {
+  color: var(--gold);
+}
+.sidebar-link-icon { line-height: 1; }
+.sidebar-link-name { display: block; font-size: 0.83rem; font-weight: 700; line-height: 1.25; }
+.sidebar-link-meta { display: block; margin-top: 3px; color: var(--text-muted); font-size: 0.7rem; line-height: 1.25; }
+
+/* ===== MAIN CONTENT ===== */
+.main { padding-top: 64px; margin-left: 292px; min-height: 100vh; position: relative; z-index: 1; }
+.page { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }

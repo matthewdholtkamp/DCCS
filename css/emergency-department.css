@@ -1,0 +1,383 @@
+/* ===== EMERGENCY DEPARTMENT — Chart.js Panels ===== */
+.er-chartjs-section {
+  margin-top: 1rem;
+}
+
+.er-chart-panel {
+  background: var(--bg-card);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.er-chart-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.er-chart-panel-header h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.er-chart-controls {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.er-chart-toggle {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.er-chart-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--gold);
+}
+
+.er-chart-badge {
+  background: #4b5320;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  font-family: var(--font-display);
+}
+
+.er-chart-canvas-wrap {
+  position: relative;
+  height: 360px;
+  margin-bottom: 0.5rem;
+}
+
+.er-chart-canvas-wrap canvas {
+  max-height: 100%;
+}
+
+.er-chart-footnote {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.25rem;
+}
+
+.er-chart-footnote b {
+  font-weight: 700;
+}
+
+.er-chart-insight {
+  margin-top: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(75, 83, 32, 0.06);
+  border-left: 4px solid #4b5320;
+  border-radius: 2px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+.er-chart-insight strong {
+  color: #4b5320;
+}
+
+/* Presentation mode adjustments */
+.presentation-container .er-chart-canvas-wrap {
+  height: 220px;
+}
+
+.presentation-container .er-chart-insight {
+  font-size: 0.7rem;
+  padding: 0.5rem 0.65rem;
+}
+
+/* Unit Volume drill-down toolbar and timeline slider */
+.uv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.uv-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.uv-block > .uv-block-title {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--army-green-light);
+  font-family: var(--font-display);
+}
+
+.uv-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.uv-crumb {
+  background: var(--army-green-light);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: var(--font-body);
+  transition: var(--transition);
+}
+
+.uv-crumb:hover {
+  background: var(--army-green);
+  color: var(--gold);
+}
+
+.uv-crumb.current {
+  background: var(--gold);
+  color: #000;
+  cursor: default;
+}
+
+.uv-crumb.current:hover {
+  background: var(--gold);
+  color: #000;
+}
+
+.uv-sep {
+  color: var(--text-muted);
+  font-weight: bold;
+}
+
+.uv-esi-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.uv-esi-row label {
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.uv-esi-row input[type=checkbox] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.uv-gran-row {
+  display: flex;
+  gap: 6px;
+}
+
+.uv-gran-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  background: var(--bg-primary);
+  color: var(--army-green-light);
+  border: 1px solid var(--army-green-light);
+  border-radius: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  font-family: var(--font-display);
+  transition: var(--transition);
+}
+
+.uv-gran-btn.active {
+  background: var(--army-green-light);
+  color: #fff;
+}
+
+.uv-gran-btn:hover {
+  background: var(--army-green);
+  color: var(--gold);
+  border-color: var(--army-green);
+}
+
+.uv-date-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 320px;
+  flex: 1;
+}
+
+/* Date picker row — replaces dual-range slider */
+.uv-date-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.uv-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.uv-date-field label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+}
+
+.uv-date-field input[type="date"] {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+  min-width: 130px;
+}
+
+.uv-date-field input[type="date"]:hover {
+  border-color: var(--gold);
+  background: var(--bg-card-hover);
+}
+
+.uv-date-field input[type="date"]:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 168, 78, 0.2);
+}
+
+/* Fix date picker icon color in dark themes */
+.uv-date-field input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+.uv-date-separator {
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: 700;
+  padding-top: 16px;
+}
+
+
+/* Patient Check-in Table adjustments */
+.dccs-trainee-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-subtle);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dccs-trainee-table tr {
+  transition: var(--transition);
+}
+
+.dccs-trainee-table tr:hover {
+  filter: brightness(0.96);
+}
+
+.dccs-badge {
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  font-family: var(--font-display);
+}
+
+.dccs-badge.badge-emergent {
+  background: #fde0e0;
+  color: #c1272d;
+  border: 1px solid #f5baba;
+}
+
+.dccs-badge.badge-urgent {
+  background: #ffe7c2;
+  color: #b86000;
+  border: 1px solid #ffd091;
+}
+
+.dccs-badge.badge-inappropriate-low {
+  background: #e2f3df;
+  color: #2e8b2e;
+  border: 1px solid #c2e6be;
+}
+
+.dccs-badge.badge-inappropriate-high {
+  background: #f2dede;
+  color: #a94442;
+  border: 1px solid #ebccd1;
+  animation: pulse-border 2s infinite;
+}
+
+.dccs-badge.badge-unknown {
+  background: #eee;
+  color: #777;
+  border: 1px solid #ccc;
+}
+
+@keyframes pulse-border {
+  0% { border-color: #ebccd1; box-shadow: 0 0 0 0 rgba(169, 68, 66, 0.4); }
+  70% { border-color: #a94442; box-shadow: 0 0 0 3px rgba(169, 68, 66, 0); }
+  100% { border-color: #ebccd1; box-shadow: 0 0 0 0 rgba(169, 68, 66, 0); }
+}
