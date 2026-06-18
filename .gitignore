@@ -1,2 +1,16 @@
 .DS_Store
 **/.DS_Store
+node_modules/
+_backup/
+.digests/
+
+# Dev/AI working docs
+EFFICIENCY_PLAN.md
+REPOMAP.md
+STATE.md
+CODEX_DEBUG_PLAN*.md
+
+# Local test/utility files
+test.js
+package.json
+package-lock.json

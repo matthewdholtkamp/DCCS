@@ -57,94 +57,8 @@
   // fill:   fraction of the viewport the target should occupy when framed.
   // photo:  data-bg key on .framework-photo-layer.
   // rail:   which progress-step lights up.
-  const BEATS = [
-    { id:'establish', target:null,         fill:0.95, photo:'dark',   rail:'overview',
-      eyebrow:'DCCS / MSCoE SURGEON · OPERATIONAL DESIGN 2027',
-      text:'This is the campaign — one slide, three years, three lines of effort. Let me walk you through it.' },
-
-    { id:'mission', target:'#b-mission',   fill:0.68, photo:'dark',   rail:'mission',
-      eyebrow:'COMMAND MISSION',
-      text:'My mission: continuously synchronize medical efforts across GLWCH and the MSCoE footprint to deliver the right care, at the right place, at the right time — building a medically ready force, developing a ready medical force, and achieving seamless MSCoE integration — to enable the training mission.' },
-
-    { id:'current', target:'#b-current',   fill:0.62, photo:'old',    rail:'prior',
-      eyebrow:'2025 · PRIOR STATE',
-      text:"Here's where we started — a reactive system underperforming on DHA scorecards. Critical staffing gaps that put missions at risk, primary-care access we couldn't sustain, an overloaded ER, and accountability gaps straining the MSCoE partnership. That's the problem we're solving." },
-
-    { id:'p1', target:'#b-p1',             fill:0.55, photo:'old',    rail:'p1',
-      eyebrow:'PHASE 1 · BUILD — NOW TO 1 MAR 26',
-      text:'Phase One — Build. Before we move into the new hospital, we stabilize. Main effort is LOE 3, MSCoE Integration — the trainee care model has to work first. The decisive point is the move itself.' },
-
-    { id:'p1-loe1', target:'#b-p1-loe1',   fill:0.62, photo:'old',    rail:'p1',
-      eyebrow:'PHASE 1 · LOE 1 — MEDICALLY READY FORCE',
-      text:'In Build, LOE 1 fixes fundamentals: optimize primary-care access, trainee ER flow, and surgical throughput; designate the no-fail missions — OB and trainee behavioral health — so they never break; and stand up the care ladder so patients are seen at the right level: medic, nurse, PA/NP, then physician.' },
-
-    { id:'p1-loe2', target:'#b-p1-loe2',   fill:0.62, photo:'old',    rail:'p1',
-      eyebrow:'PHASE 1 · LOE 2 — READY MEDICAL FORCE',
-      text:'LOE 2 builds the team. Introduce the efficiency tools — OpenEvidence and Ask Sage — through deliberate LPDs. Put the right people in the right jobs with clear roles and deliberate counseling. Enforce the basics — 100% BLS, timely record closure, no pencil-whipping credentials. And run a functional needs analysis to man toward nurses, social workers, and APPs over physicians.' },
-
-    { id:'p1-loe3', target:'#b-p1-loe3',   fill:0.62, photo:'old',    rail:'p1', mainEffort:true,
-      eyebrow:'PHASE 1 · LOE 3 — MSCoE INTEGRATION',
-      text:'This is the main effort. The trainee care model — TOMS, CTMC, and ER — right care, right place, right time. I establish the Surgeon\u2019s oversight across the brigades to find and fill readiness gaps, stand up Executive Medicine for key leaders, and protect clinic access by making the SRP a single walk-in point.' },
-
-    { id:'dp1', target:'#b-dp1',           fill:0.46, photo:'new',    rail:'p2',
-      eyebrow:'DECISIVE POINT 1 · HOSPITAL MOVE',
-      text:'Decisive point one — we move into the new hospital. Everything in Build is timed to make that move clean.' },
-
-    { id:'p2', target:'#b-p2',             fill:0.55, photo:'new',    rail:'p2',
-      eyebrow:'PHASE 2 · IMPROVE — 1 MAR TO 1 OCT 26',
-      text:'Phase Two — Improve. Now we leverage the new facility. Main effort shifts to LOE 1, Medically Ready Force, and we drive to hit every DHA metric. This phase culminates at the Hospital Commander\u2019s change of command.' },
-
-    { id:'p2-loe1', target:'#b-p2-loe1',   fill:0.62, photo:'new',    rail:'p2', mainEffort:true,
-      eyebrow:'PHASE 2 · LOE 1 — MEDICALLY READY FORCE',
-      text:'Main effort. Meet the DHA targets — acutes under 24 hours, follow-ups under 7 days, 90% HEDIS. Use the new building to run the medic-led ER fast track and push surgical throughput to 176 cases a month. Scale group and technician-led behavioral health to expand access with fewer providers.' },
-
-    { id:'p2-loe2', target:'#b-p2-loe2',   fill:0.62, photo:'new',    rail:'p2',
-      eyebrow:'PHASE 2 · LOE 2 — READY MEDICAL FORCE',
-      text:'Man to the functional needs analysis — RN, SW, and APP over physicians, the Surgeon excepted — and build a predictable six-month staffing model instead of reacting to every PCS and deployment. Reorganize clinics and empanelment for efficiency, and formalize telehealth and asynchronous care to cover gaps and stop network leakage.' },
-
-    { id:'p2-loe3', target:'#b-p2-loe3',   fill:0.62, photo:'new',    rail:'p2',
-      eyebrow:'PHASE 2 · LOE 3 — MSCoE INTEGRATION',
-      text:'Move logistics from reactive to predictive: brigade ASLs, tracked burn rates, a TDA matched to FORSCOM, a DCAMs-trained medic in each brigade on a data-driven spend plan. Standardize operations — OPORD medical annexes, BAS SOPs — and build the automated readiness tracker: Army Vantage into a Power BI dashboard.' },
-
-    { id:'dp2', target:'#b-dp2',           fill:0.46, photo:'change', rail:'p3',
-      eyebrow:'DECISIVE POINT 2 · CHANGE OF COMMAND',
-      text:'Decisive point two — the change of command. By here, the systems have to run without me holding them up.' },
-
-    { id:'p3', target:'#b-p3',             fill:0.55, photo:'field',  rail:'p3',
-      eyebrow:'PHASE 3 · REFINE — 1 OCT 26 TO 1 JUL 27',
-      text:'Phase Three — Refine. We stop chasing metrics and start embedding a culture of continuous improvement. Main effort is LOE 2, Ready Medical Force — this phase is about handing it off intact.' },
-
-    { id:'p3-loe1', target:'#b-p3-loe1',   fill:0.62, photo:'field',  rail:'p3',
-      eyebrow:'PHASE 3 · LOE 1 — MEDICALLY READY FORCE',
-      text:'Charter formal PI projects: root-cause the primary-care flow and access problems, and root-cause the surgical line to hold 176 cases — anesthesia constraints, on-time first starts, OR turnover. And put AI decision support at the point of care so every provider works to the evidence.' },
-
-    { id:'p3-loe2', target:'#b-p3-loe2',   fill:0.62, photo:'field',  rail:'p3', mainEffort:true,
-      eyebrow:'PHASE 3 · LOE 2 — READY MEDICAL FORCE',
-      text:'Main effort. Publish and run a six-month LPD calendar with quarterly deliberate counseling for everyone. Enforce military readiness and PME. And execute a deliberate leadership transition — formally mentor the people who\u2019ll own the PI projects and brief the dashboards after I\u2019m gone.' },
-
-    { id:'p3-loe3', target:'#b-p3-loe3',   fill:0.62, photo:'field',  rail:'p3',
-      eyebrow:'PHASE 3 · LOE 3 — MSCoE INTEGRATION',
-      text:'Institutionalize the improvement loop — AARs after every major exercise feeding back into MEDLOG and BAS SOPs. Make readiness a standing, predictive topic in the MSCoE battle rhythm. And reach true predictive logistics off a full year of consumption data.' },
-
-    { id:'desired', target:'#b-desired',   fill:0.62, photo:'award',  rail:'desired',
-      eyebrow:'2027 · DESIRED STATE',
-      text:"Here's where we land — a high-reliability organization that consistently exceeds DHA standards, an integrated trainee care model, a technologically empowered staff, and accountable unit integration with predictive supply lines. The right care, right place, right time — by design." },
-
-    { id:'close', target:null,             fill:0.95, photo:'award',  rail:'desired',
-      eyebrow:'WORK SMART · MOVE FAST · BE NICE',
-      text:'That\u2019s the plan — three phases, three lines of effort, one mission. The close returns to the whole operational picture so the board can stand on its own.' }
-  ];
-  const RAIL_TARGETS = {
-    overview: 'establish',
-    mission: 'mission',
-    prior: 'current',
-    p1: 'p1',
-    p2: 'p2',
-    p3: 'p3',
-    desired: 'desired'
-  };
-
   // ---- module state ---------------------------------------------------------
+  let BEATS = [];
   let stage, stageInner, cinema, viewport, camera, board, photoLayer, beatsEl, railSteps;
   let lenis = null, lenisRaf = null, sceneObserver = null;
   let beats = [];          // precomputed [{x,y,scale,targetEl}]
@@ -157,10 +71,7 @@
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
-  function isTouchDevice() {
-    return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
-      ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-  }
+
   function isNarrowViewport() {
     return window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
   }
@@ -302,6 +213,15 @@
     try {
       gsap.registerPlugin(ScrollTrigger);
 
+      // Flush any stale proxy/scroll state left by the previous page's Lenis
+      // (e.g. landing-scroll). Even though route() calls destroy(), ScrollTrigger
+      // may retain internal cached scroll positions from the old proxy.
+      if (typeof ScrollTrigger.clearScrollMemory === 'function') {
+        ScrollTrigger.clearScrollMemory();
+      }
+      ScrollTrigger.scrollerProxy(stage, undefined); // ensure no leftover proxy
+      ScrollTrigger.refresh(true);
+
       lenis = new window.Lenis({
         wrapper: stage,
         content: stageInner,
@@ -311,6 +231,7 @@
         smoothTouch: false,
         syncTouch: false
       });
+      lenis.scrollTo(0, { immediate: true });
 
       ScrollTrigger.scrollerProxy(stage, {
         scrollTop(value) {
@@ -336,7 +257,7 @@
         computeBeats();
         if (USE_SCRUB) { rebuildScrubTimeline(); }
         else if (activeIndex >= 0) { activate(activeIndex, { instant: true }); }
-        ScrollTrigger.refresh();
+        ScrollTrigger.refresh(true);
       };
       window.addEventListener('resize', onResize);
       cleanupFns.push(() => window.removeEventListener('resize', onResize));
@@ -426,8 +347,12 @@
   function wireRail() {
     railSteps.forEach(step => {
       const onClick = () => {
+        const railTargets = {
+          overview: 'establish', mission: 'mission', prior: 'current',
+          p1: 'p1', p2: 'p2', p3: 'p3', desired: 'desired'
+        };
         const railId = step.dataset.rail;
-        const targetId = RAIL_TARGETS[railId] || railId;
+        const targetId = railTargets[railId] || railId;
         const i = BEATS.findIndex(b => b.id === targetId);
         if (i < 0) return;
         const marker = beatsEl.children[i];
@@ -447,6 +372,16 @@
       const t = motionTriggers.pop();
       if (t && typeof t.kill === 'function') t.kill();
     }
+    if (window.ScrollTrigger) {
+      if (typeof window.ScrollTrigger.getAll === 'function') {
+        window.ScrollTrigger.getAll().forEach(t => {
+          if (t.scroller === stage) t.kill();
+        });
+      }
+      if (stage && typeof window.ScrollTrigger.scrollerProxy === 'function') {
+        window.ScrollTrigger.scrollerProxy(stage, undefined);
+      }
+    }
     if (scrubTimeline) { scrubTimeline.kill(); scrubTimeline = null; }
     if (gsap) {
       if (lenisRaf) gsap.ticker.remove(lenisRaf);
@@ -454,6 +389,22 @@
     }
     if (lenis) { lenis.destroy(); lenis = null; }
     lenisRaf = null;
+  }
+
+  // ---- deferred layout refresh (fixes first-load stale measurements) --------
+  let _refreshTimer = null;
+  function deferredRefresh() {
+    // Recompute camera positions after fonts/images/sidebar settle
+    if (!stage || !viewport || !camera || !board) return;
+    computeBeats();
+    if (USE_SCRUB) rebuildScrubTimeline();
+    else if (activeIndex >= 0) activate(activeIndex, { instant: true });
+    if (lenis && typeof lenis.resize === 'function') lenis.resize();
+    if (window.ScrollTrigger) window.ScrollTrigger.refresh(true);
+  }
+  function scheduleDeferredRefresh(delayMs) {
+    clearTimeout(_refreshTimer);
+    _refreshTimer = setTimeout(deferredRefresh, delayMs);
   }
 
   // ---- init / destroy -------------------------------------------------------
@@ -479,17 +430,37 @@
     stage.classList.add('js-enhanced');
     activeIndex = -1;
 
+    BEATS = (typeof FRAMEWORK !== 'undefined' && FRAMEWORK.beats) ? FRAMEWORK.beats : [];
+
     buildMarkers();
-    computeBeats();
     wireRail();
 
-    const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && !isNarrowViewport() &&
+    // Force a synchronous reflow so GSAP gets correct layout dimensions immediately
+    void stage.offsetHeight;
+    void viewport.clientWidth;
+
+    if (!stage) return;
+    computeBeats();
+
+    const motionAllowed = !prefersReducedMotion() && !isNarrowViewport() &&
       hasMotionLibraries() && ('IntersectionObserver' in window);
 
     if (motionAllowed && initMotionLayer()) {
       observeBeats();
       activate(0, { instant: true });   // establishing shot
       pickActive();
+
+      // Deferred refreshes: layout may be stale on first navigation because
+      // fonts, images, or sidebar haven't settled yet. This is the root cause
+      // of the "works only after manual reload" bug.
+      scheduleDeferredRefresh(300);
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => scheduleDeferredRefresh(100));
+      }
+      const onLoad = () => { scheduleDeferredRefresh(200); window.removeEventListener('load', onLoad); };
+      if (document.readyState === 'complete') scheduleDeferredRefresh(150);
+      else window.addEventListener('load', onLoad);
+      cleanupFns.push(() => { clearTimeout(_refreshTimer); window.removeEventListener('load', onLoad); });
       return;
     }
 
@@ -504,6 +475,7 @@
   }
 
   function destroy() {
+    clearTimeout(_refreshTimer);
     teardownMotion();
     if (sceneObserver) { sceneObserver.disconnect(); sceneObserver = null; }
     while (cleanupFns.length) {

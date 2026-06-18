@@ -11,11 +11,7 @@
     return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
-  function isTouchDevice() {
-    return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
-      ('ontouchstart' in window) ||
-      (navigator.maxTouchPoints > 0);
-  }
+
 
   function hasMotionLibraries() {
     return typeof window.Lenis === 'function' && Boolean(window.gsap) && Boolean(window.ScrollTrigger);
@@ -188,6 +184,13 @@
     try {
       gsap.registerPlugin(ScrollTrigger);
 
+      // Flush stale proxy/scroll state from previous page (e.g. framework-scroll)
+      if (typeof ScrollTrigger.clearScrollMemory === 'function') {
+        ScrollTrigger.clearScrollMemory();
+      }
+      ScrollTrigger.scrollerProxy(stage, undefined);
+      ScrollTrigger.refresh(true);
+
       lenis = new window.Lenis({
         wrapper: stage,
         content,
@@ -303,6 +306,18 @@
       if (trigger && typeof trigger.kill === 'function') trigger.kill();
     }
 
+    if (window.ScrollTrigger) {
+      if (typeof window.ScrollTrigger.getAll === 'function') {
+        window.ScrollTrigger.getAll().forEach(t => {
+          if (t.scroller === stage) t.kill();
+        });
+      }
+      // Clear the scrollerProxy so the next page's Lenis doesn't inherit stale state
+      if (stage && typeof window.ScrollTrigger.scrollerProxy === 'function') {
+        window.ScrollTrigger.scrollerProxy(stage, undefined);
+      }
+    }
+
     if (gsap) {
       if (lenisRaf) gsap.ticker.remove(lenisRaf);
       if (stage) {
@@ -335,7 +350,7 @@
     wireRail();
 
     const hasObserver = 'IntersectionObserver' in window;
-    const motionAllowed = !prefersReducedMotion() && !isTouchDevice() && hasMotionLibraries();
+    const motionAllowed = !prefersReducedMotion() && hasMotionLibraries();
 
     if (!hasObserver) {
       stage.querySelectorAll('.landing-scene').forEach(scene => scene.classList.add('in-view'));
