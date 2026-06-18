@@ -80,6 +80,10 @@
     const totalSlides = FRAMEWORK.serviceLines.length + 1;
     if (index < 0 || index >= totalSlides) return;
     if (index === this.presentationActiveIndex) return;
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
     
     const updateCallback = () => {
       this.presentationActiveIndex = index;
@@ -188,6 +192,427 @@
     const cls = improving ? 'improving' : 'declining';
     const label = `${arrow} ${Math.abs(delta)} ${metric.unit || ''}`.trim();
     return `<span class="pres-metric-delta ${cls}">${this.escapeHtml(label)}</span>`;
+  },
+
+  getPresentationTaskStatus(task) {
+    const saved = this.getTaskData(task.id);
+    let status = saved.status || task.status || 'not-reviewed';
+    if (status === 'not-started') status = 'not-reviewed';
+    return status;
+  },
+
+  getPresentationTaskKpiSummary(task) {
+    if (task.id.startsWith('hedis-action-')) {
+      return { completed: 0, total: 0, label: '' };
+    }
+
+    const saved = this.getTaskData(task.id);
+    const kpiChecks = saved.kpis || {};
+    const deletedKpis = saved.deletedKpis || {};
+    const customKpis = saved.customKpis || [];
+    const builtIns = task.kpis || [];
+    const visibleBuiltIns = builtIns.filter((_, i) => !deletedKpis[i]);
+    const completedBuiltIns = builtIns.filter((_, i) => !deletedKpis[i] && kpiChecks[i]).length;
+    const completedCustom = customKpis.filter((_, i) => kpiChecks[`custom-${i}`]).length;
+    const total = visibleBuiltIns.length + customKpis.length;
+    const completed = completedBuiltIns + completedCustom;
+    return {
+      completed,
+      total,
+      label: total > 0 ? `${completed}/${total} milestones` : ''
+    };
+  },
+
+  getPresentationTasks(sl) {
+    const tasks = [
+      ...(sl.tasks || []).map(task => ({ ...task, _briefSource: 'service' })),
+      ...(FRAMEWORK.crossCuttingTasks || []).map(task => ({ ...task, _briefSource: 'cross' }))
+    ];
+
+    if (sl.id === 'pcsl') {
+      const hedisData = this.getHedisData('pcsl');
+      const kpiChecks = hedisData.kpis || {};
+      const customKpis = hedisData.customKpis || [];
+      const currentPhase = FRAMEWORK.currentPhase || (this.getCurrentPhaseIndex() + 1);
+      customKpis.forEach((title, i) => {
+        const checked = !!kpiChecks[`custom-${i}`];
+        tasks.push({
+          id: `hedis-action-${i}`,
+          title,
+          description: 'HEDIS action item',
+          status: checked ? 'complete' : 'in-progress',
+          phase: currentPhase,
+          loe: 1,
+          kpis: [],
+          _briefSource: 'hedis'
+        });
+      });
+    }
+
+    return tasks;
+  },
+
+  sortPresentationTasks(tasks) {
+    const statusRank = { 'in-progress': 0, 'not-reviewed': 1, 'upcoming': 2, 'complete': 3 };
+    return [...tasks].sort((a, b) => {
+      const aMajor = (a.majorKpiIndices || []).length > 0 ? 0 : 1;
+      const bMajor = (b.majorKpiIndices || []).length > 0 ? 0 : 1;
+      if (aMajor !== bMajor) return aMajor - bMajor;
+      const aStatus = statusRank[this.getPresentationTaskStatus(a)] ?? 4;
+      const bStatus = statusRank[this.getPresentationTaskStatus(b)] ?? 4;
+      if (aStatus !== bStatus) return aStatus - bStatus;
+      return (a.phase || 9) - (b.phase || 9);
+    });
+  },
+
+  renderPresentationTaskList(tasks, tone, emptyText, limit = 3) {
+    if (!tasks.length) {
+      return `<div class="brief-empty">${this.escapeHtml(emptyText)}</div>`;
+    }
+
+    const visible = this.sortPresentationTasks(tasks).slice(0, limit);
+    const hiddenCount = Math.max(0, tasks.length - visible.length);
+
+    return `
+      <div class="brief-task-list ${tone}">
+        ${visible.map(task => {
+          const kpi = this.getPresentationTaskKpiSummary(task);
+          const sourceClass = task._briefSource || (task.id.startsWith('cc-') ? 'cross' : 'service');
+          const sourceLabel = sourceClass === 'cross' ? 'Cross-cutting' : sourceClass === 'hedis' ? 'HEDIS' : `Phase ${task.phase || '-'}`;
+          return `
+            <div class="brief-task-item ${tone}">
+              <div class="brief-task-main">
+                <span class="brief-task-title">${this.escapeHtml(task.title)}</span>
+                <span class="brief-task-desc">${this.escapeHtml(task.description || '')}</span>
+              </div>
+              <div class="brief-task-meta">
+                <span class="brief-task-tag ${sourceClass}">${this.escapeHtml(sourceLabel)}</span>
+                ${kpi.label ? `<span class="brief-task-kpi">${this.escapeHtml(kpi.label)}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+        ${hiddenCount > 0 ? `<div class="brief-more">+${hiddenCount} more</div>` : ''}
+      </div>
+    `;
+  },
+
+  getCurrentPresentationPhase() {
+    return FRAMEWORK.phases[this.getCurrentPhaseIndex()] || FRAMEWORK.phases.find(phase => phase.status === 'active') || FRAMEWORK.phases[0];
+  },
+
+  getPresentationMetricItems(sl) {
+    const items = [];
+    (sl.trackedMetrics || []).forEach(metric => {
+      items.push({
+        metric,
+        entries: this.getMetricDisplayEntries(metric),
+        label: metric.name,
+        accent: metric.color || 'var(--gold)'
+      });
+    });
+
+    (sl.metricGroups || []).forEach(group => {
+      (group.series || []).forEach(series => {
+        const metric = { ...series, period: group.period, aggregation: series.aggregation || group.aggregation };
+        items.push({
+          metric,
+          entries: this.getMetricDisplayEntries(metric),
+          label: series.name,
+          groupName: group.name,
+          accent: series.color || 'var(--gold)'
+        });
+      });
+    });
+
+    return items;
+  },
+
+  getPresentationMetricGoalText(metric) {
+    if (metric.goal === null || metric.goal === undefined) {
+      if (metric.direction === 'higher') return 'End state: higher is better';
+      if (metric.direction === 'lower') return 'End state: lower is better';
+      return 'Tracked for trend';
+    }
+    if (metric.direction === 'lower') return `End state: under ${this.formatMetricValue(metric, metric.goal)}`;
+    if (metric.direction === 'higher') return `End state: at least ${this.formatMetricValue(metric, metric.goal)}`;
+    return `Goal: ${this.formatMetricValue(metric, metric.goal)}`;
+  },
+
+  formatPresentationDelta(metric, delta) {
+    if (!Number.isFinite(delta)) return 'No delta';
+    if (delta === 0) return `0 ${this.metricUnitLabel(metric, 0)}`.trim();
+    const sign = delta > 0 ? '+' : '-';
+    return `${sign}${this.formatMetricValue(metric, Math.abs(delta))}`;
+  },
+
+  getPresentationDeltaTone(metric, delta) {
+    if (!Number.isFinite(delta) || delta === 0) return 'stable';
+    if (metric.direction === 'lower') return delta < 0 ? 'improving' : 'declining';
+    if (metric.direction === 'higher') return delta > 0 ? 'improving' : 'declining';
+    return 'tracked';
+  },
+
+  getPresentationMetricMovement(metric, entries) {
+    const baseline = entries[0] || null;
+    const latest = entries[entries.length - 1] || null;
+    const previous = entries[entries.length - 2] || null;
+    const baselineDelta = baseline && latest ? Math.round((Number(latest.value) - Number(baseline.value)) * 10) / 10 : NaN;
+    const lastDelta = previous && latest ? Math.round((Number(latest.value) - Number(previous.value)) * 10) / 10 : NaN;
+    const tone = this.getPresentationDeltaTone(metric, baselineDelta);
+    return {
+      baseline,
+      latest,
+      previous,
+      baselineDelta,
+      lastDelta,
+      tone,
+      goalText: this.getPresentationMetricGoalText(metric)
+    };
+  },
+
+  renderPresentationMetricMovementCard(item) {
+    const metric = item.metric;
+    const movement = this.getPresentationMetricMovement(metric, item.entries);
+    const style = item.accent ? ` style="--metric-accent:${item.accent};"` : '';
+
+    if (!movement.latest) {
+      return `
+        <article class="brief-metric-card no-data"${style}>
+          <div class="brief-metric-head">
+            <span>${this.escapeHtml(item.label)}</span>
+            ${item.groupName ? `<em>${this.escapeHtml(item.groupName)}</em>` : ''}
+          </div>
+          <strong>No data entered</strong>
+          <small>${this.escapeHtml(movement.goalText)}</small>
+        </article>
+      `;
+    }
+
+    const baselineLabel = movement.baseline ? this.metricEntryDateLabel(movement.baseline) : 'Start';
+    const latestLabel = this.metricEntryDateLabel(movement.latest);
+    const baselineValue = movement.baseline ? this.formatMetricValue(metric, movement.baseline.value) : 'No baseline';
+    const latestValue = this.formatMetricValue(metric, movement.latest.value);
+    const baselineDelta = Number.isFinite(movement.baselineDelta) ? this.formatPresentationDelta(metric, movement.baselineDelta) : 'Need 2 points';
+    const lastDelta = Number.isFinite(movement.lastDelta) ? this.formatPresentationDelta(metric, movement.lastDelta) : 'Need 2 points';
+
+    return `
+      <article class="brief-metric-card ${movement.tone}"${style}>
+        <div class="brief-metric-head">
+          <span>${this.escapeHtml(item.label)}</span>
+          ${item.groupName ? `<em>${this.escapeHtml(item.groupName)}</em>` : ''}
+        </div>
+        <div class="brief-metric-values">
+          <div>
+            <span>Start</span>
+            <strong>${this.escapeHtml(baselineValue)}</strong>
+            <small>${this.escapeHtml(baselineLabel)}</small>
+          </div>
+          <div>
+            <span>Now</span>
+            <strong>${this.escapeHtml(latestValue)}</strong>
+            <small>${this.escapeHtml(latestLabel)}</small>
+          </div>
+        </div>
+        <div class="brief-metric-deltas">
+          <span class="${movement.tone}">From start: ${this.escapeHtml(baselineDelta)}</span>
+          <span>Last move: ${this.escapeHtml(lastDelta)}</span>
+        </div>
+        <div class="brief-metric-goal">${this.escapeHtml(movement.goalText)}</div>
+      </article>
+    `;
+  },
+
+  renderPresentationMetricMovementGrid(sl) {
+    const items = this.getPresentationMetricItems(sl);
+    if (!items.length) {
+      return `
+        <div class="brief-empty metric-empty">
+          No tracked movement metrics entered for this section yet.
+        </div>
+      `;
+    }
+    return `
+      <div class="brief-metric-grid">
+        ${items.map(item => this.renderPresentationMetricMovementCard(item)).join('')}
+      </div>
+    `;
+  },
+
+  getServiceLineBriefModel(sl) {
+    const currentPhase = this.getCurrentPresentationPhase();
+    const currentPhaseId = currentPhase?.id || FRAMEWORK.currentPhase || 2;
+    const tasks = this.getPresentationTasks(sl);
+    const phaseOneTasks = tasks.filter(task => task.phase === 1);
+    const completedPhaseOne = phaseOneTasks.filter(task => this.getPresentationTaskStatus(task) === 'complete');
+    const completedTasks = tasks.filter(task => this.getPresentationTaskStatus(task) === 'complete');
+    const currentTasks = tasks.filter(task => task.phase === currentPhaseId);
+    const currentOpenTasks = currentTasks.filter(task => this.getPresentationTaskStatus(task) !== 'complete');
+    const futureOpenTasks = tasks.filter(task => (task.phase || currentPhaseId) >= currentPhaseId && this.getPresentationTaskStatus(task) !== 'complete');
+
+    return {
+      tasks,
+      currentPhase,
+      startTasks: completedPhaseOne.length ? completedPhaseOne : phaseOneTasks,
+      nowTasks: currentOpenTasks.length ? currentOpenTasks : currentTasks.filter(task => this.getPresentationTaskStatus(task) === 'complete'),
+      endTasks: futureOpenTasks.length ? futureOpenTasks : tasks.filter(task => (task.phase || 0) >= currentPhaseId),
+      completedTasks,
+      completedCount: completedTasks.length,
+      totalCount: tasks.length
+    };
+  },
+
+  renderPresentationCharts(sl) {
+    if (sl.id === 'emergency') {
+      setTimeout(() => this.drawEmergencyCharts('pres-'), 0);
+      return `
+        <div class="presentation-chart-container">
+          <div class="presentation-chart-title">Trends Over Time - Full History</div>
+          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
+            <canvas id="pres-er-full-history"></canvas>
+          </div>
+          <div class="er-chart-insight" id="pres-er-full-insight"></div>
+        </div>
+        <div class="presentation-chart-container">
+          <div class="presentation-chart-title">Trends Over Time - Last 30 Days</div>
+          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
+            <canvas id="pres-er-last30"></canvas>
+          </div>
+          <div class="er-chart-insight" id="pres-er-last30-insight"></div>
+        </div>
+      `;
+    }
+
+    if (sl.id === 'mscoe') {
+      setTimeout(() => {
+        const store = this.getMetricStore();
+        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
+        this.uvState = {
+          level: 'bde',
+          bde: null,
+          bn: null,
+          gran: 'auto',
+          loIdx: null,
+          hiIdx: null,
+        };
+
+        const set = new Set();
+        this.allPatients.forEach(pat => {
+          if (!pat.date) return;
+          set.add(new Date(pat.date.getFullYear(), pat.date.getMonth(), pat.date.getDate()).getTime());
+        });
+        this.uvDateList = Array.from(set).sort((a, b) => a - b);
+        if (this.uvDateList.length) {
+          const maxIdx = this.uvDateList.length - 1;
+          const lastTs = this.uvDateList[maxIdx];
+          const cutoffTs = lastTs - 29 * 24 * 60 * 60 * 1000;
+          let defLo = 0;
+          for (let i = 0; i <= maxIdx; i++) {
+            if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
+          }
+          this.uvState.loIdx = defLo;
+          this.uvState.hiIdx = maxIdx;
+        } else {
+          this.uvState.loIdx = this.uvState.hiIdx = 0;
+        }
+
+        this.renderUnitVolumeChart('pres-');
+      }, 0);
+
+      return `
+        <div class="presentation-chart-container">
+          <div class="presentation-chart-title">Unit Volume Over Time - BDE / BN / CO Drill-Down</div>
+          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
+            <canvas id="pres-mscoe-unit-volume"></canvas>
+          </div>
+          <div class="er-chart-insight" id="pres-mscoe-unit-volume-insight"></div>
+        </div>
+      `;
+    }
+
+    const trackedCharts = (sl.trackedMetrics || []).map(metric => {
+      const entries = this.getMetricDisplayEntries(metric);
+      return `
+        <div class="presentation-chart-container">
+          <div class="presentation-chart-title">${this.escapeHtml(metric.name)}${this.getMetricDeltaHtml(metric, entries)}</div>
+          <div class="presentation-chart-pane-svg">
+            ${this.renderMetricChart(metric, entries, { variant: 'expanded' })}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const groupCharts = (sl.metricGroups || []).map(group => `
+      <div class="presentation-chart-container">
+        <div class="presentation-chart-title">${this.escapeHtml(group.name)}</div>
+        <div class="presentation-chart-pane-svg">
+          ${this.renderMetricGroupChart(group, { variant: 'expanded' })}
+        </div>
+        <div class="presentation-chart-legend">
+          ${this.renderMetricGroupLegend(group)}
+        </div>
+      </div>
+    `).join('');
+
+    return (trackedCharts + groupCharts) || `
+      <div class="brief-empty metric-empty">
+        No metric data entered yet.
+      </div>
+    `;
+  },
+
+  renderPresentationDialogue(sl) {
+    const dialogueEntries = this.getDialogueEntries(sl.id).slice(0, 3);
+    let dialogueHtml = `
+      <div class="dialogue-log-readonly brief-dialogue-log">
+        ${dialogueEntries.length > 0 ? dialogueEntries.map(entry => `
+          <div class="dialogue-item-readonly">
+            <div class="dialogue-meta-readonly">${this.escapeHtml(entry.date)}</div>
+            <div class="dialogue-content-readonly">${this.escapeHtml(entry.text)}</div>
+          </div>
+        `).join('') : `
+          <div class="dialogue-empty-readonly">
+            No dialogue entries submitted.
+          </div>
+        `}
+      </div>
+    `;
+
+    if (sl.id === 'pcsl') {
+      const hedisData = this.getHedisData('pcsl');
+      const hedisNotes = hedisData.notes || '';
+      if (hedisNotes.trim()) {
+        dialogueHtml += `
+          <div class="slide-panel-title compact-title">
+            <span>HEDIS Notes</span>
+          </div>
+          <div class="dialogue-log-readonly brief-dialogue-log">
+            <div class="dialogue-item-readonly">
+              <div class="dialogue-content-readonly">${this.escapeHtml(hedisNotes)}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    if (sl.id === 'mscoe' && sl.traineeCareFlow) {
+      dialogueHtml += `
+        <div class="slide-panel-title compact-title">
+          <span>Trainee Care Pipeline</span>
+        </div>
+        <div class="brief-care-flow">
+          ${sl.traineeCareFlow.map((step, i) => `
+            ${i > 0 ? '<div class="brief-care-arrow">-&gt;</div>' : ''}
+            <div class="brief-care-step">
+              <strong>${step.step}. ${this.escapeHtml(step.name)}</strong>
+              <span>${this.escapeHtml(step.description)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    return { dialogueHtml, count: dialogueEntries.length };
   },
 
   // Auto-detect current phase based on today's date
@@ -400,7 +825,7 @@
     const timelineRibbon = this.renderTimelineRibbon();
     
     el.innerHTML = `
-      <div class="presentation-container slide-fade-in">
+      <div class="presentation-container slide-fade-in" tabindex="-1">
         <header class="presentation-header">
           <div class="presentation-header-left">
             <span class="presentation-header-badge">${slideLabel}</span>
@@ -439,6 +864,21 @@
         </footer>
       </div>
     `;
+
+    const resetPresentationScroll = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      el.scrollTop = 0;
+      const container = el.querySelector('.presentation-container');
+      const presentationBody = el.querySelector('.presentation-body');
+      if (container) container.scrollTop = 0;
+      if (container && typeof container.focus === 'function') container.focus({ preventScroll: true });
+      if (presentationBody) presentationBody.scrollTop = 0;
+    };
+    resetPresentationScroll();
+    requestAnimationFrame(resetPresentationScroll);
+    setTimeout(resetPresentationScroll, 50);
   },
 
   getSlideHtml(index) {
@@ -492,499 +932,187 @@
   },
 
   getExecutiveSlideHtml() {
-    // Gather all tasks
     const allTasks = [
-      ...FRAMEWORK.serviceLines.flatMap(sl => sl.tasks || []),
-      ...FRAMEWORK.crossCuttingTasks
+      ...FRAMEWORK.serviceLines.flatMap(sl => (sl.tasks || []).map(task => ({ ...task, _briefSource: 'service' }))),
+      ...(FRAMEWORK.crossCuttingTasks || []).map(task => ({ ...task, _briefSource: 'cross' }))
     ];
     const totalTaskCount = allTasks.length;
-    const totalCompleted = allTasks.filter(t => {
-      const saved = this.getTaskData(t.id);
-      return (saved.status || t.status) === 'complete';
-    }).length;
+    const totalCompleted = allTasks.filter(task => this.getPresentationTaskStatus(task) === 'complete').length;
     const totalPct = totalTaskCount > 0 ? Math.round((totalCompleted / totalTaskCount) * 100) : 0;
-
-    // Phase-by-phase breakdown
+    const currentPhase = this.getCurrentPresentationPhase();
     const currentPhaseIdx = this.getCurrentPhaseIndex();
-    const phaseProgressHtml = FRAMEWORK.phases.map((phase, i) => {
-      const phaseTasks = allTasks.filter(t => t.phase === phase.id);
-      const phaseTotal = phaseTasks.length;
-      const phaseDone = phaseTasks.filter(t => {
-        const saved = this.getTaskData(t.id);
-        return (saved.status || t.status) === 'complete';
-      }).length;
-      const phasePct = phaseTotal > 0 ? Math.round((phaseDone / phaseTotal) * 100) : 0;
 
-      let barColor = 'var(--text-muted)';
-      let statusTag = '';
-      if (i < currentPhaseIdx) {
-        barColor = 'var(--emerald)';
-        statusTag = '<span class="exec-phase-tag complete">COMPLETE</span>';
-      } else if (i === currentPhaseIdx) {
-        barColor = 'var(--gold)';
-        statusTag = '<span class="exec-phase-tag active">ACTIVE</span>';
-      } else {
-        statusTag = '<span class="exec-phase-tag upcoming">UPCOMING</span>';
-      }
+    const phaseProgressHtml = FRAMEWORK.phases.map((phase, i) => {
+      const phaseTasks = allTasks.filter(task => task.phase === phase.id);
+      const phaseTotal = phaseTasks.length;
+      const phaseDone = phaseTasks.filter(task => this.getPresentationTaskStatus(task) === 'complete').length;
+      const phasePct = phaseTotal > 0 ? Math.round((phaseDone / phaseTotal) * 100) : 0;
+      const statusClass = i < currentPhaseIdx ? 'complete' : i === currentPhaseIdx ? 'active' : 'upcoming';
+      const statusLabel = statusClass === 'complete' ? 'Complete' : statusClass === 'active' ? 'Active' : 'Upcoming';
 
       return `
-        <div class="exec-phase-row">
+        <div class="exec-phase-row ${statusClass}">
           <div class="exec-phase-header">
             <span class="exec-phase-name">Phase ${phase.id}: ${this.escapeHtml(phase.name)}</span>
-            <span class="exec-phase-stats">${statusTag} <strong>${phaseDone}/${phaseTotal}</strong> (${phasePct}%)</span>
+            <span class="exec-phase-stats"><span class="exec-phase-tag ${statusClass}">${statusLabel}</span><strong>${phaseDone}/${phaseTotal}</strong> (${phasePct}%)</span>
           </div>
+          <p>${this.escapeHtml(phase.description || '')}</p>
           <div class="exec-progress-bar-outer">
-            <div class="exec-progress-bar-inner" style="width: ${phasePct}%; background: ${barColor};"></div>
+            <div class="exec-progress-bar-inner ${statusClass}" style="width: ${phasePct}%;"></div>
           </div>
         </div>
       `;
     }).join('');
 
-    // --- Metric Spotlight: find the single biggest WIN across all metrics ---
-    let bestWin = null;
-    const scanMetric = (metric, slName) => {
-      const entries = this.getMetricDisplayEntries(metric);
-      if (entries.length < 2) return;
-      const prev = entries[entries.length - 2].value;
-      const latest = entries[entries.length - 1].value;
-      const delta = latest - prev;
-      if (delta === 0) return;
-      const improving = metric.direction === 'lower' ? delta < 0 : delta > 0;
-      if (!improving) return;
-      const magnitude = Math.abs(delta);
-      if (!bestWin || magnitude > bestWin.magnitude) {
-        bestWin = { metric, slName, delta, magnitude, latest, prev };
-      }
-    };
-    FRAMEWORK.serviceLines.forEach(sl => {
-      (sl.trackedMetrics || []).forEach(m => scanMetric(m, sl.abbr || sl.name));
-      (sl.metricGroups || []).forEach(g => g.series.forEach(s => scanMetric(s, sl.abbr || sl.name)));
+    const nextTasks = allTasks.filter(task => {
+      const status = this.getPresentationTaskStatus(task);
+      return status !== 'complete' && (task.phase || currentPhase?.id || 1) >= (currentPhase?.id || 1);
     });
 
-    let spotlightHtml = '';
-    if (bestWin) {
-      const arrow = bestWin.delta > 0 ? '↑' : '↓';
-      const deltaVal = Math.round(Math.abs(bestWin.delta) * 10) / 10;
-      const unit = bestWin.metric.unit || '';
-      spotlightHtml = `
-        <div class="slide-panel-title" style="margin-top: 0.75rem;">
-          <span>📈 Metric Spotlight</span>
-          <span class="slide-panel-count">Biggest Win</span>
-        </div>
-        <div class="exec-spotlight-card">
-          <div class="exec-spotlight-icon">▲</div>
-          <div class="exec-spotlight-body">
-            <div class="exec-spotlight-metric">${this.escapeHtml(bestWin.metric.name)}</div>
-            <div class="exec-spotlight-detail">${this.escapeHtml(bestWin.slName)} • ${arrow} ${deltaVal} ${this.escapeHtml(unit)}</div>
-          </div>
-        </div>
-      `;
-    }
-
-    // --- Next 30-Day Milestones: upcoming decisive points + in-progress tasks ---
-    const milestones = [];
-    
-    // Add upcoming decisive points
-    FRAMEWORK.phases.forEach(phase => {
-      const dp = phase.decisivePoint;
-      if (dp.status !== 'complete') {
-        milestones.push({
-          type: 'dp',
-          label: dp.name,
-          detail: dp.date,
-          phase: phase.id,
-          sort: new Date(dp.date).getTime() || Infinity
-        });
-      }
-    });
-
-    // Add in-progress tasks from current phase
-    const currentPhase = FRAMEWORK.phases[currentPhaseIdx];
-    if (currentPhase) {
-      allTasks.filter(t => t.phase === currentPhase.id).forEach(t => {
-        const saved = this.getTaskData(t.id);
-        const status = saved.status || t.status;
-        if (status === 'in-progress') {
-          // Find which SL this belongs to
-          const sl = FRAMEWORK.serviceLines.find(s => (s.tasks || []).some(st => st.id === t.id));
-          milestones.push({
-            type: 'task',
-            label: t.title,
-            detail: sl ? (sl.abbr || sl.name) : 'Cross-Cutting',
-            phase: t.phase,
-            sort: t.phase * 1000
-          });
-        }
-      });
-    }
-
-    // Cap at 5 items
-    const displayMilestones = milestones.sort((a, b) => a.sort - b.sort).slice(0, 5);
-
-    let milestonesHtml = '';
-    if (displayMilestones.length > 0) {
-      milestonesHtml = `
-        <div class="slide-panel-title" style="margin-top: 0.75rem;">
-          <span>Next Milestones</span>
-          <span class="slide-panel-count">${displayMilestones.length} items</span>
-        </div>
-        <div class="exec-milestones-list">
-          ${displayMilestones.map(m => `
-            <div class="exec-milestone-item ${m.type}">
-              <span class="exec-milestone-icon">${m.type === 'dp' ? '◇' : '◉'}</span>
-              <div class="exec-milestone-body">
-                <span class="exec-milestone-label">${this.escapeHtml(m.label)}</span>
-                <span class="exec-milestone-detail">${this.escapeHtml(m.detail)}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    // Service line cards with health status
     const slCardsHtml = FRAMEWORK.serviceLines.map((sl, idx) => {
       const health = this.getServiceLineHealth(sl);
-      
+      const metrics = this.getPresentationMetricItems(sl);
+      const metricsWithData = metrics.filter(item => item.entries.length > 0).length;
+      const metricText = metrics.length ? `${metricsWithData}/${metrics.length} metrics` : 'chart-only section';
+
       return `
-        <div class="exec-sl-card" onclick="App.goToSlide(${idx + 1})" title="View ${this.escapeHtml(sl.name)} details">
+        <button class="exec-sl-card" type="button" onclick="App.goToSlide(${idx + 1})" title="View ${this.escapeHtml(sl.name)} details">
           <div class="exec-sl-abbr">${this.escapeHtml(sl.abbr || sl.id.toUpperCase())}</div>
           <div class="exec-sl-info">
             <div class="exec-sl-name">${this.escapeHtml(sl.name)}</div>
             <div class="exec-sl-leader">${this.escapeHtml(sl.leader)}</div>
           </div>
           <div class="exec-sl-status">
-            <span class="exec-sl-status-badge ${health.status}">${health.statusLabel}</span>
-            <span class="exec-sl-task-progress">${health.completedTasks}/${health.totalTasks} tasks</span>
+            <span class="exec-sl-status-badge ${health.status}">${this.escapeHtml(health.statusLabel)}</span>
+            <span class="exec-sl-task-progress">${health.completedTasks}/${health.totalTasks} tasks | ${this.escapeHtml(metricText)}</span>
           </div>
-        </div>
+        </button>
       `;
     }).join('');
 
     return `
-      <div class="exec-layout-grid">
-        <!-- Left Column: Command Intent → Total → By Phase → Spotlight → Milestones -->
-        <div class="slide-panel">
-          <div class="slide-panel-title">
-            <span>Command Intent</span>
-          </div>
-          <div class="exec-mission-box">
-            "${this.escapeHtml(FRAMEWORK.mission)}"
-          </div>
-          
-          <div class="slide-panel-title" style="margin-top: 0.75rem;">
-            <span>Total Line of Effort Progress</span>
-            <span class="slide-panel-count"><strong>${totalCompleted}/${totalTaskCount}</strong> (${totalPct}%)</span>
-          </div>
-          <div class="exec-progress-bar-outer" style="height: 12px; border-radius: 6px; margin-bottom: 0.25rem;">
-            <div class="exec-progress-bar-inner" style="width: ${totalPct}%; border-radius: 6px; background: var(--gold);"></div>
+      <div class="exec-brief-layout">
+        <section class="slide-panel exec-story-panel">
+          <div class="brief-hero">
+            <span class="brief-overline">Commander Brief</span>
+            <h2>Start State to Desired End State</h2>
+            <p>${this.escapeHtml(FRAMEWORK.mission)}</p>
           </div>
 
-          <div class="slide-panel-title" style="margin-top: 0.75rem;">
-            <span>Progress by Phase</span>
+          <div class="brief-state-row exec-state-row">
+            <article class="brief-state-card start">
+              <span>Starting State</span>
+              <p>${this.escapeHtml(FRAMEWORK.currentState)}</p>
+            </article>
+            <article class="brief-state-card now">
+              <span>Now</span>
+              <strong>Phase ${currentPhase?.id || '-'}: ${this.escapeHtml(currentPhase?.name || 'Current')}</strong>
+              <p>${this.escapeHtml(currentPhase?.description || '')}</p>
+              <div class="brief-stat-line">
+                <strong>${totalPct}%</strong>
+                <span>${totalCompleted}/${totalTaskCount} campaign tasks complete</span>
+              </div>
+            </article>
+            <article class="brief-state-card end">
+              <span>Desired End State</span>
+              <p>${this.escapeHtml(FRAMEWORK.desiredState)}</p>
+            </article>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 0.25rem;">
+        </section>
+
+        <section class="slide-panel exec-progress-panel">
+          <div class="slide-panel-title">
+            <span>Campaign Movement</span>
+            <span class="slide-panel-count">${totalCompleted}/${totalTaskCount} complete</span>
+          </div>
+          <div class="exec-progress-bar-outer executive-total">
+            <div class="exec-progress-bar-inner active" style="width: ${totalPct}%;"></div>
+          </div>
+          <div class="exec-phase-stack">
             ${phaseProgressHtml}
           </div>
+          <div class="slide-panel-title compact-title">
+            <span>Next Commander Attention</span>
+            <span class="slide-panel-count">${Math.min(nextTasks.length, 4)} shown</span>
+          </div>
+          ${this.renderPresentationTaskList(nextTasks, 'now', 'No open commander-attention items.', 4)}
+        </section>
 
-          ${spotlightHtml}
-          ${milestonesHtml}
-        </div>
-        
-        <!-- Right Column: Service Line Health -->
-        <div class="slide-panel">
+        <section class="slide-panel exec-service-panel">
           <div class="slide-panel-title">
-            <span>Service Line Readiness</span>
-            <span class="slide-panel-count">${FRAMEWORK.serviceLines.length} departments</span>
+            <span>Service-Line Readiness</span>
+            <span class="slide-panel-count">${FRAMEWORK.serviceLines.length} sections</span>
           </div>
           <div class="exec-sl-grid">
             ${slCardsHtml}
           </div>
-        </div>
+        </section>
       </div>
     `;
   },
 
   getServiceLineSlideHtml(sl) {
-    // Separate tasks into accomplishments and way forward
-    const accomplishments = [];
-    const wayForward = [];
-
-    const getTaskKpiSummaryHtml = (task) => {
-      if (task.id.startsWith('hedis-action-')) return '';
-      const saved = this.getTaskData(task.id);
-      const kpiChecks = saved.kpis || {};
-      const deletedKpis = saved.deletedKpis || {};
-      const customKpis = saved.customKpis || [];
-      
-      const builtInCount = (task.kpis || []).filter((_, i) => !deletedKpis[i]).length;
-      const totalKpis = builtInCount + customKpis.length;
-      
-      const completedBuiltIn = (task.kpis || []).filter((_, i) => !deletedKpis[i] && kpiChecks[i]).length;
-      const completedCustom = customKpis.filter((_, i) => kpiChecks[`custom-${i}`]).length;
-      const completedKpisCount = completedBuiltIn + completedCustom;
-      
-      if (totalKpis === 0) return '';
-      return `<span class="slide-list-kpi-badge">${completedKpisCount}/${totalKpis} Milestones</span>`;
-    };
-
-    // Include service line tasks and cross-cutting tasks
-    const allTasks = [...(sl.tasks || []), ...FRAMEWORK.crossCuttingTasks];
-
-    // Include HEDIS action items for PCSL
-    if (sl.id === 'pcsl') {
-      const hedisData = this.getHedisData('pcsl');
-      const kpiChecks = hedisData.kpis || {};
-      const customKpis = hedisData.customKpis || [];
-      customKpis.forEach((k, i) => {
-        const checked = !!kpiChecks[`custom-${i}`];
-        allTasks.push({
-          id: `hedis-action-${i}`,
-          title: k,
-          description: "HEDIS Action Item",
-          status: checked ? "complete" : "in-progress",
-          kpis: [],
-          loe: 1
-        });
-      });
-    }
-
-    allTasks.forEach(task => {
-      const saved = this.getTaskData(task.id);
-      let currentStatus = saved.status || task.status;
-      if (currentStatus === 'not-started') {
-        currentStatus = 'not-reviewed';
-      }
-      if (currentStatus === 'complete') {
-        accomplishments.push(task);
-      } else {
-        wayForward.push(task);
-      }
-    });
-
-    const renderTaskItem = (t, type) => {
-      const isCc = t.id.startsWith('cc-');
-      const isHedis = t.id.startsWith('hedis-action-');
-      let tag = '';
-      if (isCc) {
-        tag = ` <span class="loe-tag loe-2" style="font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;">Cross-Cutting</span>`;
-      } else if (isHedis) {
-        tag = ` <span class="loe-tag loe-1" style="font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;background:rgba(255,184,28,0.12);border:1px solid var(--border-accent);color:var(--gold);">HEDIS</span>`;
-      }
-      
-      const icon = type === 'accomplishment' ? '✓' : '▶';
-      return `
-        <div class="slide-list-item ${type}">
-          <span class="slide-list-item-icon">${icon}</span>
-          <div class="slide-list-item-text">
-            <span class="slide-list-item-title">${this.escapeHtml(t.title)}${tag}</span>
-            <span class="slide-list-item-desc">${this.escapeHtml(t.description)}</span>
-            ${getTaskKpiSummaryHtml(t)}
-          </div>
-        </div>
-      `;
-    };
-
-    const accomplishmentsHtml = accomplishments.length > 0 
-      ? accomplishments.map(t => renderTaskItem(t, 'accomplishment')).join('')
-      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1rem 0;font-size:0.88rem;">No completed tasks yet.</div>`;
-
-    const wayForwardHtml = wayForward.length > 0
-      ? wayForward.map(t => renderTaskItem(t, 'way-forward')).join('')
-      : `<div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1rem 0;font-size:0.88rem;">All tasks completed ✓</div>`;
-
-    // Charts — ED gets Chart.js canvases, others keep SVG
-    let trackedCharts = '';
-    let groupCharts = '';
-
-    if (sl.id === 'emergency') {
-      trackedCharts = `
-        <div class="presentation-chart-container">
-          <div class="presentation-chart-title">Trends Over Time — Full History</div>
-          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
-            <canvas id="pres-er-full-history"></canvas>
-          </div>
-          <div class="er-chart-insight" id="pres-er-full-insight"></div>
-        </div>
-        <div class="presentation-chart-container">
-          <div class="presentation-chart-title">Trends Over Time — Last 30 Days</div>
-          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
-            <canvas id="pres-er-last30"></canvas>
-          </div>
-          <div class="er-chart-insight" id="pres-er-last30-insight"></div>
-        </div>
-      `;
-      // Schedule Chart.js draw after DOM is rendered
-      setTimeout(() => this.drawEmergencyCharts('pres-'), 0);
-    } else if (sl.id === 'mscoe') {
-      trackedCharts = `
-        <div class="presentation-chart-container">
-          <div class="presentation-chart-title">Unit Volume Over Time — BDE / BN / CO Drill-Down</div>
-          <div class="er-chart-canvas-wrap" style="height:220px;position:relative;">
-            <canvas id="pres-mscoe-unit-volume"></canvas>
-          </div>
-          <div class="er-chart-insight" id="pres-mscoe-unit-volume-insight"></div>
-        </div>
-      `;
-      setTimeout(() => {
-        const store = this.getMetricStore();
-        this.allPatients = (store['er-patients'] || []).map(p => ({ ...p, date: this.parseLocalDate(p.date) }));
-        
-        // Reset state for presentation slide
-        this.uvState = {
-          level:    'bde',
-          bde:      null,
-          bn:       null,
-          gran:     'auto',
-          loIdx:    null,
-          hiIdx:    null,
-        };
-        
-        // Initialize date bounds
-        const set = new Set();
-        this.allPatients.forEach(pat => {
-          if (!pat.date) return;
-          set.add(new Date(pat.date.getFullYear(), pat.date.getMonth(), pat.date.getDate()).getTime());
-        });
-        this.uvDateList = Array.from(set).sort((a,b)=>a-b);
-        if (this.uvDateList.length) {
-          const maxIdx = this.uvDateList.length - 1;
-          const lastTs = this.uvDateList[maxIdx];
-          const cutoffTs = lastTs - 29 * 24 * 60 * 60 * 1000;
-          let defLo = 0;
-          for (let i = 0; i <= maxIdx; i++) {
-            if (this.uvDateList[i] >= cutoffTs) { defLo = i; break; }
-          }
-          this.uvState.loIdx = defLo;
-          this.uvState.hiIdx = maxIdx;
-        } else {
-          this.uvState.loIdx = this.uvState.hiIdx = 0;
-        }
-        
-        this.renderUnitVolumeChart('pres-');
-      }, 0);
-    } else {
-      trackedCharts = (sl.trackedMetrics || []).map(m => {
-        const entries = this.getMetricDisplayEntries(m);
-        const deltaHtml = this.getMetricDeltaHtml(m, entries);
-        return `
-          <div class="presentation-chart-container">
-            <div class="presentation-chart-title">${this.escapeHtml(m.name)}${deltaHtml}</div>
-            <div class="presentation-chart-pane-svg">
-              ${this.renderMetricChart(m, entries, { variant: 'expanded' })}
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      groupCharts = (sl.metricGroups || []).map(g => `
-        <div class="presentation-chart-container">
-          <div class="presentation-chart-title">${this.escapeHtml(g.name)}</div>
-          <div class="presentation-chart-pane-svg">
-            ${this.renderMetricGroupChart(g, { variant: 'expanded' })}
-          </div>
-          <div class="presentation-chart-legend">
-            ${this.renderMetricGroupLegend(g)}
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const chartsHtml = (trackedCharts + groupCharts) || `
-      <div style="text-align:center;color:var(--text-muted);font-style:italic;padding:1.5rem 0;font-size:0.88rem;">No metric data entered yet.</div>
-    `;
-
-    // Weekly dialogue (most recent 3)
-    const dialogueEntries = this.getDialogueEntries(sl.id).slice(0, 3);
-    let dialogueHtml = `
-      <div class="dialogue-log-readonly" style="margin-top: 0.25rem;">
-        ${dialogueEntries.length > 0 ? dialogueEntries.map(e => `
-          <div class="dialogue-item-readonly">
-            <div class="dialogue-meta-readonly">${this.escapeHtml(e.date)}</div>
-            <div class="dialogue-content-readonly">${this.escapeHtml(e.text)}</div>
-          </div>
-        `).join('') : `
-          <div class="dialogue-empty-readonly">
-            No dialogue entries submitted.
-          </div>
-        `}
-      </div>
-    `;
-
-    // HEDIS notes for PCSL
-    if (sl.id === 'pcsl') {
-      const hedisData = this.getHedisData('pcsl');
-      const hedisNotes = hedisData.notes || '';
-      if (hedisNotes.trim()) {
-        dialogueHtml += `
-          <div class="slide-panel-title" style="margin-top: 0.75rem;">
-            <span>HEDIS Notes</span>
-          </div>
-          <div class="dialogue-log-readonly" style="margin-top: 0.25rem;">
-            <div class="dialogue-item-readonly">
-              <div class="dialogue-content-readonly">${this.escapeHtml(hedisNotes)}</div>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    // Trainee Care Pipeline for MSCoE
-    if (sl.id === 'mscoe' && sl.traineeCareFlow) {
-      dialogueHtml += `
-        <div class="slide-panel-title" style="margin-top: 0.75rem;">
-          <span>Trainee Care Pipeline</span>
-        </div>
-        <div style="margin-top: 0.25rem; overflow-x: auto;">
-          <div style="display:flex;align-items:stretch;gap:4px;flex-wrap:nowrap;min-width:480px;">
-            ${sl.traineeCareFlow.map((step, i) => `
-              ${i > 0 ? '<div style="align-self:center;font-size:0.75rem;color:var(--gold);padding:0 2px;">→</div>' : ''}
-              <div style="flex:1;padding:5px 6px;border:1px solid var(--border-subtle);border-radius:5px;background:var(--bg-primary);min-width:80px;box-shadow:0 1px 3px rgba(0,0,0,0.01);">
-                <div style="font-size:0.72rem;font-weight:700;color:var(--gold);margin-bottom:1px;">${step.step}. ${this.escapeHtml(step.name)}</div>
-                <div style="font-size:0.62rem;color:var(--text-muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${this.escapeHtml(step.description)}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
+    const model = this.getServiceLineBriefModel(sl);
+    const progressPct = model.totalCount > 0 ? Math.round((model.completedCount / model.totalCount) * 100) : 0;
+    const metricItems = this.getPresentationMetricItems(sl);
+    const metricDataCount = metricItems.filter(item => item.entries.length > 0).length;
+    const dialogue = this.renderPresentationDialogue(sl);
 
     return `
-      <div class="slide-layout">
-        <!-- Left Column: Tasks -->
-        <div class="slide-panel">
-          <div class="slide-panel-title">
-            <span>Accomplishments</span>
-            <span class="slide-panel-count">${accomplishments.length} completed</span>
+      <div class="service-brief-layout">
+        <section class="slide-panel service-story-panel">
+          <div class="service-brief-heading">
+            <span class="brief-overline">${this.escapeHtml(sl.abbr || sl.name)} Commander Update</span>
+            <h2>${this.escapeHtml(this.serviceLineFunction(sl))}</h2>
+            <div class="brief-stat-line">
+              <strong>${progressPct}%</strong>
+              <span>${model.completedCount}/${model.totalCount} tasks complete | ${metricDataCount}/${metricItems.length || 0} metric series populated</span>
+            </div>
           </div>
-          <div class="slide-list">
-            ${accomplishmentsHtml}
+
+          <div class="service-state-stack">
+            <article class="brief-state-card start">
+              <span>Start</span>
+              <p>Baseline and phase-one stabilization work that defined the initial problem set.</p>
+              ${this.renderPresentationTaskList(model.startTasks, 'start', 'No phase-one baseline tasks defined.', 3)}
+            </article>
+
+            <article class="brief-state-card now">
+              <span>Now</span>
+              <strong>Phase ${model.currentPhase?.id || '-'}: ${this.escapeHtml(model.currentPhase?.name || 'Current')}</strong>
+              <p>${this.escapeHtml(model.currentPhase?.description || '')}</p>
+              ${this.renderPresentationTaskList(model.nowTasks, 'now', 'No current-phase work open.', 3)}
+            </article>
+
+            <article class="brief-state-card end">
+              <span>End State</span>
+              <p>Active and upcoming KPIs that define movement toward the desired operating model.</p>
+              ${this.renderPresentationTaskList(model.endTasks, 'end', 'No remaining end-state tasks.', 3)}
+            </article>
           </div>
-          
-          <div class="slide-panel-title" style="margin-top: 0.5rem;">
-            <span>Way Forward</span>
-            <span class="slide-panel-count">${wayForward.length} remaining</span>
-          </div>
-          <div class="slide-list">
-            ${wayForwardHtml}
-          </div>
-        </div>
-        
-        <!-- Right Column: Metrics & Dialogue -->
-        <div class="slide-panel">
-          <div class="slide-panel-title">
-            <span>Performance Trends</span>
-          </div>
-          <div class="presentation-chart-panel">
-            ${chartsHtml}
-          </div>
-          
-          <div class="slide-panel-title" style="margin-top: 0.5rem;">
+
+          <div class="slide-panel-title compact-title">
             <span>Command Dialogue</span>
-            <span class="slide-panel-count">${dialogueEntries.length} entries</span>
+            <span class="slide-panel-count">${dialogue.count} entries</span>
           </div>
-          ${dialogueHtml}
-        </div>
+          ${dialogue.dialogueHtml}
+        </section>
+
+        <section class="slide-panel service-metrics-panel">
+          <div class="slide-panel-title">
+            <span>Metric Movement</span>
+            <span class="slide-panel-count">start -> now -> end state</span>
+          </div>
+          ${this.renderPresentationMetricMovementGrid(sl)}
+
+          <div class="slide-panel-title compact-title">
+            <span>Trend Evidence</span>
+            <span class="slide-panel-count">existing charts</span>
+          </div>
+          <div class="presentation-chart-panel brief-chart-panel">
+            ${this.renderPresentationCharts(sl)}
+          </div>
+        </section>
       </div>
     `;
   },
