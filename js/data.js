@@ -84,7 +84,7 @@ const FRAMEWORK = {
           period: "week",
           unit: "surgeries",
           series: [
-            { id: "surgery-total", name: "Total Surgeries", unit: "surgeries", direction: "neutral", color: "#ffffff" },
+            { id: "surgery-total", name: "Total Surgeries", unit: "surgeries", direction: "neutral", color: "#7c3aed" },
             { id: "surgery-obgyn", name: "OB/GYN", unit: "surgeries", direction: "neutral", color: "#ffb81c" },
             { id: "surgery-general", name: "General Surgery", unit: "surgeries", direction: "neutral", color: "#7aac6a" },
             { id: "surgery-ortho", name: "Orthopedics", unit: "surgeries", direction: "neutral", color: "#5aa9e6" }
