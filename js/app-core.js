@@ -5,10 +5,6 @@
   _notesSaveTimers: {},
   expandedMetricId: null,
   expandedMetricGroupId: null,
-  isMeetingMode: false,
-  meetingActiveServiceLineId: null,
-  isPresentationMode: false,
-  presentationActiveIndex: 0,
 
   getLocalToday() {
     const d = new Date();

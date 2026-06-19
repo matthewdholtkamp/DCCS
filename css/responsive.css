@@ -38,8 +38,6 @@
     display: none;
   }
   .nav-home,
-  .nav-meeting-mode,
-  .nav-presentation-mode,
   .nav-ask {
     padding: 7px 9px;
     font-size: 0.72rem;

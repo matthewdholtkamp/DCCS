@@ -19,39 +19,6 @@
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
 
-    // If navigating to root, exit any active mode
-    if ((parts.length === 0 || hash === '/') && !this.togglingMode) {
-      if (this.isPresentationMode) {
-        this.isPresentationMode = false;
-        document.body.classList.remove('presentation-mode-active');
-        const presBtn = document.getElementById('btn-presentation-mode');
-        if (presBtn) presBtn.classList.remove('active');
-        this.teardownPresentationListeners();
-      }
-      if (this.isMeetingMode) {
-        this.isMeetingMode = false;
-        document.body.classList.remove('meeting-mode-active');
-        const meetBtn = document.getElementById('btn-meeting-mode');
-        if (meetBtn) meetBtn.classList.remove('active');
-      }
-    }
-
-    this.togglingMode = false;
-
-    if (this.isPresentationMode) {
-      this.renderPresentationMode(main);
-      this.renderSidebar(null);
-      window.scrollTo(0, 0);
-      return;
-    }
-
-    if (this.isMeetingMode) {
-      this.renderMeetingMode(main);
-      this.renderSidebar(null);
-      window.scrollTo(0, 0);
-      return;
-    }
-
     const isFrameworkRoute = parts[0] === 'framework';
     const serviceLineId = isFrameworkRoute ? parts[1] : null;
 

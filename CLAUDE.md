@@ -22,8 +22,6 @@ If the user asks you to edit X, look in Y:
 
 - **Metrics logic/forms**: `js/app-metrics.js` and `css/metrics.css`
 - **Tasks logic/forms**: `js/app-tasks.js` and `css/pages-workflow.css`
-- **Meeting Mode**: `js/app-meeting.js` and `css/meeting-mode.css`
-- **Presentation Mode**: `js/app-presentation.js` and `css/presentation-mode.css`
 - **Landing Page**: `js/app-landing-framework.js` (DOM) and `js/landing-scroll.js` (Animations) and `css/landing-cinematic.css`
 - **Framework Walkthrough**: `js/app-landing-framework.js` (DOM) and `js/framework-scroll.js` (Animations) and `css/framework-cinematic.css`
 - **ER/ED Data**: `js/app-er-charts.js` and `css/emergency-department.css`

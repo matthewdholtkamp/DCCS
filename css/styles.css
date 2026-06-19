@@ -207,12 +207,12 @@ textarea:focus-visible {
   0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(1.25); opacity: 1; }
 }
-.nav-home, .nav-meeting-mode, .nav-presentation-mode, .nav-ask {
+.nav-home, .nav-ask {
   padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
   color: var(--text-secondary); cursor: pointer; transition: var(--transition);
   border: 1px solid var(--border-subtle); background: transparent; font-family: inherit;
 }
-.nav-home:hover, .nav-meeting-mode:hover, .nav-presentation-mode:hover { color: var(--gold); background: rgba(200,168,78,0.1); border-color: var(--border-accent); }
+.nav-home:hover { color: var(--gold); background: rgba(200,168,78,0.1); border-color: var(--border-accent); }
 .nav-ask {
   border-color: rgba(255,184,28,0.55);
   background: linear-gradient(180deg, var(--gold), #d69a18);
@@ -228,11 +228,4 @@ textarea:focus-visible {
   background: linear-gradient(180deg, var(--gold-light), var(--gold));
   border-color: var(--gold-light);
   transform: translateY(-1px);
-}
-.nav-meeting-mode.active, .nav-presentation-mode.active {
-  color: var(--gold);
-  background: rgba(200,168,78,0.15);
-  border-color: var(--gold);
-  font-weight: 800;
-  letter-spacing: 0.3px;
 }

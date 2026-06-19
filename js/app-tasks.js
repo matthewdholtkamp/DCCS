@@ -20,13 +20,6 @@
   },
 
   refreshTaskCard(taskId) {
-    if (this.isMeetingMode) {
-      const sl = FRAMEWORK.serviceLines.find(s => s.tasks?.some(t => t.id === taskId));
-      if (sl) {
-        this.setMeetingActiveServiceLine(sl.id);
-        return;
-      }
-    }
     const card = document.getElementById(`task-${taskId}`);
     const task = this.findTask(taskId);
     if (!card || !task) {
