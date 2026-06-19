@@ -19,14 +19,18 @@
     const main = document.getElementById('app');
     const parts = hash.split('/').filter(Boolean);
 
+    const isDashboard = parts[0] === 'dashboard';
     const isFrameworkRoute = parts[0] === 'framework';
     const serviceLineId = isFrameworkRoute ? parts[1] : null;
 
-    if (serviceLineId) this.renderServiceLine(main, serviceLineId);
+    if (isDashboard) this.renderDashboard(main);
+    else if (serviceLineId) this.renderServiceLine(main, serviceLineId);
     else if (isFrameworkRoute) this.renderFramework(main);
     else this.renderLanding(main);
 
     this.renderSidebar(serviceLineId, isFrameworkRoute && !serviceLineId);
+    const dashBtn = document.getElementById('btn-dashboard');
+    if (dashBtn) dashBtn.classList.toggle('active', isDashboard);
     window.scrollTo(0, 0);
   },
 
