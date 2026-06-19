@@ -1,4 +1,9 @@
 /* ===== RESPONSIVE ===== */
+.mobile-command-center,
+.mobile-recorder {
+  display: none;
+}
+
 @media (max-width: 980px) {
   .metrics-header,
   .metrics-grid,
@@ -18,10 +23,16 @@
 }
 
 @media (max-width: 768px) {
-  .nav { padding: 0 1rem; }
+  body {
+    background: #070907;
+  }
+  .nav {
+    padding: 0 1rem;
+    background: #050605;
+  }
   .nav-brand-sub { display: none; }
   .nav-links {
-    gap: 3px;
+    display: none;
   }
   .sync-status-badge {
     display: none;
@@ -35,6 +46,250 @@
   }
   .nav-ask {
     min-width: 0;
+  }
+  .mobile-command-center {
+    display: block;
+    min-height: 100vh;
+    padding: 92px 18px 28px;
+    background:
+      linear-gradient(180deg, rgba(255, 184, 28, 0.12), rgba(255, 255, 255, 0) 32%),
+      #070907;
+    color: #fff;
+  }
+  .mobile-command-inner {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .mobile-command-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .mobile-command-kicker {
+    margin: 0 0 5px;
+    color: #ffcf68;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+  }
+  .mobile-command-header h1,
+  .mobile-recorder-header h2 {
+    margin: 0;
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    line-height: 1.05;
+    letter-spacing: 0;
+  }
+  .mobile-command-status {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    padding: 6px 8px;
+    border: 1px solid rgba(255, 184, 28, 0.35);
+    border-radius: 6px;
+    color: #ffcf68;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .mobile-command-actions {
+    display: grid;
+    gap: 12px;
+  }
+  .mobile-command-card {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    min-height: 112px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    background: #121511;
+    color: #fff;
+    text-align: left;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  }
+  .mobile-command-card.record {
+    border-color: rgba(255, 184, 28, 0.38);
+    background: #181810;
+  }
+  .mobile-command-card strong,
+  .mobile-command-card span span {
+    display: block;
+  }
+  .mobile-command-card strong {
+    margin-bottom: 5px;
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .mobile-command-card span span {
+    color: #cbd2c8;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  .mobile-command-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: rgba(255, 184, 28, 0.12);
+    color: #ffcf68;
+  }
+  .mobile-command-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+  .mobile-command-note,
+  .mobile-recorder-note {
+    margin: 16px 0 0;
+    color: #aeb7aa;
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+  .sidebar,
+  .main {
+    display: none;
+  }
+  .mobile-recorder {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.7);
+  }
+  .mobile-recorder.open {
+    display: flex;
+  }
+  .mobile-recorder-sheet {
+    width: min(100%, 560px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    background: #0d0f0c;
+    color: #fff;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
+  }
+  .mobile-recorder-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .mobile-recorder-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+  }
+  .mobile-recorder-close svg {
+    width: 18px;
+    height: 18px;
+  }
+  .mobile-recorder-label {
+    display: block;
+    margin: 12px 0 6px;
+    color: #dfe6da;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .mobile-recorder-select,
+  .mobile-recorder-transcript {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: #151914;
+    color: #fff;
+  }
+  .mobile-recorder-select {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+  .mobile-recorder-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 14px 0 2px;
+    padding: 12px;
+    border: 1px solid rgba(255, 184, 28, 0.24);
+    border-radius: 8px;
+    background: rgba(255, 184, 28, 0.08);
+  }
+  .mobile-recorder-timer {
+    color: #ffcf68;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.45rem;
+    font-weight: 800;
+  }
+  .mobile-recorder-state {
+    min-width: 0;
+    color: #dfe6da;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    text-align: right;
+  }
+  .mobile-recorder-transcript {
+    min-height: 190px;
+    padding: 12px;
+    resize: vertical;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .mobile-recorder-controls {
+    display: grid;
+    grid-template-columns: 1fr 92px;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .mobile-recorder-primary,
+  .mobile-recorder-secondary,
+  .mobile-recorder-submit {
+    min-height: 44px;
+    border-radius: 8px;
+    font-weight: 800;
+  }
+  .mobile-recorder-primary {
+    border: none;
+    background: #ffb81c;
+    color: #070907;
+  }
+  .mobile-recorder-secondary {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: transparent;
+    color: #fff;
+  }
+  .mobile-recorder-submit {
+    width: 100%;
+    margin-top: 10px;
+    border: none;
+    background: #6d5bd0;
+    color: #fff;
+  }
+  .mobile-recorder-primary:disabled,
+  .mobile-recorder-secondary:disabled,
+  .mobile-recorder-submit:disabled {
+    opacity: 0.45;
   }
   .ask-backdrop {
     top: 56px;

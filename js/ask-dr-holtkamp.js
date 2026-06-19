@@ -46,6 +46,9 @@ Available commands inside the JSON array:
    { "action": "delete_dialogue_entry", "serviceLineId": "<service-line-id>", "date": "YYYY-MM-DD", "textMatch": "<substring>" }
    * Deletes the dialogue comment/entry matching the date and containing the textMatch substring.
 
+MEETING RECORDER INPUT:
+If the user message starts with MEETING_RECORDER_INPUT, treat it as a captured meeting/input transcript. First provide a concise BLUF summary, then list decisions, roadblocks, metric updates, task/KPI updates, and follow-up items. For each proposed portal update, name the destination service line or metric/task/KPI and why it belongs there. Append DCCS_COMMAND actions only for items with clear destination, date, value/status/text, and sufficient confidence. If one transcript contains updates for multiple service lines, split the proposed actions across those service lines. If anything is ambiguous, list it under "Needs user confirmation" and do not create a command for that ambiguous item.
+
 If the target is ambiguous (no/unknown metric, multiple plausible matches, missing date or value), ASK a clarifying question and emit NO command block. Never emit a delete affecting more than one entry without listing each.
 
 Always explain what changes or deletes you are proposing, and append the command block. Do not output raw JSON tags in your conversational response text; keep the [DCCS_COMMAND: ...] block as the very last line.`,

@@ -50,6 +50,81 @@
     </div>
   </nav>
 
+  <section class="mobile-command-center" id="mobile-command-center" aria-label="Mobile DCCS capture tools">
+    <div class="mobile-command-inner">
+      <div class="mobile-command-header">
+        <div>
+          <p class="mobile-command-kicker">DCCS Mobile</p>
+          <h1>Capture or ask</h1>
+        </div>
+        <div class="mobile-command-status" aria-hidden="true">Field mode</div>
+      </div>
+      <div class="mobile-command-actions">
+        <button class="mobile-command-card" id="mobile-ask-action" type="button">
+          <span class="mobile-command-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+              <path d="M8 9h8"></path>
+              <path d="M8 13h5"></path>
+            </svg>
+          </span>
+          <span>
+            <strong>Ask Dr. Holtkamp</strong>
+            <span>Ask about service lines, metrics, KPIs, or what needs attention.</span>
+          </span>
+        </button>
+        <button class="mobile-command-card record" id="mobile-record-action" type="button">
+          <span class="mobile-command-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <path d="M12 19v3"></path>
+              <path d="M8 22h8"></path>
+            </svg>
+          </span>
+          <span>
+            <strong>Record Meeting/Input</strong>
+            <span>Transcribe, summarize, and propose where updates should go.</span>
+          </span>
+        </button>
+      </div>
+      <p class="mobile-command-note">Nothing is added to the DCCS page until you review and confirm the proposed actions.</p>
+    </div>
+  </section>
+
+  <section class="mobile-recorder" id="mobile-recorder" aria-label="Record DCCS meeting input" aria-hidden="true">
+    <div class="mobile-recorder-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-recorder-title">
+      <div class="mobile-recorder-header">
+        <div>
+          <p class="mobile-command-kicker">Meeting Recorder</p>
+          <h2 id="mobile-recorder-title">Record DCCS input</h2>
+        </div>
+        <button class="mobile-recorder-close" id="mobile-recorder-close" type="button" aria-label="Close recorder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18"></path>
+            <path d="m6 6 12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <label class="mobile-recorder-label" for="mobile-recorder-scope">Meeting focus</label>
+      <select id="mobile-recorder-scope" class="mobile-recorder-select">
+        <option value="">All service lines / let Ask sort it</option>
+      </select>
+      <div class="mobile-recorder-status">
+        <div class="mobile-recorder-timer" id="mobile-recorder-timer">00:00</div>
+        <div class="mobile-recorder-state" id="mobile-recorder-state">Ready</div>
+      </div>
+      <label class="mobile-recorder-label" for="mobile-recorder-transcript">Transcript</label>
+      <textarea id="mobile-recorder-transcript" class="mobile-recorder-transcript" placeholder="Tap Start Recording and place the phone on the table. You can also paste notes here if speech recognition is unavailable."></textarea>
+      <div class="mobile-recorder-controls">
+        <button class="mobile-recorder-primary" id="mobile-recorder-start" type="button">Start Recording</button>
+        <button class="mobile-recorder-secondary" id="mobile-recorder-stop" type="button" disabled>Stop</button>
+      </div>
+      <button class="mobile-recorder-submit" id="mobile-recorder-submit" type="button" disabled>Summarize And Propose Updates</button>
+      <p class="mobile-recorder-note">Do not record patient information, PHI, classified information, or sensitive personal details.</p>
+    </div>
+  </section>
+
   <div class="ask-backdrop" id="ask-backdrop" onclick="AskDrHoltkamp.close()"></div>
 
   <section class="ask-panel" id="ask-dr-holtkamp-panel" aria-label="Ask Dr. Holtkamp about DCCS">
@@ -141,5 +216,6 @@
   <script src="js/app-sync-patches.js?v=20260617-bugfixes"></script>
   <script src="js/app.js?v=20260617-bugfixes"></script>
   <script src="js/ask-dr-holtkamp.js?v=20260617-bugfixes"></script>
+  <script src="js/app-mobile-command.js?v=20260617-bugfixes"></script>
 </body>
 </html>
