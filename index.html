@@ -158,6 +158,10 @@
       <button type="button" data-ask-prompt="Which service line needs the most attention right now?">Focus</button>
       <button type="button" data-ask-prompt="Summarize the current KPI risk areas.">KPI risk</button>
     </div>
+    <div class="ask-sitrep-row" aria-label="Monthly Commander SITREP">
+      <button type="button" id="ask-sitrep" class="ask-sitrep-btn">📋 Generate SITREP · <span id="ask-sitrep-period">this cycle</span></button>
+      <button type="button" id="ask-sitrep-prev" class="ask-sitrep-prev" title="Generate the prior cycle instead">‹ prior</button>
+    </div>
     <form class="ask-form" id="ask-form">
       <label class="sr-only" for="ask-input">Ask a DCCS operational question</label>
       <div class="ask-input-wrapper">
@@ -216,6 +220,7 @@
   <script src="js/app-sync-patches.js?v=20260617-bugfixes"></script>
   <script src="js/app.js?v=20260617-bugfixes"></script>
   <script src="js/ask-dr-holtkamp.js?v=20260617-bugfixes"></script>
+  <script src="js/ask-dr-holtkamp-sitrep.js?v=20260619-sitrep"></script>
   <script src="js/app-mobile-command.js?v=20260617-bugfixes"></script>
 </body>
 </html>
