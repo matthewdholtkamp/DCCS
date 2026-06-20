@@ -100,83 +100,100 @@
     return `${MONTH_NAMES[monthNumber - 1]} ${year}`;
   }
 
+  function exByDate(entries) {
+    const map = {};
+    (entries || []).forEach(e => { const d = String(e.date).slice(0, 10); map[d] = (map[d] || 0) + (Number(e.value) || 0); });
+    return map;
+  }
+
+  function exTailValues(entries, n) {
+    return (entries || []).slice(-n).map(e => Number(e.value)).filter(Number.isFinite);
+  }
+
+  function exMonthlySeries(entries, endMonth, n) {
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) out.push(exMonthBucket(entries, exMonthShift(endMonth, -i)));
+    return out;
+  }
+
+  function exDailyRatioSeries(numEntries, denEntries, n) {
+    const num = exByDate(numEntries), den = exByDate(denEntries);
+    return Object.keys(den).sort().slice(-n).map(d => den[d] ? (num[d] || 0) / den[d] * 100 : 0);
+  }
+
+  function exSparkline(values, stroke) {
+    const pts = (values || []).map(Number).filter(Number.isFinite);
+    if (pts.length < 2) return '';
+    const w = 100, h = 30, min = Math.min(...pts), max = Math.max(...pts), range = (max - min) || 1, step = w / (pts.length - 1);
+    const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ',' + (h - ((v - min) / range) * h).toFixed(1)).join(' ');
+    return '<svg class="exsum-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true"><path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
   function exCard(card) {
     const trend = exTrend(card.value, card.previous, card.betterDirection);
-    const roundedDelta = trend.delta === null ? null : exNumber(trend.delta, card.decimals);
-    const deltaPrecision = trend.delta && Number(roundedDelta) === 0 ? Math.max(1, card.decimals) : card.decimals;
-    const delta = trend.delta === null || trend.delta === 0 ? '' : `${trend.delta > 0 ? '+' : ''}${exNumber(trend.delta, deltaPrecision)}`;
-    const valueClass = card.tone === 'black' ? ' exsum-value-chip' : '';
-    return `
-      <article class="exsum-card">
-        <div class="exsum-card-label">${exEsc(card.label)}</div>
-        <div class="exsum-card-value tone-${card.tone}${valueClass}">${exDisplay(card.value, card.decimals)}</div>
-        <div class="exsum-card-trend tone-${trend.tone}">
-          <span class="exsum-arrow">${trend.arrow}</span>${delta ? `<span>${delta}</span>` : '<span>no prior</span>'}
-        </div>
-        <div class="exsum-card-caption">${exEsc(card.caption)}</div>
-      </article>`;
+    const deltaPrecision = trend.delta && Number(exNumber(trend.delta, card.decimals)) === 0 ? Math.max(1, card.decimals) : card.decimals;
+    const delta = trend.delta === null || trend.delta === 0 ? '' : (trend.delta > 0 ? '+' : '') + exNumber(trend.delta, deltaPrecision);
+    const sparkStroke = card.tone === 'amber' ? 'rgba(20,18,8,.55)' : 'rgba(255,255,255,.7)';
+    return '' +
+      '<article class="exsum-card tone-' + card.tone + '">' +
+        '<div class="exsum-card-label">' + exEsc(card.label) + '</div>' +
+        '<div class="exsum-card-value">' + exDisplay(card.value, card.decimals) + '</div>' +
+        '<div class="exsum-card-trend"><span class="exsum-arrow">' + trend.arrow + '</span><span>' + (delta || 'no prior') + '</span></div>' +
+        '<div class="exsum-card-spark">' + exSparkline(card.series, sparkStroke) + '</div>' +
+        '<div class="exsum-card-caption">' + exEsc(card.caption) + '</div>' +
+      '</article>';
   }
 
   function exCards(app) {
-    const entries = id => app.getMetricEntries(id) || [];
-    const acute = entries('pcsl-acute');
-    const followup = entries('pcsl-followup');
-    const surgery = entries('surgery-total');
-    const referrals = entries('mh-active-duty-off-post');
-    const lwobs = entries('er-lwobs');
-    const census = entries('er-total-census');
-    const trainees = entries('er-total-trainees');
-    const acuity = entries('er-esi-4-5');
-    const latestCensus = exLatest(census);
-    const latestLwobs = exLatest(lwobs);
-    const ratioEnd = latestCensus ? latestCensus.date : latestLwobs && latestLwobs.date;
-    const ratioAt = end => {
-      if (!end) return null;
-      const denominator = exSum(exWindow(census, 7, end));
-      return denominator ? exSum(exWindow(lwobs, 7, end)) / denominator * 100 : null;
-    };
+    const get = id => app.getMetricEntries(id) || [];
     const currentMonth = new Date().toISOString().slice(0, 7);
-    const referralCurrent = exMonthBucket(referrals, currentMonth);
-    const referralPrevious = exMonthBucket(referrals, exMonthShift(currentMonth, -1));
-    const windowCard = (label, rows, decimals, kind, direction, caption) => {
-      const latest = exLatest(rows);
-      const end = latest && latest.date;
-      return {
-        label,
-        value: end ? exAvg(exWindow(rows, 7, end)) : null,
-        previous: end ? exAvg(exWindow(rows, 7, exDaysAgoISO(end, 7))) : null,
-        decimals,
-        tone: exTone(end ? exAvg(exWindow(rows, 7, end)) : null, kind),
-        betterDirection: direction,
-        caption
-      };
-    };
-
-    return [
-      {
-        label: 'PCSL Acute (hrs)', value: exLatest(acute) && exLatest(acute).value, previous: exPrev(acute) && exPrev(acute).value,
-        decimals: 1, tone: exTone(exLatest(acute) && exLatest(acute).value, 'acute'), betterDirection: 'lower', caption: 'latest reported'
-      },
-      {
-        label: 'PCSL Follow-up (days)', value: exLatest(followup) && exLatest(followup).value, previous: exPrev(followup) && exPrev(followup).value,
-        decimals: 1, tone: exTone(exLatest(followup) && exLatest(followup).value, 'followup'), betterDirection: 'lower', caption: 'latest reported'
-      },
-      {
-        label: 'Total Surgeries (wk)', value: exLatest(surgery) && exLatest(surgery).value, previous: exPrev(surgery) && exPrev(surgery).value,
-        decimals: 0, tone: exTone(exLatest(surgery) && exLatest(surgery).value, 'surgery'), betterDirection: 'higher', caption: 'vs prior week'
-      },
-      {
-        label: 'MH Referrals Off-Post (mo)', value: referralCurrent, previous: referralPrevious,
-        decimals: 0, tone: exTone(referralCurrent, 'referrals'), betterDirection: 'lower', caption: exMonthLabel(currentMonth)
-      },
-      {
-        label: 'ER LWOBS % (7d)', value: ratioAt(ratioEnd), previous: ratioAt(ratioEnd && exDaysAgoISO(ratioEnd, 7)),
-        decimals: 1, tone: exTone(ratioAt(ratioEnd), 'lwobs'), betterDirection: 'lower', caption: 'latest 7 days'
-      },
-      windowCard('ER Avg Census (7d)', census, 0, 'informational', null, 'latest 7 days'),
-      windowCard('Trainees/day in ER (7d)', trainees, 0, 'trainees', 'lower', 'latest 7 days'),
-      windowCard('Cat 4/5 Trainees/day (7d)', acuity, 1, 'acuity', 'lower', 'latest 7 days')
+    const SPARK_N = 14;
+    const specs = [
+      { label: 'PCSL Acute (hrs)', metric: 'pcsl-acute', mode: 'latest', decimals: 1, kind: 'acute', dir: 'lower', caption: 'latest reported' },
+      { label: 'PCSL Follow-up (days)', metric: 'pcsl-followup', mode: 'latest', decimals: 1, kind: 'followup', dir: 'lower', caption: 'latest reported' },
+      { label: 'Total Surgeries (wk)', metric: 'surgery-total', mode: 'latest', decimals: 0, kind: 'surgery', dir: 'higher', caption: 'vs prior week' },
+      { label: 'MH Referrals Off-Post (mo)', metric: 'mh-active-duty-off-post', mode: 'month', decimals: 0, kind: 'referrals', dir: 'lower', caption: exMonthLabel(currentMonth) },
+      { label: 'ER LWOBS % (7d)', mode: 'ratio', num: 'er-lwobs', den: 'er-total-census', decimals: 1, kind: 'lwobs', dir: 'lower', caption: 'latest 7 days' },
+      { label: 'ER Avg Census (7d)', metric: 'er-total-census', mode: 'window7', decimals: 0, kind: 'informational', dir: null, caption: 'latest 7 days' },
+      { label: 'Trainees/day in ER (7d)', metric: 'er-total-trainees', mode: 'window7', decimals: 0, kind: 'trainees', dir: 'lower', caption: 'latest 7 days' },
+      { label: 'Cat 4/5 Trainees/day (7d)', metric: 'er-esi-4-5', mode: 'window7', decimals: 1, kind: 'acuity', dir: 'lower', caption: 'latest 7 days' }
     ];
+
+    return specs.map(spec => {
+      let value = null, previous = null, series = [];
+      if (spec.mode === 'latest') {
+        const rows = get(spec.metric);
+        const latest = exLatest(rows), prev = exPrev(rows);
+        value = latest ? latest.value : null;
+        previous = prev ? prev.value : null;
+        series = exTailValues(rows, SPARK_N);
+      } else if (spec.mode === 'month') {
+        const rows = get(spec.metric);
+        value = exMonthBucket(rows, currentMonth);
+        previous = exMonthBucket(rows, exMonthShift(currentMonth, -1));
+        series = exMonthlySeries(rows, currentMonth, 12);
+      } else if (spec.mode === 'window7') {
+        const rows = get(spec.metric);
+        const latest = exLatest(rows);
+        const end = latest && latest.date;
+        value = end ? exAvg(exWindow(rows, 7, end)) : null;
+        previous = end ? exAvg(exWindow(rows, 7, exDaysAgoISO(end, 7))) : null;
+        series = exTailValues(rows, SPARK_N);
+      } else if (spec.mode === 'ratio') {
+        const num = get(spec.num), den = get(spec.den);
+        const end = (exLatest(den) && exLatest(den).date) || (exLatest(num) && exLatest(num).date);
+        const ratioAt = e => { if (!e) return null; const d = exSum(exWindow(den, 7, e)); return d ? exSum(exWindow(num, 7, e)) / d * 100 : null; };
+        value = ratioAt(end);
+        previous = ratioAt(end && exDaysAgoISO(end, 7));
+        series = exDailyRatioSeries(num, den, SPARK_N);
+      }
+      const numericValue = Number.isFinite(Number(value)) ? Number(value) : null;
+      const numericPrev = Number.isFinite(Number(previous)) ? Number(previous) : null;
+      return {
+        label: spec.label, value: numericValue, previous: numericPrev, decimals: spec.decimals,
+        tone: exTone(numericValue, spec.kind), betterDirection: spec.dir, caption: spec.caption, series
+      };
+    });
   }
 
   function exCompletedDates(app, task) {
@@ -408,7 +425,20 @@
 .nav-dashboard.active{color:var(--gold);background:rgba(200,168,78,0.15);border-color:var(--gold)}
 .exsum-root,.exsum-root *{box-sizing:border-box}.exsum-root{height:calc(100vh - 64px);min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:clamp(7px,1vh,12px);padding:clamp(8px,1.25vh,16px) clamp(10px,1.5vw,22px);color:var(--text-primary);background:var(--bg-primary,transparent);font-family:inherit}
 .exsum-desired-state{height:7%;min-height:38px;display:flex;align-items:center;gap:clamp(9px,1.5vw,20px);padding:0 clamp(9px,1vw,15px);border:1px solid var(--border-subtle);border-left:3px solid var(--gold);background:rgba(255,255,255,.025);overflow:hidden}.exsum-desired-state span{flex:none;color:var(--gold);font-size:clamp(.58rem,.65vw,.7rem);font-weight:800;letter-spacing:.13em;text-transform:uppercase}.exsum-desired-state em{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);font-size:clamp(.65rem,.8vw,.82rem);line-height:1.25}
-.exsum-cards{height:26%;min-height:126px;display:flex;gap:clamp(5px,.65vw,10px);overflow:hidden}.exsum-card{min-width:0;flex:1 1 0;display:flex;flex-direction:column;padding:clamp(7px,.85vw,12px);border:1px solid var(--border-subtle);background:rgba(255,255,255,.03);overflow:hidden}.exsum-card-label{min-height:2.35em;color:var(--text-secondary);font-size:clamp(.56rem,.68vw,.72rem);font-weight:800;line-height:1.16;text-transform:uppercase;letter-spacing:.035em}.exsum-card-value{align-self:flex-start;margin-top:auto;max-width:100%;color:var(--card-tone,var(--text-primary));font-size:clamp(1.35rem,2.05vw,2.2rem);font-weight:850;line-height:1;letter-spacing:-.05em;white-space:nowrap}.exsum-card-value.tone-green{color:#3fa45b}.exsum-card-value.tone-amber{color:#e0a23d}.exsum-card-value.tone-red{color:#d2433a}.exsum-card-value.tone-grey{color:#8a8f98}.exsum-card-value.tone-black{color:#1d1f23}.exsum-value-chip{padding:.12em .22em;border-radius:3px;background:#e8e8e8}.exsum-card-trend{display:flex;align-items:center;gap:4px;min-height:1.25em;margin-top:clamp(5px,.65vh,8px);font-size:clamp(.57rem,.66vw,.7rem);font-weight:800}.exsum-card-trend.tone-green{color:#3fa45b}.exsum-card-trend.tone-red{color:#d2433a}.exsum-card-trend.tone-grey{color:#8a8f98}.exsum-arrow{font-size:.95em}.exsum-card-caption{margin-top:auto;overflow:hidden;color:var(--text-muted);font-size:clamp(.52rem,.59vw,.64rem);line-height:1.1;white-space:nowrap;text-overflow:ellipsis}
+.exsum-cards{height:26%;min-height:132px;display:flex;gap:clamp(5px,.65vw,10px);overflow:hidden}
+.exsum-card{min-width:0;flex:1 1 0;display:flex;flex-direction:column;padding:clamp(7px,.8vw,12px);border:1px solid rgba(255,255,255,.14);border-radius:7px;overflow:hidden;color:#fff;background:#565c63}
+.exsum-card.tone-green{background:#2f9e5b}
+.exsum-card.tone-amber{background:#dca12f;color:#171407;border-color:rgba(0,0,0,.2)}
+.exsum-card.tone-red{background:#cc4034}
+.exsum-card.tone-black{background:#20242a;border-color:rgba(255,255,255,.22)}
+.exsum-card.tone-grey{background:#565c63}
+.exsum-card-label{min-height:2.2em;font-size:clamp(.55rem,.66vw,.7rem);font-weight:800;line-height:1.16;text-transform:uppercase;letter-spacing:.035em;opacity:.85}
+.exsum-card-value{margin-top:2px;font-size:clamp(1.35rem,2.05vw,2.25rem);font-weight:850;line-height:1;letter-spacing:-.04em;white-space:nowrap}
+.exsum-card-trend{display:flex;align-items:center;gap:4px;min-height:1.1em;margin-top:2px;font-size:clamp(.56rem,.64vw,.68rem);font-weight:800;opacity:.9}
+.exsum-arrow{font-size:.95em}
+.exsum-card-spark{flex:1 1 auto;min-height:16px;margin-top:clamp(3px,.5vh,7px);display:flex;align-items:flex-end}
+.exsum-spark{width:100%;height:100%;display:block}
+.exsum-card-caption{margin-top:clamp(2px,.4vh,5px);overflow:hidden;font-size:clamp(.5rem,.57vw,.62rem);line-height:1.1;white-space:nowrap;text-overflow:ellipsis;opacity:.7}
 .exsum-lower{min-height:0;flex:1 1 auto;display:flex;gap:clamp(8px,1vw,16px);overflow:hidden}.exsum-left{min-width:0;min-height:0;flex:0 0 calc(58% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;gap:clamp(6px,.8vh,10px);overflow:hidden}.exsum-chart-shell{min-height:0;flex:1 1 auto;display:grid;grid-template-rows:auto minmax(0,1fr);padding:clamp(8px,1vw,13px);border:1px solid var(--border-subtle);background:#191c1f;overflow:hidden}.exsum-chart-heading{margin-bottom:4px;color:#f0f1f2;font-size:clamp(.65rem,.8vw,.84rem);font-weight:800;letter-spacing:.045em;text-transform:uppercase}.exsum-chart-heading span{margin-left:7px;color:#9ba2a8;font-size:.78em;font-weight:600;letter-spacing:0;text-transform:none}.exsum-chart-shell canvas{min-height:0!important;width:100%!important;height:100%!important}.exsum-summary{flex:none;min-height:2.4em;margin:0;padding:0 2px;color:var(--text-secondary);font-size:clamp(.62rem,.77vw,.8rem);line-height:1.34}
 .exsum-campaign{min-width:0;min-height:0;flex:0 0 calc(42% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;padding:clamp(8px,1vw,13px);border:1px solid var(--border-subtle);background:rgba(255,255,255,.025);overflow:hidden}.exsum-campaign-heading{flex:none;padding-bottom:clamp(5px,.65vh,8px);border-bottom:1px solid var(--border-subtle);color:var(--gold);font-size:clamp(.65rem,.8vw,.84rem);font-weight:850;letter-spacing:.08em;text-transform:uppercase}.exsum-campaign-heading span{margin-left:7px;color:var(--text-muted);font-size:.8em;font-weight:600;letter-spacing:0;text-transform:none}.exsum-phase-list{position:relative;min-height:0;flex:1 1 auto;display:flex;flex-direction:column;padding:clamp(7px,.8vh,10px) 0 0 clamp(20px,2vw,29px)}.exsum-phase-list:before{position:absolute;top:13px;bottom:8px;left:clamp(7px,.78vw,11px);width:1px;background:var(--border-accent);content:''}.exsum-phase{position:relative;min-height:0;flex:1 1 0;display:flex;flex-direction:column;justify-content:center;padding:clamp(3px,.4vh,6px) 0;opacity:.55;overflow:hidden}.exsum-phase.status-active{flex:1.42 1 0;opacity:1;background:rgba(255,184,28,.055)}.exsum-phase.status-complete{opacity:.64}.exsum-phase-node{position:absolute;top:50%;left:calc(clamp(7px,.78vw,11px) * -1);width:clamp(14px,1.2vw,17px);height:clamp(14px,1.2vw,17px);transform:translate(-50%,-50%);display:grid;place-items:center;border:2px solid #8a8f98;border-radius:50%;background:#1d1f23;color:#8a8f98;font-size:9px;font-weight:900}.exsum-phase.status-active .exsum-phase-node{border-color:#ffb81c;background:#ffb81c;box-shadow:0 0 0 3px rgba(255,184,28,.14)}.exsum-phase.status-complete .exsum-phase-node{border-color:#3fa45b;background:#3fa45b;color:#1d1f23}.exsum-phase-kicker{color:#8a8f98;font-size:clamp(.5rem,.56vw,.6rem);font-weight:850;letter-spacing:.12em;text-transform:uppercase}.exsum-phase.status-active .exsum-phase-kicker{color:#b77800}.exsum-phase-name{color:var(--text-primary);font-size:clamp(.72rem,.95vw,1rem);font-weight:850;line-height:1.15}.exsum-phase.status-active .exsum-phase-name{color:#b77800;font-size:clamp(.8rem,1.12vw,1.18rem)}.exsum-phase-dates{color:var(--text-muted);font-size:clamp(.5rem,.6vw,.65rem);line-height:1.2}.exsum-phase-effort{margin-top:2px;color:var(--text-secondary);font-size:clamp(.55rem,.67vw,.72rem);font-weight:700;line-height:1.18}.exsum-decisive-point{display:flex;align-items:baseline;gap:5px;margin-top:clamp(2px,.3vh,4px);color:var(--text-muted);font-size:clamp(.48rem,.56vw,.6rem);line-height:1.1;white-space:nowrap;overflow:hidden}.exsum-decisive-point span{text-transform:uppercase;letter-spacing:.08em}.exsum-decisive-point strong{overflow:hidden;color:var(--text-secondary);font-size:1em;text-overflow:ellipsis}.exsum-decisive-point em{flex:none;font-style:normal}.exsum-decisive-point.is-next{padding:3px 5px;border-left:2px solid #ffb81c;background:rgba(255,184,28,.11);color:#b77800}.exsum-decisive-point.is-next strong{color:#8a5b00}
 @media (max-height:720px){.exsum-root{gap:6px;padding-top:7px;padding-bottom:7px}.exsum-desired-state{min-height:31px}.exsum-cards{min-height:106px}.exsum-card{padding:6px}.exsum-summary{font-size:.6rem}.exsum-campaign,.exsum-chart-shell{padding:7px}.exsum-phase-effort{display:none}}
