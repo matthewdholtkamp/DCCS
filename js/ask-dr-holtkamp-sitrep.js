@@ -34,7 +34,7 @@ STRICT OUTPUT FORMAT - follow it exactly:
    **Surgery** (Surgical Services)
    **Mental Health**
    **MSCoE** (Trainee Care / MSCoE Integration)
-   Each section LEADS with the accomplishment, then weaves in 2-3 specific data points from SITREP_DATA with their inline change and percentage (use the provided deltaText, e.g. "176 cases, +12% over the prior period"). State the trend direction in plain words.
+   Each section LEADS with the accomplishment, then weaves in 2-3 specific data points from SITREP_DATA with their inline change and percentage (use the provided deltaText, e.g. "176 cases, +12% over the prior period"). State the trend direction in plain words. Build the narrative of each section primarily from that section's "dialogue" entries (my own dated running-log notes for the period) - these are the authoritative account of what happened and why; lead from them and use the metrics as the supporting evidence.
 3. Close with ONE forward-looking sentence from the DCCS.
 
 HARD RULES:
@@ -44,6 +44,7 @@ HARD RULES:
 - For metrics where improved=true, phrase the change as a positive movement even if the raw number went down (e.g. falling wait times are good).
 - Do NOT mention internal phase numbers ("Phase 1/2/3") or "LOE" - higher headquarters has no context for them. Speak in plain operational terms.
 - If a section has little data this period, briefly note steady-state performance and the key ongoing effort in 2-3 sentences rather than padding.
+- The "dialogue" array in each section is MY own dated field notes (the running log from the service-line page) and is the single most important input - it carries the context and the "why" behind the numbers. Lead each section with it, preserve its substance in my voice, and never contradict it or invent context beyond what it and the metrics state. A section with strong dialogue but thin metrics still stands on the dialogue.
 - No PII/PHI, no patient details, no raw JSON, and do NOT output any command block or bracketed action tag of any kind.
 - Keep it tight and human - a one-page brief the Commander can read in under a minute.`,
 
@@ -65,8 +66,10 @@ HARD RULES:
     const priorStart = new Date(dueYear, dueMonth - 2, D);   // prior cycle start
     const priorEnd = new Date(dueYear, dueMonth - 1, D - 1); // prior cycle end
     const iso = (x) => x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+    const todayISO = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+    const dialogueEndISO = (off === 0 && todayISO > iso(end)) ? todayISO : iso(end);
     return {
-      startISO: iso(start), endISO: iso(end),
+      startISO: iso(start), endISO: iso(end), dialogueEndISO: dialogueEndISO,
       priorStartISO: iso(priorStart), priorEndISO: iso(priorEnd),
       dueISO: iso(due),
       label: this.sitrepDateLabel(start) + " \u2013 " + this.sitrepDateLabel(end),
@@ -208,8 +211,9 @@ HARD RULES:
 
       const kpisCompleted = collectKpis(sl.tasks);
       const dialogue = (dialogueStore[slId] || [])
-        .filter((e) => this.sitrepInWindow(e.date, win.startISO, win.endISO))
-        .map((e) => ({ date: this.normalizeDate(e.date), text: this.truncate(e.text || "", 500) }));
+        .filter((e) => this.sitrepInWindow(e.date, win.startISO, win.dialogueEndISO || win.endISO))
+        .map((e) => ({ date: this.normalizeDate(e.date), text: this.truncate(e.text || "", 500) }))
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
       return {
         section: this.SITREP_SECTION_LABEL[slId],

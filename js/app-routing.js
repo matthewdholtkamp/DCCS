@@ -20,10 +20,12 @@
     const parts = hash.split('/').filter(Boolean);
 
     const isDashboard = parts[0] === 'dashboard';
+    const isRollup = parts[0] === 'rollup';
     const isFrameworkRoute = parts[0] === 'framework';
     const serviceLineId = isFrameworkRoute ? parts[1] : null;
 
     if (isDashboard) this.renderDashboard(main);
+    else if (isRollup) this.renderRollup(main);
     else if (serviceLineId) this.renderServiceLine(main, serviceLineId);
     else if (isFrameworkRoute) this.renderFramework(main);
     else this.renderLanding(main);
@@ -31,6 +33,8 @@
     this.renderSidebar(serviceLineId, isFrameworkRoute && !serviceLineId);
     const dashBtn = document.getElementById('btn-dashboard');
     if (dashBtn) dashBtn.classList.toggle('active', isDashboard);
+    const rollBtn = document.getElementById('btn-rollup');
+    if (rollBtn) rollBtn.classList.toggle('active', isRollup);
     window.scrollTo(0, 0);
   },
 
