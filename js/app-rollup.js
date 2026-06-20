@@ -90,6 +90,7 @@
               </label>
               <button type="button" class="roll-save" onclick="App.saveRollupAll()">Save all entries</button>
               <button type="button" class="roll-sitrep" onclick="App.rollupGenerateSitrep()">\ud83d\udccb Generate SITREP</button>
+              <button type="button" class="roll-campaign" onclick="App.rollupGenerateCampaignBrief()">\ud83d\udce1 Refresh Campaign Brief</button>
             </div>
           </header>
           ${flash ? `<div class="roll-flash">\u2713 ${this.escapeHtml(flash)}</div>` : ''}
@@ -152,6 +153,27 @@
       }
     },
 
+    async rollupGenerateCampaignBrief() {
+      if (!window.confirm('Regenerate the monthly Access-to-Care campaign brief from current Rollup data? This replaces the brief shown on the Executive Summary.')) return;
+      const flash = (msg) => { this._rollupFlash = msg; this.renderRollup(document.getElementById('app')); };
+      flash('Refreshing the monthly campaign brief\u2026');
+      try {
+        if (window.AskDrHoltkamp && AskDrHoltkamp.dependenciesPromise) { try { await AskDrHoltkamp.dependenciesPromise; } catch (e) {} }
+        const raw = (window.BANDAID_CONFIG && window.BANDAID_CONFIG.WORKER_URL) || 'https://bandaid6.mholtkamp.workers.dev';
+        const base = raw.endsWith('/') ? raw.slice(0, -1) : raw;
+        const body = { source: 'rollup', period: 'month' };
+        if (window.AskDrHoltkamp && typeof AskDrHoltkamp.getSitrepWindow === 'function') {
+          try { body.window = AskDrHoltkamp.getSitrepWindow(0); } catch (e) {}
+        }
+        const res = await fetch(base + '/campaign-brief/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(payload.error || (res.status === 409 ? 'A brief is already generating \u2014 try again shortly.' : 'Campaign brief refresh failed (' + res.status + ').'));
+        flash('Monthly campaign brief refreshed \u2014 the Executive Summary will update.');
+      } catch (err) {
+        flash('Campaign brief refresh failed: ' + (err.message || 'unknown error') + '. The last published brief stays visible.');
+      }
+    },
+
     injectRollupStyles() {
       if (document.getElementById('rollup-styles')) return;
       const css = `
@@ -170,6 +192,8 @@
 .roll-save:hover{filter:brightness(1.06);transform:translateY(-1px)}
 .roll-sitrep{padding:9px 14px;border-radius:8px;border:1px solid var(--border-accent);background:rgba(255,184,28,0.08);color:var(--gold);font-weight:800;font-size:.8rem;cursor:pointer;transition:var(--transition)}
 .roll-sitrep:hover{background:rgba(255,184,28,0.16)}
+.roll-campaign{padding:9px 14px;border-radius:8px;border:1px solid rgba(90,169,230,0.5);background:rgba(90,169,230,0.10);color:#7cc0f0;font-weight:800;font-size:.8rem;cursor:pointer;transition:var(--transition)}
+.roll-campaign:hover{background:rgba(90,169,230,0.18)}
 .roll-flash{margin:0 0 16px;padding:10px 14px;border:1px solid rgba(92,184,116,0.45);background:rgba(92,184,116,0.1);color:#7fd498;border-radius:10px;font-weight:700;font-size:.85rem}
 .roll-sections{display:flex;flex-direction:column;gap:16px}
 .roll-card{background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:14px;padding:14px 16px}
