@@ -77,10 +77,11 @@
       }
     },
 
-    openRecorder() {
+    async openRecorder() {
       this.resetRecorderState();
       this.els.recorder.classList.add("open");
       this.els.recorder.setAttribute("aria-hidden", "false");
+      await this.restoreSaved();
       this.updateSubmitState();
       setTimeout(() => { if (this.els.toggle) this.els.toggle.focus(); }, 50);
     },
@@ -141,6 +142,7 @@
       this.audioMime = this.pickMime();
       this.chunks = [];
       this.audioBlob = null;
+      this._idbDel().catch(() => {});
       const recOpts = { audioBitsPerSecond: 40000 };
       if (this.audioMime) recOpts.mimeType = this.audioMime;
       try {
@@ -158,14 +160,17 @@
       this.mediaRecorder.onstop = () => {
         const type = this.audioMime || (this.mediaRecorder && this.mediaRecorder.mimeType) || "audio/webm";
         this.audioBlob = this.chunks.length ? new Blob(this.chunks, { type }) : null;
+        if (this.audioBlob) this._idbPut(this.audioBlob).catch(() => {});
         this.updateSubmitState();
         const done = this._onStopDone; this._onStopDone = null;
         if (done) done();
       };
 
       try {
-        // Flush a chunk every 5s so an interruption costs seconds, not the whole meeting.
-        this.mediaRecorder.start(5000);
+        // No timeslice: one complete file at stop is a valid MP4 on iOS (chunked MP4 can be
+        // unreadable when reassembled). Interruptions are still caught by the track-ended/onerror
+        // handlers, which call stop() and finalize a valid partial file.
+        this.mediaRecorder.start();
       } catch (err) {
         console.warn("DCCS Mobile Recorder: could not start:", err);
         this.setState("Mic could not start. Type notes below, then Summarize.");
@@ -320,6 +325,65 @@
         if (AskDrHoltkamp.isReady) { window.clearInterval(interval); sendWhenReady(); }
         else if (Date.now() - started > 10000) { window.clearInterval(interval); AskDrHoltkamp.updateSendButtonState(); }
       }, 250);
+    },
+
+    async restoreSaved() {
+      try {
+        const rec = await this._idbGet();
+        if (rec && rec.blob && rec.blob.size) {
+          this.audioBlob = rec.blob;
+          this.audioMime = rec.blob.type || "audio/mp4";
+          const mb = (rec.blob.size / 1048576).toFixed(1);
+          this.setState(`Recovered an unsent recording (${mb} MB). Tap Summarize to send it, or the mic to start over.`);
+        }
+      } catch (_) {}
+    },
+
+    clearSaved() {
+      this.audioBlob = null;
+      this._idbDel().catch(() => {});
+    },
+
+    _idb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("dccsRecorder", 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore("rec"); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    },
+
+    async _idbPut(blob) {
+      const db = await this._idb();
+      try {
+        await new Promise((res, rej) => {
+          const tx = db.transaction("rec", "readwrite");
+          tx.objectStore("rec").put({ blob, ts: Date.now() }, "current");
+          tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+        });
+      } finally { db.close(); }
+    },
+
+    async _idbGet() {
+      const db = await this._idb();
+      try {
+        return await new Promise((res, rej) => {
+          const tx = db.transaction("rec", "readonly");
+          const r = tx.objectStore("rec").get("current");
+          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        });
+      } finally { db.close(); }
+    },
+
+    async _idbDel() {
+      const db = await this._idb();
+      try {
+        await new Promise((res) => {
+          const tx = db.transaction("rec", "readwrite");
+          tx.objectStore("rec").delete("current");
+          tx.oncomplete = res; tx.onerror = res;
+        });
+      } finally { db.close(); }
     }
   };
 

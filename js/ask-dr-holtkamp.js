@@ -301,34 +301,37 @@ Always explain what changes or deletes you are proposing, and append the command
       "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then route each discussed item to the correct service line / metric / task / KPI. Give a concise BLUF and a short per-section summary. Append DCCS_COMMAND actions only for items with a clear destination, date, and value/status/text. Route by topic; speaker names are not required. List anything ambiguous under 'Needs user confirmation' without a command."
     ].join("\n");
 
-    // Prefer the Files API (raw bytes, no size cap, no base64 inflation); fall back to inline for short clips.
+    // Prefer the Files API (raw bytes, no size cap, no base64 inflation); retry transient failures.
     let audioPart = null;
     let uploadError = "";
-    try {
-      const origin = new URL(workerUrl).origin;
-      const upRes = await fetch(`${origin}/files/upload?mime=${encodeURIComponent(mime)}`, {
-        method: "POST",
-        headers: { "Content-Type": mime },
-        body: blob
-      });
-      if (!upRes.ok) {
-        const t = await upRes.text().catch(() => "");
-        throw new Error(`upload ${upRes.status}${t ? " " + t.slice(0, 120) : ""}`);
-      }
-      const up = await upRes.json();
-      if (!up || !up.fileUri) throw new Error("no fileUri returned");
-      audioPart = { fileData: { fileUri: up.fileUri, mimeType: up.mimeType || mime } };
-    } catch (e) {
-      uploadError = e.message || "upload failed";
-      if (blob && blob.size && blob.size < 18 * 1048576) {
-        try {
-          const b64 = await this._blobToBase64(blob);
-          audioPart = { inlineData: { mimeType: mime, data: b64 } };
-        } catch (_) {}
+    const origin = new URL(workerUrl).origin;
+    for (let attempt = 1; attempt <= 3 && !audioPart; attempt += 1) {
+      try {
+        const upRes = await fetch(`${origin}/files/upload?mime=${encodeURIComponent(mime)}`, {
+          method: "POST",
+          headers: { "Content-Type": mime },
+          body: blob
+        });
+        if (!upRes.ok) {
+          const t = await upRes.text().catch(() => "");
+          throw new Error(`upload ${upRes.status}${t ? " " + t.slice(0, 120) : ""}`);
+        }
+        const up = await upRes.json();
+        if (!up || !up.fileUri) throw new Error("no fileUri returned");
+        audioPart = { fileData: { fileUri: up.fileUri, mimeType: up.mimeType || mime } };
+      } catch (e) {
+        uploadError = e.message || "upload failed";
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
       }
     }
+    if (!audioPart && blob && blob.size && blob.size < 18 * 1048576) {
+      try {
+        const b64 = await this._blobToBase64(blob);
+        audioPart = { inlineData: { mimeType: mime, data: b64 } };
+      } catch (_) {}
+    }
     if (!audioPart) {
-      this.updateMessage(assistantBody, `Couldn't send the recording (${uploadError}). The file may be large or the connection dropped - try again on Wi-Fi. Your recording isn't lost; reopen the recorder to resend.`, false);
+      this.updateMessage(assistantBody, `Couldn't send the recording after 3 tries (${uploadError}). Likely a weak connection - move to better Wi-Fi, then reopen the recorder and it will offer the saved audio to resend.`, false);
       return;
     }
 
@@ -355,6 +358,7 @@ Always explain what changes or deletes you are proposing, and append the command
         ? data.candidates[0].content.parts.map((p) => p.text).filter(Boolean).join("")
         : "") || "No summary text was returned from the meeting recording.";
       this.updateMessage(assistantBody, text, true);
+      if (window.MobileCommand && MobileCommand.clearSaved) MobileCommand.clearSaved();
     } catch (err) {
       this.updateMessage(assistantBody, `Meeting summary failed: ${err.message || "unknown error"}. You can paste notes into the recorder and try again.`, false);
     }
