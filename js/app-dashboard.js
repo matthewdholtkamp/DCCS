@@ -32,7 +32,7 @@
     },
     {
       id: 'mental-health', service: 'Mental Health', owner: 'Dr Fellwock', outcome: '<6 off-post AD referrals / month', date: 'Sustain after 10 Aug 2026',
-      actionLabel: 'Leading indicator', action: 'Build the high-utilizer dashboard as a DCCS accountability signal by 1 Jul 2026.'
+      actionLabel: 'Leading indicator', action: 'Continue to track, report, and investigate over-utilization through the dashboard, as a function of the Targeted Care Model — the backbone of MHSL access to care.'
     },
     {
       id: 'surgery', service: 'Surgery', owner: 'LTC Weir', outcome: '20 surgeries / week sustained', date: '10 Aug 2026',
