@@ -9,6 +9,7 @@
 
   saveTaskData(taskId, data) {
     Sync.saveTaskData(taskId, data);
+    if (typeof this.refreshExsumKpiChart === 'function') this.refreshExsumKpiChart();
   },
 
   findTask(taskId) {

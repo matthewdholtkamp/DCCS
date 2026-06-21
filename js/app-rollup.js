@@ -177,9 +177,6 @@
     injectRollupStyles() {
       if (document.getElementById('rollup-styles')) return;
       const css = `
-.nav-rollup{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer;transition:var(--transition);border:1px solid var(--border-subtle);background:transparent;font-family:inherit}
-.nav-rollup:hover{color:var(--gold);background:rgba(200,168,78,0.1);border-color:var(--border-accent)}
-.nav-rollup.active{color:var(--gold);background:rgba(200,168,78,0.15);border-color:var(--gold)}
 .roll-wrap{max-width:1100px;margin:0 auto;padding:32px 24px 64px}
 .roll-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .roll-title{font-family:var(--font-display,inherit);font-size:1.9rem;font-weight:800;color:var(--text-primary);margin:0}

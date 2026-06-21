@@ -51,6 +51,7 @@
           }
           this.refreshTaskCard(taskId);
         });
+        if (typeof this.refreshExsumKpiChart === 'function') this.refreshExsumKpiChart();
       } else if (docId === 'metrics') {
         changedKeys.forEach(metricId => {
           const groupDef = this.getMetricGroupForSeries(metricId);
