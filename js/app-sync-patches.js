@@ -78,6 +78,7 @@
             }
           }
         });
+        if (typeof this.refreshExsumDashboard === 'function') this.refreshExsumDashboard();
       } else if (docId === 'hedis') {
         changedKeys.forEach(slId => {
           const section = document.getElementById(`hedis-section-${slId}`);

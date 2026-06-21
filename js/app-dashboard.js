@@ -5,7 +5,7 @@
   const EXSUM_START = '2025-08-01';
   const EXSUM_END = '2027-08-01';
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const STATUS_COLORS = { green: '#3fa45b', amber: '#e0a23d', red: '#d2433a', black: '#1d1f23', grey: '#8a8f98' };
+  const STATUS_COLORS = { green: '#3fa45b', amber: '#ec7c1a', red: '#d2433a', black: '#1d1f23', grey: '#8a8f98' };
   const SERVICE_COLORS = {
     pcsl: '#3f86bc',
     surgery: '#7047b8',
@@ -13,6 +13,7 @@
     emergency: '#bd4f47',
     mscoe: '#b77d00'
   };
+  const SERVICE_SHORT = { pcsl: 'PCSL', surgery: 'Surgery', 'mental-health': 'MHSL', emergency: 'ER', mscoe: 'MSCoE Surgeon' };
   const SERVICE_CARD_GROUPS = [
     { label: 'PCSL', start: 0, count: 2 },
     { label: 'Surgery', start: 2, count: 1 },
@@ -141,6 +142,12 @@
     return out;
   }
 
+  function exLatestMonth(entries) {
+    let latest = '';
+    (entries || []).forEach(e => { const m = String(e.date || '').slice(0, 7); if (/^\d{4}-\d{2}$/.test(m) && m > latest) latest = m; });
+    return latest || null;
+  }
+
   function exDailyRatioSeries(numEntries, denEntries, n) {
     const num = exByDate(numEntries), den = exByDate(denEntries);
     return Object.keys(den).sort().slice(-n).map(d => den[d] ? (num[d] || 0) / den[d] * 100 : 0);
@@ -161,7 +168,7 @@
     const deltaPrecision = trend.delta && Number(exNumber(trend.delta, card.decimals)) === 0 ? Math.max(1, card.decimals) : card.decimals;
     const delta = trend.delta === null || trend.delta === 0 ? '' : (trend.delta > 0 ? '+' : '') + exNumber(trend.delta, deltaPrecision);
     const sparkStroke = card.reference ? '#5aa9e6' : STATUS_COLORS[card.tone] || STATUS_COLORS.grey;
-    const sparkFill = card.reference ? 'rgba(90,169,230,.14)' : card.tone === 'black' ? 'rgba(29,31,35,.10)' : card.tone === 'grey' ? 'rgba(138,143,152,.10)' : card.tone === 'green' ? 'rgba(63,164,91,.12)' : card.tone === 'amber' ? 'rgba(224,162,61,.14)' : 'rgba(210,67,58,.11)';
+    const sparkFill = card.reference ? 'rgba(90,169,230,.14)' : card.tone === 'black' ? 'rgba(29,31,35,.10)' : card.tone === 'grey' ? 'rgba(138,143,152,.10)' : card.tone === 'green' ? 'rgba(63,164,91,.12)' : card.tone === 'amber' ? 'rgba(236,124,26,.16)' : 'rgba(210,67,58,.11)';
     return '' +
       '<article class="exsum-card tone-' + card.tone + (card.reference ? ' is-reference' : '') + '">' +
         '<div class="exsum-card-label">' + exEsc(card.label) + '</div>' +
@@ -182,7 +189,7 @@
   }
 
   function exCards(app) {
-    const get = id => app.getMetricEntries(id) || [];
+    const get = id => (app.getMetricEntries(id) || []).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
     const currentMonth = new Date().toISOString().slice(0, 7);
     const SPARK_N = 14;
     const specs = [
@@ -197,7 +204,7 @@
     ];
 
     return specs.map(spec => {
-      let value = null, previous = null, series = [];
+      let value = null, previous = null, series = [], caption = spec.caption;
       if (spec.mode === 'latest') {
         const rows = get(spec.metric);
         const latest = exLatest(rows), prev = exPrev(rows);
@@ -206,9 +213,11 @@
         series = exTailValues(rows, SPARK_N);
       } else if (spec.mode === 'month') {
         const rows = get(spec.metric);
-        value = exMonthBucket(rows, currentMonth);
-        previous = exMonthBucket(rows, exMonthShift(currentMonth, -1));
-        series = exMonthlySeries(rows, currentMonth, 12);
+        const month = exLatestMonth(rows) || currentMonth;
+        value = exMonthBucket(rows, month);
+        previous = exMonthBucket(rows, exMonthShift(month, -1));
+        series = exMonthlySeries(rows, month, 12);
+        caption = exMonthLabel(month);
       } else if (spec.mode === 'window7') {
         const rows = get(spec.metric);
         const latest = exLatest(rows);
@@ -228,7 +237,7 @@
       const numericPrev = Number.isFinite(Number(previous)) ? Number(previous) : null;
       return {
         label: spec.label, value: numericValue, previous: numericPrev, decimals: spec.decimals, unit: spec.unit || '', target: spec.target, reference: !!spec.reference,
-        tone: exTone(numericValue, spec.kind), betterDirection: spec.dir, caption: spec.caption, series
+        tone: exTone(numericValue, spec.kind), betterDirection: spec.dir, caption: caption, series
       };
     });
   }
@@ -319,7 +328,7 @@
     const lines = (FRAMEWORK.serviceLines || []).map(serviceLine => {
       const stats = program.serviceStats.find(item => item.id === serviceLine.id) || { completedDates: [] };
       return {
-        label: serviceLine.name,
+        label: SERVICE_SHORT[serviceLine.id] || serviceLine.name,
         borderColor: SERVICE_COLORS[serviceLine.id] || '#8a8f98',
         backgroundColor: SERVICE_COLORS[serviceLine.id] || '#8a8f98',
         data: exCumulativeSeries(stats.completedDates, months, todayISO),
@@ -384,7 +393,7 @@
         const left = Math.max(area.left, xAt(band.start));
         const right = Math.min(area.right, xAt(band.end));
         if (right <= left) return;
-        context.fillStyle = band.status === 'active' ? 'rgba(255,184,28,.14)' : index === 0 ? 'rgba(90,169,230,.065)' : 'rgba(29,31,35,.035)';
+        context.fillStyle = band.status === 'active' ? 'rgba(63,164,91,.16)' : index === 0 ? 'rgba(90,169,230,.065)' : 'rgba(29,31,35,.035)';
         context.fillRect(left, area.top, right - left, area.bottom - area.top);
       });
       context.restore();
@@ -401,14 +410,14 @@
       };
       const context = chart.ctx;
       context.save();
-      context.font = '700 9px system-ui, sans-serif';
+      context.font = '800 13px system-ui, sans-serif';
       context.textAlign = 'center';
       options.bands.forEach(band => {
         const left = Math.max(area.left, xAt(band.start));
         const right = Math.min(area.right, xAt(band.end));
         if (right <= left) return;
-        context.fillStyle = band.status === 'active' ? '#a97000' : '#7b8189';
-        context.fillText(String(band.label).replace(/^Phase\s*\d+\s*[—-]?\s*/i, '').toUpperCase(), left + (right - left) / 2, area.top + 13);
+        context.fillStyle = band.status === 'active' ? '#2f7d49' : '#7b8189';
+        context.fillText(String(band.label).replace(/^Phase\s*\d+\s*[—-]?\s*/i, '').toUpperCase(), left + (right - left) / 2, area.top + 17);
       });
       context.restore();
     }
@@ -447,9 +456,8 @@
 
   function exCampaign(brief) {
     return ACCESS_CAMPAIGN.map(lane => `
-      <article class="exsum-campaign-lane">
-        <div class="exsum-lane-head"><strong>${exEsc(lane.service)}</strong><span>${exEsc(lane.owner)}</span></div>
-        <div class="exsum-lane-outcome">${exEsc(lane.outcome)}</div>
+      <article class="exsum-campaign-lane" style="--lane-accent:${SERVICE_COLORS[lane.id] || '#8a8f98'}">
+        <div class="exsum-lane-title"><strong class="exsum-lane-sl">${exEsc(lane.service)}</strong><span class="exsum-lane-tag">Access to Care Metric</span><span class="exsum-lane-metric">${exEsc(lane.outcome)}</span><span class="exsum-lane-owner">${exEsc(lane.owner)}</span></div>
         <div class="exsum-lane-date">${exEsc(lane.date)}</div>
         <p class="exsum-lane-action"><span>${exEsc(lane.actionLabel)}</span>${exEsc(lane.action)}</p>
         ${exCampaignLiveUpdate(lane, brief)}
@@ -515,6 +523,17 @@
       if (progress) progress.textContent = `${chartData.completedKpis} / ${chartData.totalKpis} complete`;
     },
 
+    refreshExsumDashboard() {
+      const root = this._exsumRoot;
+      if (!root || !root.isConnected) return;
+      const cards = exCards(this);
+      const cardsWrap = root.querySelector('.exsum-cards');
+      if (cardsWrap) cardsWrap.innerHTML = exGroupedCards(cards);
+      const readout = root.querySelector('.exsum-readout p');
+      if (readout) readout.textContent = exSummary(cards);
+      this.refreshExsumKpiChart();
+    },
+
     renderDashboard(el) {
       this.injectDashboardStyles();
       this._exsumRoot = null;
@@ -532,9 +551,9 @@
         <section class="exsum-root" aria-label="Executive Summary clinical operations briefing">
           <header class="exsum-top">
             <div class="exsum-title-row"><h1 class="exsum-title">DCCS — Executive Summary</h1><span class="exsum-asof">As of ${exEsc(exToday())}</span></div>
+            <div class="exsum-access-context"><span>Access to Care</span><strong>Primary Outcome</strong></div>
             <p class="exsum-desired"><span class="exsum-desired-tag">Desired State</span> ${exEsc(FRAMEWORK.desiredState || '')}</p>
           </header>
-          <div class="exsum-access-context"><span>Access to Care</span><strong>Primary Outcome</strong></div>
           <section class="exsum-cards" aria-label="Clinical operations status">${exGroupedCards(cards)}</section>
           <section class="exsum-lower">
             <div class="exsum-left">
@@ -570,13 +589,13 @@
           interaction: { mode: 'index', intersect: false },
           layout: { padding: { top: 4, right: 8, bottom: 0, left: 2 } },
           plugins: {
-            legend: { display: true, position: 'bottom', labels: { color: '#41464d', boxWidth: 10, boxHeight: 2, padding: 10, font: { size: 10, weight: '600' } } },
+            legend: { display: true, position: 'bottom', labels: { color: '#41464d', boxWidth: 14, boxHeight: 3, padding: 14, font: { size: 13, weight: '700' } } },
             tooltip: { backgroundColor: '#1d1f23', titleColor: '#ffffff', bodyColor: '#f2f3f4', borderColor: 'rgba(29,31,35,.28)', borderWidth: 1 },
             exsumPhaseBands: { bands, months: chartData.months }
           },
           scales: {
-            x: { grid: { color: 'rgba(29,31,35,.07)' }, border: { color: '#d9dde1' }, ticks: { color: '#646b73', autoSkip: true, maxTicksLimit: 8, font: { size: 9 }, callback(value) { const date = this.getLabelForValue(value); const parts = date.split('-'); return `${MONTH_NAMES[Number(parts[1]) - 1]} ’${parts[0].slice(2)}`; } } },
-            y: { beginAtZero: true, max: exsumKpiMax, ticks: { precision: 0, color: '#646b73', font: { size: 9 } }, grid: { color: 'rgba(29,31,35,.09)' }, border: { color: '#d9dde1' } }
+            x: { grid: { color: 'rgba(29,31,35,.07)' }, border: { color: '#d9dde1' }, ticks: { color: '#646b73', autoSkip: true, maxTicksLimit: 8, font: { size: 11 }, callback(value) { const date = this.getLabelForValue(value); const parts = date.split('-'); return `${MONTH_NAMES[Number(parts[1]) - 1]} ’${parts[0].slice(2)}`; } } },
+            y: { beginAtZero: true, max: exsumKpiMax, ticks: { precision: 0, color: '#646b73', font: { size: 11 } }, grid: { color: 'rgba(29,31,35,.09)' }, border: { color: '#d9dde1' } }
           }
         }
       });
@@ -588,17 +607,17 @@
       style.id = 'exsum-styles';
       style.textContent = `
 .exsum-root,.exsum-root *{box-sizing:border-box}.exsum-root{height:calc(100vh - 64px);min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:clamp(7px,1vh,12px);padding:clamp(8px,1.25vh,16px) clamp(10px,1.5vw,22px);color:var(--text-primary);background:var(--bg-primary,transparent);font-family:inherit}
-.exsum-top{flex:none;display:flex;flex-direction:column;gap:clamp(4px,.6vh,7px);padding-bottom:clamp(6px,.8vh,10px);border-bottom:1px solid var(--border-subtle)}.exsum-title-row{position:relative;display:flex;align-items:center;justify-content:center}.exsum-title{margin:0;color:var(--text-primary);font-size:clamp(1.18rem,1.82vw,1.72rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-asof{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:clamp(.58rem,.72vw,.78rem);font-weight:700}.exsum-desired{max-width:97%;margin:0 auto;text-align:center;color:var(--text-secondary);font-size:clamp(.72rem,.87vw,.94rem);line-height:1.34}.exsum-desired-tag{color:var(--gold);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:.84em;margin-right:7px}.exsum-campaign-control{flex:none;display:flex;align-items:center;gap:clamp(7px,.8vw,12px);min-height:21px;padding-top:3px;border-top:1px solid var(--border-subtle);font-size:clamp(.48rem,.58vw,.63rem);line-height:1.15}.exsum-campaign-stamp{color:#646b73;font-weight:750;white-space:nowrap}.exsum-campaign-stamp.is-stale{color:#b82e27}.exsum-campaign-status{min-width:0;flex:1 1 auto;overflow:hidden;color:#747b84;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.exsum-campaign-status.is-running{color:#a97000}.exsum-campaign-status.is-error{color:#b82e27}.exsum-classification{flex:none;margin-top:clamp(1px,.3vh,4px);padding-top:clamp(3px,.5vh,6px);border-top:1px solid var(--border-subtle);text-align:center;color:#5fae6f;font-size:clamp(.6rem,.74vw,.8rem);font-weight:850;letter-spacing:.28em;text-transform:uppercase}
-.exsum-access-context{flex:none;display:flex;align-items:center;gap:6px;min-height:10px;margin-bottom:-3px;color:#1d1f23;font-size:clamp(.52rem,.62vw,.67rem);font-weight:850;letter-spacing:.1em;line-height:1;text-transform:uppercase}.exsum-access-context span{color:#a97000}.exsum-access-context strong{font:inherit}.exsum-access-context strong:before{margin-right:6px;color:#8a8f98;content:'—'}
+.exsum-top{flex:none;display:flex;flex-direction:column;gap:clamp(4px,.6vh,7px);padding-bottom:clamp(6px,.8vh,10px);border-bottom:1px solid var(--border-subtle)}.exsum-title-row{position:relative;display:flex;align-items:center;justify-content:center}.exsum-title{margin:0;color:var(--text-primary);font-size:clamp(1.5rem,2.3vw,2.25rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-asof{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:clamp(.66rem,.82vw,.9rem);font-weight:700}.exsum-desired{max-width:97%;margin:0 auto;text-align:center;color:var(--text-secondary);font-size:clamp(.92rem,1.12vw,1.22rem);line-height:1.34}.exsum-desired-tag{color:var(--gold);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:.84em;margin-right:7px}.exsum-campaign-control{flex:none;display:flex;align-items:center;gap:clamp(7px,.8vw,12px);min-height:21px;padding-top:3px;border-top:1px solid var(--border-subtle);font-size:clamp(.48rem,.58vw,.63rem);line-height:1.15}.exsum-campaign-stamp{color:#646b73;font-weight:750;white-space:nowrap}.exsum-campaign-stamp.is-stale{color:#b82e27}.exsum-campaign-status{min-width:0;flex:1 1 auto;overflow:hidden;color:#747b84;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.exsum-campaign-status.is-running{color:#a97000}.exsum-campaign-status.is-error{color:#b82e27}.exsum-classification{flex:none;margin-top:clamp(1px,.3vh,4px);padding-top:clamp(3px,.5vh,6px);border-top:1px solid var(--border-subtle);text-align:center;color:#5fae6f;font-size:clamp(.6rem,.74vw,.8rem);font-weight:850;letter-spacing:.28em;text-transform:uppercase}
+.exsum-access-context{flex:none;display:flex;align-items:center;justify-content:center;gap:6px;min-height:10px;margin-bottom:0;color:var(--gold);font-size:clamp(.66rem,.8vw,.87rem);font-weight:850;letter-spacing:.1em;line-height:1;text-transform:uppercase}.exsum-access-context span{color:var(--gold)}.exsum-access-context strong{font:inherit}.exsum-access-context strong:before{margin-right:6px;color:var(--gold);content:'—'}
 .exsum-cards{height:18%;min-height:99px;display:flex;gap:clamp(5px,.65vw,10px);overflow:visible}
 .exsum-service-group{position:relative;min-width:0;min-height:0;flex:var(--group-span) 1 0;display:flex;gap:4px;padding:clamp(7px,.75vh,9px) 3px 3px;border:1px solid #1d1f23;border-radius:4px}.exsum-service-label{position:absolute;z-index:1;top:0;left:7px;transform:translateY(-50%);padding:0 4px;background:#fff;color:#1d1f23;font-size:clamp(.45rem,.53vw,.56rem);font-weight:850;letter-spacing:.12em;line-height:1.2;text-transform:uppercase}
 .exsum-card{--card-accent:#8a8f98;--card-tint:rgba(138,143,152,.08);min-width:0;flex:1 1 0;display:flex;flex-direction:column;padding:clamp(5px,.6vw,8px);border:1px solid rgba(29,31,35,.10);border-left:3px solid var(--card-accent);border-radius:3px;overflow:hidden;color:#1d1f23;background:var(--card-tint)}
-.exsum-card.tone-green{--card-accent:#3fa45b;--card-tint:rgba(63,164,91,.10)}.exsum-card.tone-amber{--card-accent:#c18217;--card-tint:rgba(224,162,61,.12)}.exsum-card.tone-red{--card-accent:#d2433a;--card-tint:rgba(210,67,58,.10)}.exsum-card.tone-black{--card-accent:#1d1f23;--card-tint:rgba(29,31,35,.07)}.exsum-card.tone-grey{--card-accent:#747b84;--card-tint:rgba(138,143,152,.09)}.exsum-card.is-reference{--card-accent:#2f6f9f;--card-tint:#eaf4fb}
+.exsum-card.tone-green{--card-accent:#3fa45b;--card-tint:rgba(63,164,91,.10)}.exsum-card.tone-amber{--card-accent:#ec7c1a;--card-tint:rgba(236,124,26,.13)}.exsum-card.tone-red{--card-accent:#d2433a;--card-tint:rgba(210,67,58,.10)}.exsum-card.tone-black{--card-accent:#1d1f23;--card-tint:rgba(29,31,35,.07)}.exsum-card.tone-grey{--card-accent:#747b84;--card-tint:rgba(138,143,152,.09)}.exsum-card.is-reference{--card-accent:#2f6f9f;--card-tint:#eaf4fb}
 .exsum-card-label{min-height:2.05em;color:#42474e;font-size:clamp(.5rem,.6vw,.65rem);font-weight:850;line-height:1.12;text-transform:uppercase;letter-spacing:.035em}.exsum-card-value{margin-top:1px;color:var(--card-accent);font-size:clamp(1.17rem,1.75vw,1.95rem);font-weight:850;line-height:1;letter-spacing:-.04em;white-space:nowrap;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:.12em}.exsum-unit{font-size:.46em;font-weight:800;opacity:.8;letter-spacing:0}
 .exsum-card-trend{display:flex;align-items:center;gap:4px;min-width:0;min-height:1.1em;margin-top:2px;font-size:clamp(.49rem,.58vw,.63rem);font-weight:800;color:#747b84}.exsum-card-trend.trend-green{color:#25813e}.exsum-card-trend.trend-red{color:#b82e27}.exsum-card-trend.trend-grey{color:#747b84}.exsum-card.is-reference .exsum-card-trend{color:#2f6f9f}.exsum-arrow{font-size:.95em}.exsum-card-target{margin-left:auto;padding-left:3px;color:var(--card-accent);font-size:.92em;font-weight:850;white-space:nowrap}
 .exsum-card-spark{flex:1 1 auto;min-height:12px;margin-top:clamp(2px,.35vh,4px);display:flex;align-items:flex-end}.exsum-spark{width:100%;height:100%;display:block}.exsum-card-caption{margin-top:2px;overflow:hidden;color:#646b73;font-size:clamp(.46rem,.53vw,.58rem);line-height:1.1;white-space:nowrap;text-overflow:ellipsis}
-.exsum-lower{min-height:0;flex:1 1 auto;display:flex;gap:clamp(8px,1vw,16px);overflow:hidden}.exsum-left{min-width:0;min-height:0;flex:0 0 calc(58% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;gap:clamp(7px,.9vh,11px);overflow:hidden}.exsum-chart-shell{min-height:0;flex:1 1 auto;display:grid;grid-template-rows:auto minmax(0,1fr);padding:clamp(8px,1vw,13px);border:1px solid #d9dde1;border-radius:7px;background:#fff;overflow:hidden}.exsum-chart-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;color:#1d1f23;font-size:clamp(.68rem,.82vw,.88rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-chart-title{min-width:0}.exsum-chart-title em{margin-left:7px;color:#747b84;font-size:.78em;font-weight:600;font-style:normal;letter-spacing:0;text-transform:none}.exsum-chart-progress{flex:none;padding:3px 6px;border-radius:3px;background:rgba(29,31,35,.07);color:#1d1f23;font-size:clamp(.52rem,.62vw,.65rem);font-weight:850;letter-spacing:0;text-transform:none;white-space:nowrap}.exsum-chart-shell canvas{min-height:0!important;width:100%!important;height:100%!important}.exsum-readout{flex:none;display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(6px,.8vw,10px);align-items:start;padding:clamp(6px,.8vh,9px) clamp(7px,.85vw,11px);border-left:3px solid #ffb81c;border-radius:3px;background:rgba(255,184,28,.10);color:#30343a}.exsum-readout>span{padding-top:1px;color:#a97000;font-size:clamp(.49rem,.59vw,.62rem);font-weight:850;letter-spacing:.1em;line-height:1.25;text-transform:uppercase;white-space:nowrap}.exsum-readout p{margin:0;color:#30343a;font-size:clamp(.68rem,.84vw,.9rem);font-weight:600;line-height:1.35}
-.exsum-campaign{min-width:0;min-height:0;flex:0 0 calc(42% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;padding:clamp(8px,1vw,13px);border:1px solid #d9dde1;border-radius:7px;background:#fff;overflow:hidden}.exsum-campaign-heading{flex:none;padding-bottom:clamp(5px,.65vh,8px);border-bottom:1px solid #d9dde1;color:#a97000;font-size:clamp(.65rem,.8vw,.84rem);font-weight:850;letter-spacing:.08em;text-transform:uppercase}.exsum-campaign-heading span{margin-left:7px;color:#646b73;font-size:.8em;font-weight:700;letter-spacing:0;text-transform:none}.exsum-campaign-lanes{min-height:0;flex:1 1 auto;display:grid;grid-template-rows:repeat(4,minmax(0,1fr));padding-top:clamp(3px,.45vh,6px);overflow:hidden}.exsum-campaign-lane{min-height:0;display:flex;flex-direction:column;justify-content:flex-start;padding:clamp(3px,.42vh,6px) 0;border-top:1px solid rgba(29,31,35,.11);overflow:hidden}.exsum-campaign-lane:first-child{border-top:0}.exsum-lane-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}.exsum-lane-head strong{color:#1d1f23;font-size:clamp(.57rem,.69vw,.73rem);font-weight:850;letter-spacing:.06em;text-transform:uppercase}.exsum-lane-head span{flex:none;color:#646b73;font-size:clamp(.46rem,.55vw,.59rem);font-weight:750;white-space:nowrap}.exsum-lane-outcome{margin-top:1px;color:#30343a;font-size:clamp(.58rem,.7vw,.75rem);font-weight:850;line-height:1.12}.exsum-lane-date{margin-top:1px;color:#a97000;font-size:clamp(.45rem,.52vw,.56rem);font-weight:850;letter-spacing:.04em;line-height:1.1;text-transform:uppercase}.exsum-lane-action{display:-webkit-box;margin:clamp(1px,.2vh,3px) 0 0;overflow:hidden;color:#4d535b;font-size:clamp(.46rem,.55vw,.6rem);font-weight:600;line-height:1.2;-webkit-box-orient:vertical;-webkit-line-clamp:2}.exsum-lane-action span{margin-right:5px;color:#1d1f23;font-size:.9em;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.exsum-lane-progress{display:flex;align-items:baseline;gap:4px;min-width:0;margin-top:2px;color:#5b626b;font-size:clamp(.44rem,.51vw,.56rem);font-weight:700;line-height:1.1}.exsum-lane-progress>span{color:#747b84;font-size:.9em;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.exsum-lane-progress strong{flex:none;color:#25813e;font-weight:850;text-transform:uppercase}.exsum-lane-progress em{min-width:0;overflow:hidden;color:#4d535b;font-size:inherit;font-style:normal;text-overflow:ellipsis;white-space:nowrap}.exsum-lane-progress.tone-on-track strong{color:#25813e}.exsum-lane-progress.tone-sustain strong{color:#25813e}.exsum-lane-progress.tone-at-risk strong{color:#a97000}.exsum-lane-progress.tone-off-track strong{color:#b82e27}.exsum-lane-progress.is-pending strong{color:#747b84}.exsum-lane-update{display:-webkit-box;margin:2px 0 0;overflow:hidden;color:#4d535b;font-size:clamp(.45rem,.54vw,.59rem);font-weight:600;line-height:1.2;-webkit-box-orient:vertical;-webkit-line-clamp:4}.exsum-lane-update.is-pending{color:#747b84;font-style:italic}
+.exsum-lower{min-height:0;flex:1 1 auto;display:flex;gap:clamp(8px,1vw,16px);overflow:hidden}.exsum-left{min-width:0;min-height:0;flex:0 0 calc(58% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;gap:clamp(7px,.9vh,11px);overflow:hidden}.exsum-chart-shell{min-height:0;flex:1 1 auto;display:grid;grid-template-rows:auto minmax(0,1fr);padding:clamp(8px,1vw,13px);border:1px solid #d9dde1;border-radius:7px;background:#fff;overflow:hidden}.exsum-chart-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;color:#1d1f23;font-size:clamp(.68rem,.82vw,.88rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-chart-title{min-width:0}.exsum-chart-title em{margin-left:7px;color:#747b84;font-size:.78em;font-weight:600;font-style:normal;letter-spacing:0;text-transform:none}.exsum-chart-progress{flex:none;padding:3px 6px;border-radius:3px;background:rgba(29,31,35,.07);color:#1d1f23;font-size:clamp(.52rem,.62vw,.65rem);font-weight:850;letter-spacing:0;text-transform:none;white-space:nowrap}.exsum-chart-shell canvas{min-height:0!important;width:100%!important;height:100%!important}.exsum-readout{flex:none;display:grid;grid-template-columns:auto minmax(0,1fr);gap:clamp(6px,.8vw,10px);align-items:start;padding:clamp(6px,.8vh,9px) clamp(7px,.85vw,11px);border-left:3px solid #2f6f9f;border-radius:3px;background:rgba(47,111,159,.08);color:#30343a}.exsum-readout>span{padding-top:1px;color:#2f6f9f;font-size:clamp(.6rem,.72vw,.78rem);font-weight:850;letter-spacing:.1em;line-height:1.25;text-transform:uppercase;white-space:nowrap}.exsum-readout p{margin:0;color:#30343a;font-size:clamp(.82rem,1vw,1.12rem);font-weight:600;line-height:1.35}
+.exsum-campaign{min-width:0;min-height:0;flex:0 0 calc(42% - clamp(5px,.5vw,8px));display:flex;flex-direction:column;padding:clamp(8px,1vw,13px);border:1px solid #d9dde1;border-radius:7px;background:#fff;overflow:hidden}.exsum-campaign-heading{flex:none;padding-bottom:clamp(5px,.65vh,8px);border-bottom:1px solid #d9dde1;color:#a97000;font-size:clamp(.65rem,.8vw,.84rem);font-weight:850;letter-spacing:.08em;text-transform:uppercase}.exsum-campaign-heading span{margin-left:7px;color:#646b73;font-size:.8em;font-weight:700;letter-spacing:0;text-transform:none}.exsum-campaign-lanes{min-height:0;flex:1 1 auto;display:grid;grid-template-rows:repeat(4,minmax(0,1fr));gap:clamp(6px,.85vh,11px);padding-top:clamp(3px,.45vh,6px);overflow:hidden}.exsum-campaign-lane{min-height:0;display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:clamp(6px,.8vh,10px) clamp(8px,.7vw,12px);background:#fafbfc;border:1px solid #e7eaed;border-left:3px solid var(--lane-accent,#8a8f98);border-radius:5px;overflow:hidden}.exsum-lane-title{display:flex;align-items:baseline;min-width:0;white-space:nowrap;overflow:hidden}.exsum-lane-sl{flex:none;color:var(--lane-accent,#8a8f98);font-size:clamp(.76rem,.9vw,1rem);font-weight:850;letter-spacing:.04em;text-transform:uppercase}.exsum-lane-tag{flex:none;color:#7b8189;font-size:clamp(.52rem,.62vw,.68rem);font-weight:800;letter-spacing:.07em;text-transform:uppercase}.exsum-lane-tag:before,.exsum-lane-metric:before{content:'—';margin:0 5px;color:#b4babf;font-weight:600}.exsum-lane-metric{min-width:0;overflow:hidden;text-overflow:ellipsis;color:#1d1f23;font-size:clamp(.64rem,.76vw,.84rem);font-weight:800}.exsum-lane-owner{flex:none;margin-left:auto;padding-left:8px;color:#646b73;font-size:clamp(.54rem,.64vw,.7rem);font-weight:750;white-space:nowrap}.exsum-lane-date{margin-top:2px;color:#a97000;font-size:clamp(.54rem,.64vw,.7rem);font-weight:850;letter-spacing:.04em;line-height:1.1;text-transform:uppercase}.exsum-lane-action{display:-webkit-box;margin:clamp(1px,.2vh,3px) 0 0;overflow:hidden;color:#4d535b;font-size:clamp(.58rem,.68vw,.76rem);font-weight:600;line-height:1.2;-webkit-box-orient:vertical;-webkit-line-clamp:2}.exsum-lane-action span{margin-right:5px;color:#1d1f23;font-size:.9em;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.exsum-lane-progress{display:flex;align-items:baseline;gap:4px;min-width:0;margin-top:3px;color:#5b626b;font-size:clamp(.54rem,.63vw,.7rem);font-weight:700;line-height:1.1}.exsum-lane-progress>span{color:#747b84;font-size:.9em;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.exsum-lane-progress strong{flex:none;color:#25813e;font-weight:850;text-transform:uppercase}.exsum-lane-progress em{min-width:0;overflow:hidden;color:#4d535b;font-size:inherit;font-style:normal;text-overflow:ellipsis;white-space:nowrap}.exsum-lane-progress.tone-on-track strong{color:#25813e}.exsum-lane-progress.tone-sustain strong{color:#25813e}.exsum-lane-progress.tone-at-risk strong{color:#a97000}.exsum-lane-progress.tone-off-track strong{color:#b82e27}.exsum-lane-progress.is-pending strong{color:#747b84}.exsum-lane-update{display:-webkit-box;margin:3px 0 0;overflow:hidden;color:#4d535b;font-size:clamp(.56rem,.66vw,.74rem);font-weight:600;line-height:1.2;-webkit-box-orient:vertical;-webkit-line-clamp:4}.exsum-lane-update.is-pending{color:#747b84;font-style:italic}
 @media (max-width:1500px),(max-height:900px){.exsum-lane-update{-webkit-line-clamp:3}}
 @media (max-height:720px){.exsum-root{gap:5px;padding-top:6px;padding-bottom:6px}.exsum-top{gap:3px;padding-bottom:5px}.exsum-title{font-size:1.12rem}.exsum-desired{font-size:.66rem}.exsum-access-context{font-size:.5rem}.exsum-cards{min-height:76px}.exsum-service-group{padding-top:7px}.exsum-card{padding:4px}.exsum-card-label{font-size:.48rem}.exsum-card-value{font-size:1.1rem}.exsum-card-caption{display:none}.exsum-readout{padding:5px 7px}.exsum-readout p{font-size:.6rem}.exsum-campaign,.exsum-chart-shell{padding:7px}.exsum-campaign-control{min-height:19px}.exsum-lane-action{-webkit-line-clamp:1}.exsum-lane-update{-webkit-line-clamp:2}}
 @media (max-width:980px){.exsum-root{overflow:auto}.exsum-cards{min-width:760px}.exsum-lower{min-width:760px}.exsum-readout{min-height:3.8em}}
