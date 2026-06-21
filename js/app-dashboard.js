@@ -35,8 +35,8 @@
       actionLabel: 'Leading indicator', action: 'Continue to track, report, and investigate over-utilization through the dashboard, as a function of the Targeted Care Model — the backbone of MHSL access to care.'
     },
     {
-      id: 'surgery', service: 'Surgery', owner: 'LTC Weir', outcome: '20 surgeries / week sustained', date: '10 Aug 2026',
-      actionLabel: 'Advance', action: 'Scale to 40 surgeries / week by Jul 2027.'
+      id: 'surgery', service: 'Surgery', owner: 'LTC Weir', outcome: '20 surgeries / week sustained', date: 'Complete by 10 Aug 2026 · 40 surgeries / week thereafter',
+      actionLabel: 'Next objective', action: 'Scale to 40 surgeries / week by Jul 2027.'
     }
   ];
   const PHASE_FALLBACKS = [
@@ -435,12 +435,17 @@
 
   function exCampaignMeta(brief) {
     const generatedAt = brief && brief.generatedAt && new Date(brief.generatedAt);
-    if (!generatedAt || Number.isNaN(generatedAt.getTime())) return { text: 'No weekly brief published', stale: false };
+    const sourceEnd = String(brief && brief.sourceWindow && brief.sourceWindow.end || '').slice(0, 10);
+    const sourceDate = /^\d{4}-\d{2}-\d{2}$/.test(sourceEnd) ? new Date(sourceEnd + 'T12:00:00Z') : null;
+    const dataText = sourceDate && !Number.isNaN(sourceDate.getTime())
+      ? 'Data through ' + new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(sourceDate)
+      : '';
+    if (!generatedAt || Number.isNaN(generatedAt.getTime())) return { text: 'No weekly brief published', dataText, stale: false };
     const stamp = new Intl.DateTimeFormat('en-US', {
       timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
     }).format(generatedAt).replace(',', '');
     const stale = Date.now() - generatedAt.getTime() > 35 * 24 * 60 * 60 * 1000;
-    return { text: `${stale ? 'Stale · ' : ''}Updated ${stamp} CT`, stale };
+    return { text: `${stale ? 'Stale · ' : ''}Updated ${stamp} CT`, dataText, stale };
   }
 
   function exCampaignLiveUpdate(lane, brief) {
@@ -472,6 +477,10 @@
     root.querySelectorAll('[data-exsum-campaign-stamp]').forEach(element => {
       element.textContent = meta.text;
       element.classList.toggle('is-stale', meta.stale);
+    });
+    root.querySelectorAll('[data-exsum-campaign-data-through]').forEach(element => {
+      element.textContent = meta.dataText;
+      element.hidden = !meta.dataText;
     });
   }
 
@@ -567,6 +576,7 @@
           </section>
           <div class="exsum-campaign-control" aria-live="polite">
             <span class="exsum-campaign-stamp" data-exsum-campaign-stamp>${exEsc(exCampaignMeta(this._exsumCampaignBrief).text)}</span>
+            <span class="exsum-campaign-data-through" data-exsum-campaign-data-through${exCampaignMeta(this._exsumCampaignBrief).dataText ? '' : ' hidden'}>${exEsc(exCampaignMeta(this._exsumCampaignBrief).dataText)}</span>
             <span class="exsum-campaign-status" data-exsum-campaign-status>Monthly access brief · live snapshot from the Rollup</span>
           </div>
           <footer class="exsum-classification">UNCLASSIFIED</footer>
@@ -607,7 +617,7 @@
       style.id = 'exsum-styles';
       style.textContent = `
 .exsum-root,.exsum-root *{box-sizing:border-box}.exsum-root{height:calc(100vh - 64px);min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:clamp(7px,1vh,12px);padding:clamp(8px,1.25vh,16px) clamp(10px,1.5vw,22px);color:var(--text-primary);background:var(--bg-primary,transparent);font-family:inherit}
-.exsum-top{flex:none;display:flex;flex-direction:column;gap:clamp(4px,.6vh,7px);padding-bottom:clamp(6px,.8vh,10px);border-bottom:1px solid var(--border-subtle)}.exsum-title-row{position:relative;display:flex;align-items:center;justify-content:center}.exsum-title{margin:0;color:var(--text-primary);font-size:clamp(1.5rem,2.3vw,2.25rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-asof{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:clamp(.66rem,.82vw,.9rem);font-weight:700}.exsum-desired{max-width:97%;margin:0 auto;text-align:center;color:var(--text-secondary);font-size:clamp(.92rem,1.12vw,1.22rem);line-height:1.34}.exsum-desired-tag{color:var(--gold);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:.84em;margin-right:7px}.exsum-campaign-control{flex:none;display:flex;align-items:center;gap:clamp(7px,.8vw,12px);min-height:21px;padding-top:3px;border-top:1px solid var(--border-subtle);font-size:clamp(.48rem,.58vw,.63rem);line-height:1.15}.exsum-campaign-stamp{color:#646b73;font-weight:750;white-space:nowrap}.exsum-campaign-stamp.is-stale{color:#b82e27}.exsum-campaign-status{min-width:0;flex:1 1 auto;overflow:hidden;color:#747b84;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.exsum-campaign-status.is-running{color:#a97000}.exsum-campaign-status.is-error{color:#b82e27}.exsum-classification{flex:none;margin-top:clamp(1px,.3vh,4px);padding-top:clamp(3px,.5vh,6px);border-top:1px solid var(--border-subtle);text-align:center;color:#5fae6f;font-size:clamp(.6rem,.74vw,.8rem);font-weight:850;letter-spacing:.28em;text-transform:uppercase}
+.exsum-top{flex:none;display:flex;flex-direction:column;gap:clamp(4px,.6vh,7px);padding-bottom:clamp(6px,.8vh,10px);border-bottom:1px solid var(--border-subtle)}.exsum-title-row{position:relative;display:flex;align-items:center;justify-content:center}.exsum-title{margin:0;color:var(--text-primary);font-size:clamp(1.5rem,2.3vw,2.25rem);font-weight:850;letter-spacing:.045em;text-transform:uppercase}.exsum-asof{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:clamp(.66rem,.82vw,.9rem);font-weight:700}.exsum-desired{max-width:97%;margin:0 auto;text-align:center;color:var(--text-secondary);font-size:clamp(.92rem,1.12vw,1.22rem);line-height:1.34}.exsum-desired-tag{color:var(--gold);font-weight:800;letter-spacing:.1em;text-transform:uppercase;font-size:.84em;margin-right:7px}.exsum-campaign-control{flex:none;display:flex;align-items:center;gap:clamp(7px,.8vw,12px);min-height:21px;padding-top:3px;border-top:1px solid var(--border-subtle);font-size:clamp(.48rem,.58vw,.63rem);line-height:1.15}.exsum-campaign-stamp,.exsum-campaign-data-through{color:#646b73;font-weight:750;white-space:nowrap}.exsum-campaign-data-through{color:#7b8189}.exsum-campaign-stamp.is-stale{color:#b82e27}.exsum-campaign-status{min-width:0;flex:1 1 auto;overflow:hidden;color:#747b84;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.exsum-campaign-status.is-running{color:#a97000}.exsum-campaign-status.is-error{color:#b82e27}.exsum-classification{flex:none;margin-top:clamp(1px,.3vh,4px);padding-top:clamp(3px,.5vh,6px);border-top:1px solid var(--border-subtle);text-align:center;color:#5fae6f;font-size:clamp(.6rem,.74vw,.8rem);font-weight:850;letter-spacing:.28em;text-transform:uppercase}
 .exsum-access-context{flex:none;display:flex;align-items:center;justify-content:center;gap:6px;min-height:10px;margin-bottom:0;color:var(--gold);font-size:clamp(.66rem,.8vw,.87rem);font-weight:850;letter-spacing:.1em;line-height:1;text-transform:uppercase}.exsum-access-context span{color:var(--gold)}.exsum-access-context strong{font:inherit}.exsum-access-context strong:before{margin-right:6px;color:var(--gold);content:'—'}
 .exsum-cards{height:18%;min-height:99px;display:flex;gap:clamp(5px,.65vw,10px);overflow:visible}
 .exsum-service-group{position:relative;min-width:0;min-height:0;flex:var(--group-span) 1 0;display:flex;gap:4px;padding:clamp(7px,.75vh,9px) 3px 3px;border:1px solid #1d1f23;border-radius:4px}.exsum-service-label{position:absolute;z-index:1;top:0;left:7px;transform:translateY(-50%);padding:0 4px;background:#fff;color:#1d1f23;font-size:clamp(.45rem,.53vw,.56rem);font-weight:850;letter-spacing:.12em;line-height:1.2;text-transform:uppercase}
