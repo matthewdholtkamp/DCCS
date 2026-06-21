@@ -279,7 +279,7 @@ Always explain what changes or deletes you are proposing, and append the command
     const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
     const focus = focusLabel || "all DCCS service lines";
     this.createMessage("user", `Meeting recording captured (focus: ${focus}). Transcribing and routing to the right sections...`);
-    const assistantBody = this.createMessage("assistant", "");
+    const assistantBody = this.createMessage("assistant", "Thinking...");
 
     const cfg = window.BANDAID_CONFIG || {};
     const workerUrl = cfg.WORKER_URL;

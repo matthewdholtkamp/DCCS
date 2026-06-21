@@ -231,72 +231,99 @@
     min-height: 44px;
     padding: 0 12px;
   }
-  .mobile-recorder-status {
+  .rec-stage {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
-    margin: 14px 0 2px;
-    padding: 12px;
-    border: 1px solid rgba(255, 184, 28, 0.24);
-    border-radius: 8px;
-    background: rgba(255, 184, 28, 0.08);
+    margin: 16px 0 4px;
+    padding: 22px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    background: radial-gradient(120% 120% at 50% 0%, rgba(255, 184, 28, 0.10), rgba(255, 255, 255, 0) 62%), #121511;
   }
-  .mobile-recorder-timer {
+  .rec-orb {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    color: #070907;
+    background: #ffb81c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 26px rgba(255, 184, 28, 0.32);
+    transition: transform 0.12s ease, background 0.2s ease;
+  }
+  .rec-orb:active { transform: scale(0.96); }
+  .rec-orb-mic { width: 40px; height: 40px; }
+  .rec-orb-stop { display: none; width: 26px; height: 26px; border-radius: 5px; background: #fff; }
+  .rec-orb.recording { background: #d2433a; color: #fff; animation: recPulse 1.6s ease-out infinite; }
+  .rec-orb.recording .rec-orb-mic { display: none; }
+  .rec-orb.recording .rec-orb-stop { display: block; }
+  @keyframes recPulse {
+    0% { box-shadow: 0 0 0 0 rgba(210, 67, 58, 0.5); }
+    70% { box-shadow: 0 0 0 22px rgba(210, 67, 58, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(210, 67, 58, 0); }
+  }
+  .rec-timer {
     color: #ffcf68;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 1.45rem;
+    font-size: 1.8rem;
     font-weight: 800;
+    letter-spacing: 1px;
   }
-  .mobile-recorder-state {
-    min-width: 0;
+  .rec-state {
+    color: #cfd6cb;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    text-align: center;
+    max-width: 32ch;
+  }
+  .rec-hint {
+    margin: 12px 2px 2px;
+    color: #9aa295;
+    font-size: 0.74rem;
+    line-height: 1.5;
+  }
+  .rec-notes {
+    margin: 10px 0 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 6px;
+  }
+  .rec-notes > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 8px 0;
     color: #dfe6da;
     font-size: 0.78rem;
-    line-height: 1.3;
-    text-align: right;
+    font-weight: 700;
   }
-  .mobile-recorder-transcript {
-    min-height: 190px;
+  .rec-notes > summary::-webkit-details-marker { display: none; }
+  .rec-notes > summary::before { content: "▸  "; color: #ffb81c; font-weight: 800; }
+  .rec-notes[open] > summary::before { content: "▾  "; }
+  .rec-notes .mobile-recorder-transcript {
+    min-height: 104px;
     padding: 12px;
     resize: vertical;
     font-size: 0.9rem;
     line-height: 1.45;
-  }
-  .mobile-recorder-controls {
-    display: grid;
-    grid-template-columns: 1fr 92px;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .mobile-recorder-primary,
-  .mobile-recorder-secondary,
-  .mobile-recorder-submit {
-    min-height: 44px;
-    border-radius: 8px;
-    font-weight: 800;
-  }
-  .mobile-recorder-primary {
-    border: none;
-    background: #ffb81c;
-    color: #070907;
-  }
-  .mobile-recorder-secondary {
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: transparent;
-    color: #fff;
+    margin-top: 4px;
   }
   .mobile-recorder-submit {
     width: 100%;
-    margin-top: 10px;
+    margin-top: 14px;
+    min-height: 48px;
     border: none;
+    border-radius: 10px;
     background: #6d5bd0;
     color: #fff;
+    font-weight: 800;
+    font-size: 0.95rem;
   }
-  .mobile-recorder-primary:disabled,
-  .mobile-recorder-secondary:disabled,
-  .mobile-recorder-submit:disabled {
-    opacity: 0.45;
-  }
+  .mobile-recorder-submit:disabled { opacity: 0.45; }
   .ask-backdrop {
     top: 56px;
   }

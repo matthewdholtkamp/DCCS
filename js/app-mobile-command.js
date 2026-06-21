@@ -23,8 +23,7 @@
         timer: document.getElementById("mobile-recorder-timer"),
         state: document.getElementById("mobile-recorder-state"),
         transcript: document.getElementById("mobile-recorder-transcript"),
-        start: document.getElementById("mobile-recorder-start"),
-        stop: document.getElementById("mobile-recorder-stop"),
+        toggle: document.getElementById("mobile-recorder-toggle"),
         submit: document.getElementById("mobile-recorder-submit"),
         home: document.getElementById("ask-home")
       };
@@ -37,34 +36,28 @@
       this.els.askAction.addEventListener("click", () => this.openAsk());
       this.els.recordAction.addEventListener("click", () => this.openRecorder());
       this.els.close.addEventListener("click", () => this.closeRecorder());
-      this.els.start.addEventListener("click", () => this.startRecording());
-      this.els.stop.addEventListener("click", () => this.stopRecording());
+      if (this.els.toggle) this.els.toggle.addEventListener("click", () => this.toggleRecording());
       this.els.submit.addEventListener("click", () => this.submitRecording());
-      this.els.transcript.addEventListener("input", () => this.updateSubmitState());
+      if (this.els.transcript) this.els.transcript.addEventListener("input", () => this.updateSubmitState());
       if (this.els.home) this.els.home.addEventListener("click", () => this.goHome());
       document.addEventListener("visibilitychange", () => this.handleVisibility());
     },
 
     populateServiceLineOptions() {
       if (!this.els.scope || typeof FRAMEWORK === "undefined") return;
-      const all = document.createElement("option");
-      all.value = "";
-      all.textContent = "All service lines (auto-route)";
-      this.els.scope.appendChild(all);
       (FRAMEWORK.serviceLines || []).forEach((sl) => {
         const option = document.createElement("option");
         option.value = sl.id;
         option.textContent = `${sl.name}${sl.abbr ? ` (${sl.abbr})` : ""}`;
         this.els.scope.appendChild(option);
       });
-      this.els.scope.value = "";
     },
 
     detectSupport() {
       if (!navigator.mediaDevices || !window.MediaRecorder) {
-        this.setState("Recording isn't supported here - type or paste notes, then Summarize.");
+        this.setState("Recording isn't supported on this browser. Use the notes field below, then Summarize.");
       } else {
-        this.setState("Ready. Tap Start, set the phone down, keep this screen on.");
+        this.setState("Tap the mic, set the phone down, and keep this screen on.");
       }
     },
 
@@ -89,7 +82,7 @@
       this.els.recorder.classList.add("open");
       this.els.recorder.setAttribute("aria-hidden", "false");
       this.updateSubmitState();
-      setTimeout(() => this.els.start.focus(), 50);
+      setTimeout(() => { if (this.els.toggle) this.els.toggle.focus(); }, 50);
     },
 
     closeRecorder() {
@@ -102,15 +95,25 @@
       this.audioBlob = null;
       this.chunks = [];
       if (this.els.timer) this.els.timer.textContent = "00:00";
-      if (this.els.start) this.els.start.disabled = false;
-      if (this.els.stop) this.els.stop.disabled = true;
+      this.setToggle(false);
       this.detectSupport();
+    },
+
+    setToggle(recording) {
+      if (!this.els.toggle) return;
+      this.els.toggle.classList.toggle("recording", recording);
+      this.els.toggle.setAttribute("aria-label", recording ? "Stop recording" : "Start recording");
+    },
+
+    toggleRecording() {
+      if (this.isRecording) this.stopRecording();
+      else this.startRecording();
     },
 
     async startRecording() {
       if (!navigator.mediaDevices || !window.MediaRecorder) {
-        this.setState("Recording unsupported here - type or paste notes.");
-        this.els.transcript.focus();
+        this.setState("Recording unsupported here. Type notes below, then Summarize.");
+        if (this.els.transcript) this.els.transcript.focus();
         return;
       }
       if (window.AskDrHoltkamp && AskDrHoltkamp.stopMic) AskDrHoltkamp.stopMic();
@@ -119,7 +122,7 @@
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
         console.warn("DCCS Mobile Recorder: mic blocked:", err);
-        this.setState("Microphone blocked. Allow mic access in the browser, or type/paste notes.");
+        this.setState("Microphone blocked. Allow mic access in the browser, or type notes below.");
         return;
       }
 
@@ -145,16 +148,15 @@
         this.mediaRecorder.start();
       } catch (err) {
         console.warn("DCCS Mobile Recorder: could not start:", err);
-        this.setState("Mic could not start. Type or paste notes.");
+        this.setState("Mic could not start. Type notes below, then Summarize.");
         return;
       }
 
       this.isRecording = true;
       this.startedAt = Date.now();
-      this.els.start.disabled = true;
-      this.els.stop.disabled = false;
+      this.setToggle(true);
       this.els.submit.disabled = true;
-      this.setState("Recording... keep this screen on.");
+      this.setState("Recording. Keep this screen on. Tap the square to stop.");
       this.tickTimer();
       this.timerId = window.setInterval(() => this.tickTimer(), 1000);
       this.requestWakeLock();
@@ -172,9 +174,8 @@
       this.isRecording = false;
       window.clearInterval(this.timerId);
       this.timerId = null;
-      if (this.els.start) this.els.start.disabled = false;
-      if (this.els.stop) this.els.stop.disabled = true;
-      if (updateState) this.setState("Stopped. Tap Summarize to transcribe and route.");
+      this.setToggle(false);
+      if (updateState) this.setState("Recorded. Tap Summarize to transcribe and route it.");
       this.updateSubmitState();
     },
 
@@ -208,7 +209,7 @@
     updateSubmitState() {
       if (!this.els.submit || this.isRecording) return;
       const hasAudio = !!(this.audioBlob && this.audioBlob.size > 0);
-      const hasText = this.els.transcript.value.trim().length >= 12;
+      const hasText = this.els.transcript && this.els.transcript.value.trim().length >= 12;
       this.els.submit.disabled = !(hasAudio || hasText);
     },
 
@@ -237,14 +238,14 @@
         this.setState("Transcribing the meeting...");
         let base64;
         try { base64 = await this.blobToBase64(this.audioBlob); }
-        catch (_) { this.setState("Could not read the recording. Try again or paste notes."); return; }
+        catch (_) { this.setState("Could not read the recording. Try again or type notes."); return; }
         this.closeRecorder();
         AskDrHoltkamp.sendMeetingAudio(base64, this.audioBlob.type || this.audioMime || "audio/webm", focus);
         return;
       }
 
-      const transcript = this.els.transcript.value.trim();
-      if (!transcript) { this.setState("No audio or notes to summarize yet."); return; }
+      const transcript = this.els.transcript ? this.els.transcript.value.trim() : "";
+      if (!transcript) { this.setState("Record audio or add notes first."); return; }
       const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
       const prompt = [
         "MEETING_RECORDER_INPUT",

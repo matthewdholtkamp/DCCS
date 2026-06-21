@@ -108,17 +108,24 @@
       <select id="mobile-recorder-scope" class="mobile-recorder-select">
         <option value="">All service lines / let Ask sort it</option>
       </select>
-      <div class="mobile-recorder-status">
-        <div class="mobile-recorder-timer" id="mobile-recorder-timer">00:00</div>
-        <div class="mobile-recorder-state" id="mobile-recorder-state">Ready</div>
+      <div class="rec-stage">
+        <button class="rec-orb" id="mobile-recorder-toggle" type="button" aria-label="Start recording">
+          <svg class="rec-orb-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+            <path d="M5 10a7 7 0 0 0 14 0"></path>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+          </svg>
+          <span class="rec-orb-stop" aria-hidden="true"></span>
+        </button>
+        <div class="rec-timer" id="mobile-recorder-timer">00:00</div>
+        <div class="rec-state" id="mobile-recorder-state">Ready</div>
       </div>
-      <label class="mobile-recorder-label" for="mobile-recorder-transcript">Transcript</label>
-      <textarea id="mobile-recorder-transcript" class="mobile-recorder-transcript" placeholder="Tap Start Recording and place the phone on the table. You can also paste notes here if speech recognition is unavailable."></textarea>
-      <div class="mobile-recorder-controls">
-        <button class="mobile-recorder-primary" id="mobile-recorder-start" type="button">Start Recording</button>
-        <button class="mobile-recorder-secondary" id="mobile-recorder-stop" type="button" disabled>Stop</button>
-      </div>
-      <button class="mobile-recorder-submit" id="mobile-recorder-submit" type="button" disabled>Summarize And Propose Updates</button>
+      <p class="rec-hint">On Summarize, the recording is transcribed and routed to the right service-line sections for your review. Nothing is saved until you confirm.</p>
+      <details class="rec-notes">
+        <summary>Add typed notes (optional)</summary>
+        <textarea id="mobile-recorder-transcript" class="mobile-recorder-transcript" placeholder="Type or paste notes if you'd rather not record audio - summarized and routed the same way."></textarea>
+      </details>
+      <button class="mobile-recorder-submit" id="mobile-recorder-submit" type="button" disabled>Summarize &amp; propose updates</button>
       <p class="mobile-recorder-note">Do not record patient information, PHI, classified information, or sensitive personal details.</p>
     </div>
   </section>
@@ -215,8 +222,8 @@
   <script src="js/app-rollup.js?v=20260620-navfix"></script>
   <script src="js/app-sync-patches.js?v=20260620-exsum-polish"></script>
   <script src="js/app.js?v=20260619-rollup"></script>
-  <script src="js/ask-dr-holtkamp.js?v=20260620-meeting"></script>
+  <script src="js/ask-dr-holtkamp.js?v=20260620-meeting2"></script>
   <script src="js/ask-dr-holtkamp-sitrep.js?v=20260619-rollup"></script>
-  <script src="js/app-mobile-command.js?v=20260620-meeting"></script>
+  <script src="js/app-mobile-command.js?v=20260620-meeting2"></script>
 </body>
 </html>
