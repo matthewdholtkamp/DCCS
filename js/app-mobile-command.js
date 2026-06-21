@@ -1,8 +1,14 @@
-// Mobile-first DCCS capture tools. Desktop app behavior is left unchanged.
+// Mobile-first DCCS capture tools. Records meeting audio and routes it to Gemini.
+// Desktop app behavior is left unchanged.
 (function () {
   const MobileCommand = {
     els: {},
-    recognition: null,
+    mediaRecorder: null,
+    chunks: [],
+    audioBlob: null,
+    audioMime: "",
+    stream: null,
+    wakeLock: null,
     isRecording: false,
     startedAt: 0,
     timerId: null,
@@ -19,13 +25,14 @@
         transcript: document.getElementById("mobile-recorder-transcript"),
         start: document.getElementById("mobile-recorder-start"),
         stop: document.getElementById("mobile-recorder-stop"),
-        submit: document.getElementById("mobile-recorder-submit")
+        submit: document.getElementById("mobile-recorder-submit"),
+        home: document.getElementById("ask-home")
       };
 
       if (!this.els.askAction || !this.els.recordAction || !this.els.recorder) return;
 
       this.populateServiceLineOptions();
-      this.initSpeechRecognition();
+      this.detectSupport();
 
       this.els.askAction.addEventListener("click", () => this.openAsk());
       this.els.recordAction.addEventListener("click", () => this.openRecorder());
@@ -34,73 +41,51 @@
       this.els.stop.addEventListener("click", () => this.stopRecording());
       this.els.submit.addEventListener("click", () => this.submitRecording());
       this.els.transcript.addEventListener("input", () => this.updateSubmitState());
+      if (this.els.home) this.els.home.addEventListener("click", () => this.goHome());
+      document.addEventListener("visibilitychange", () => this.handleVisibility());
     },
 
     populateServiceLineOptions() {
       if (!this.els.scope || typeof FRAMEWORK === "undefined") return;
+      const all = document.createElement("option");
+      all.value = "";
+      all.textContent = "All service lines (auto-route)";
+      this.els.scope.appendChild(all);
       (FRAMEWORK.serviceLines || []).forEach((sl) => {
         const option = document.createElement("option");
         option.value = sl.id;
         option.textContent = `${sl.name}${sl.abbr ? ` (${sl.abbr})` : ""}`;
         this.els.scope.appendChild(option);
       });
+      this.els.scope.value = "";
     },
 
-    initSpeechRecognition() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        this.setState("Speech recognition unavailable - type or paste notes.");
-        return;
+    detectSupport() {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        this.setState("Recording isn't supported here - type or paste notes, then Summarize.");
+      } else {
+        this.setState("Ready. Tap Start, set the phone down, keep this screen on.");
       }
+    },
 
-      this.recognition = new SpeechRecognition();
-      this.recognition.lang = "en-US";
-      this.recognition.interimResults = true;
-      this.recognition.continuous = true;
-
-      this.recognition.onresult = (event) => {
-        let finalText = "";
-        let interimText = "";
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const text = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalText += text;
-          else interimText = text;
-        }
-
-        if (finalText) {
-          this.appendTranscript(finalText.trim());
-        }
-
-        if (interimText) {
-          this.setState(`Listening... ${interimText.trim()}`);
-        } else if (this.isRecording) {
-          this.setState("Listening...");
-        }
-      };
-
-      this.recognition.onerror = (event) => {
-        console.warn("DCCS Mobile Recorder: speech recognition error:", event.error);
-        this.setState("Mic stopped. You can type notes or restart recording.");
-        this.stopRecording(false);
-      };
-
-      this.recognition.onend = () => {
-        if (this.isRecording) {
-          this.stopRecording(false);
-        }
-      };
+    pickMime() {
+      const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg"];
+      for (const t of types) {
+        try { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t; } catch (_) {}
+      }
+      return "";
     },
 
     openAsk() {
       if (!window.AskDrHoltkamp) return;
       AskDrHoltkamp.open();
-      if (AskDrHoltkamp.els?.input) {
+      if (AskDrHoltkamp.els && AskDrHoltkamp.els.input) {
         AskDrHoltkamp.els.input.placeholder = "Ask about a service line, metric, KPI, or next action...";
       }
     },
 
     openRecorder() {
+      this.resetRecorderState();
       this.els.recorder.classList.add("open");
       this.els.recorder.setAttribute("aria-hidden", "false");
       this.updateSubmitState();
@@ -113,54 +98,100 @@
       this.els.recorder.setAttribute("aria-hidden", "true");
     },
 
-    startRecording() {
-      if (!this.recognition) {
-        this.setState("Speech recognition unavailable - type or paste notes.");
+    resetRecorderState() {
+      this.audioBlob = null;
+      this.chunks = [];
+      if (this.els.timer) this.els.timer.textContent = "00:00";
+      if (this.els.start) this.els.start.disabled = false;
+      if (this.els.stop) this.els.stop.disabled = true;
+      this.detectSupport();
+    },
+
+    async startRecording() {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        this.setState("Recording unsupported here - type or paste notes.");
         this.els.transcript.focus();
         return;
       }
-
-      if (window.AskDrHoltkamp?.stopMic) {
-        AskDrHoltkamp.stopMic();
-      }
+      if (window.AskDrHoltkamp && AskDrHoltkamp.stopMic) AskDrHoltkamp.stopMic();
 
       try {
-        this.recognition.start();
-        this.isRecording = true;
-        this.startedAt = Date.now();
-        this.els.start.disabled = true;
-        this.els.stop.disabled = false;
-        this.els.submit.disabled = true;
-        this.setState("Listening...");
-        this.tickTimer();
-        this.timerId = window.setInterval(() => this.tickTimer(), 1000);
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
-        console.warn("DCCS Mobile Recorder: could not start recording:", err);
-        this.setState("Mic could not start. Type or paste notes.");
+        console.warn("DCCS Mobile Recorder: mic blocked:", err);
+        this.setState("Microphone blocked. Allow mic access in the browser, or type/paste notes.");
+        return;
       }
+
+      this.audioMime = this.pickMime();
+      this.chunks = [];
+      this.audioBlob = null;
+      try {
+        this.mediaRecorder = this.audioMime
+          ? new MediaRecorder(this.stream, { mimeType: this.audioMime })
+          : new MediaRecorder(this.stream);
+      } catch (_) {
+        this.mediaRecorder = new MediaRecorder(this.stream);
+      }
+
+      this.mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+      this.mediaRecorder.onstop = () => {
+        const type = this.audioMime || (this.mediaRecorder && this.mediaRecorder.mimeType) || "audio/webm";
+        this.audioBlob = this.chunks.length ? new Blob(this.chunks, { type }) : null;
+        this.updateSubmitState();
+      };
+
+      try {
+        this.mediaRecorder.start();
+      } catch (err) {
+        console.warn("DCCS Mobile Recorder: could not start:", err);
+        this.setState("Mic could not start. Type or paste notes.");
+        return;
+      }
+
+      this.isRecording = true;
+      this.startedAt = Date.now();
+      this.els.start.disabled = true;
+      this.els.stop.disabled = false;
+      this.els.submit.disabled = true;
+      this.setState("Recording... keep this screen on.");
+      this.tickTimer();
+      this.timerId = window.setInterval(() => this.tickTimer(), 1000);
+      this.requestWakeLock();
     },
 
     stopRecording(updateState = true) {
-      if (this.recognition) {
-        try {
-          this.recognition.stop();
-        } catch (_) {}
+      if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
+        try { this.mediaRecorder.stop(); } catch (_) {}
       }
-
+      if (this.stream) {
+        try { this.stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+        this.stream = null;
+      }
+      this.releaseWakeLock();
       this.isRecording = false;
       window.clearInterval(this.timerId);
       this.timerId = null;
-      this.els.start.disabled = false;
-      this.els.stop.disabled = true;
-      if (updateState) this.setState("Stopped. Review transcript, then summarize.");
+      if (this.els.start) this.els.start.disabled = false;
+      if (this.els.stop) this.els.stop.disabled = true;
+      if (updateState) this.setState("Stopped. Tap Summarize to transcribe and route.");
       this.updateSubmitState();
     },
 
-    appendTranscript(text) {
-      if (!text) return;
-      const current = this.els.transcript.value.trim();
-      this.els.transcript.value = current ? `${current}\n${text}` : text;
-      this.updateSubmitState();
+    async requestWakeLock() {
+      try {
+        if ("wakeLock" in navigator) this.wakeLock = await navigator.wakeLock.request("screen");
+      } catch (_) {}
+    },
+
+    releaseWakeLock() {
+      try { if (this.wakeLock) { this.wakeLock.release(); this.wakeLock = null; } } catch (_) {}
+    },
+
+    handleVisibility() {
+      if (document.visibilityState === "visible" && this.isRecording && !this.wakeLock) {
+        this.requestWakeLock();
+      }
     },
 
     tickTimer() {
@@ -176,21 +207,45 @@
 
     updateSubmitState() {
       if (!this.els.submit || this.isRecording) return;
-      this.els.submit.disabled = this.els.transcript.value.trim().length < 12;
+      const hasAudio = !!(this.audioBlob && this.audioBlob.size > 0);
+      const hasText = this.els.transcript.value.trim().length >= 12;
+      this.els.submit.disabled = !(hasAudio || hasText);
     },
 
-    submitRecording() {
-      const transcript = this.els.transcript.value.trim();
-      if (!transcript) return;
+    blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => {
+          const s = String(r.result || "");
+          const i = s.indexOf(",");
+          resolve(i >= 0 ? s.slice(i + 1) : s);
+        };
+        r.onerror = () => reject(new Error("Could not read audio"));
+        r.readAsDataURL(blob);
+      });
+    },
 
+    async submitRecording() {
       this.stopRecording(false);
       const selected = this.els.scope.value;
       const sl = selected && typeof FRAMEWORK !== "undefined"
         ? FRAMEWORK.serviceLines.find((item) => item.id === selected)
         : null;
       const focus = sl ? `${sl.name} (${sl.id})` : "all DCCS service lines";
-      const date = window.App?.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
 
+      if (this.audioBlob && this.audioBlob.size > 0 && window.AskDrHoltkamp && AskDrHoltkamp.sendMeetingAudio) {
+        this.setState("Transcribing the meeting...");
+        let base64;
+        try { base64 = await this.blobToBase64(this.audioBlob); }
+        catch (_) { this.setState("Could not read the recording. Try again or paste notes."); return; }
+        this.closeRecorder();
+        AskDrHoltkamp.sendMeetingAudio(base64, this.audioBlob.type || this.audioMime || "audio/webm", focus);
+        return;
+      }
+
+      const transcript = this.els.transcript.value.trim();
+      if (!transcript) { this.setState("No audio or notes to summarize yet."); return; }
+      const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
       const prompt = [
         "MEETING_RECORDER_INPUT",
         `Date: ${date}`,
@@ -198,22 +253,29 @@
         "",
         "You are reviewing a mobile meeting/input transcript for the DCCS portal.",
         "Summarize the BLUF, decisions, roadblocks, metric updates, task/KPI updates, and follow-up items.",
-        "Then propose exactly where each relevant item should go in the DCCS portal.",
-        "Only create DCCS command actions when the destination, date, metric/task/KPI, and value/text are clear from the transcript.",
-        "If something is ambiguous, list it under 'Needs user confirmation' and do not create a command for that item.",
-        "Before any changes are applied, the portal must show the proposed action confirmation card for the user to confirm or cancel.",
+        "Route each relevant item to the correct service line / metric / task / KPI.",
+        "Only create DCCS command actions when the destination, date, metric/task/KPI, and value/text are clear.",
+        "List anything ambiguous under 'Needs user confirmation' without a command.",
         "",
         "Transcript:",
         transcript
       ].join("\n");
-
       this.closeRecorder();
       this.sendPromptViaAsk(prompt);
     },
 
+    goHome() {
+      if (window.AskDrHoltkamp && AskDrHoltkamp.close) AskDrHoltkamp.close();
+      this.closeRecorder();
+      this.resetRecorderState();
+      const home = document.getElementById("mobile-command-center");
+      if (home) home.scrollTop = 0;
+      window.scrollTo(0, 0);
+    },
+
     sendPromptViaAsk(prompt) {
       if (!window.AskDrHoltkamp) return;
-      if (!AskDrHoltkamp.els?.input) AskDrHoltkamp.init();
+      if (!AskDrHoltkamp.els || !AskDrHoltkamp.els.input) AskDrHoltkamp.init();
       AskDrHoltkamp.open();
       AskDrHoltkamp.els.input.value = prompt;
       AskDrHoltkamp.autoSizeInput();
@@ -223,10 +285,7 @@
         AskDrHoltkamp.send();
       };
 
-      if (AskDrHoltkamp.isReady) {
-        sendWhenReady();
-        return;
-      }
+      if (AskDrHoltkamp.isReady) { sendWhenReady(); return; }
 
       this.setState("Ask Dr. Holtkamp is loading...");
       const started = Date.now();

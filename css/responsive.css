@@ -3,6 +3,9 @@
 .mobile-recorder {
   display: none;
 }
+.ask-home-btn {
+  display: none;
+}
 
 @media (max-width: 980px) {
   .metrics-header,
@@ -45,9 +48,14 @@
   .nav-ask {
     min-width: 0;
   }
+  .ask-home-btn {
+    display: inline-flex;
+  }
   .mobile-command-center {
     display: block;
-    min-height: 100vh;
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
     padding: 92px 18px 28px;
     background:
       linear-gradient(180deg, rgba(255, 184, 28, 0.12), rgba(255, 255, 255, 0) 32%),

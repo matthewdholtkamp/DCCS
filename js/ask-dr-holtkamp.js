@@ -271,6 +271,66 @@ Always explain what changes or deletes you are proposing, and append the command
     this.els.button.setAttribute("aria-expanded", "false");
   },
 
+  async sendMeetingAudio(base64Audio, mimeType, focusLabel) {
+    if (!this.isReady) {
+      try { await this.loadDependencies(); } catch (_) {}
+    }
+    this.open();
+    const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
+    const focus = focusLabel || "all DCCS service lines";
+    this.createMessage("user", `Meeting recording captured (focus: ${focus}). Transcribing and routing to the right sections...`);
+    const assistantBody = this.createMessage("assistant", "");
+
+    const cfg = window.BANDAID_CONFIG || {};
+    const workerUrl = cfg.WORKER_URL;
+    if (!workerUrl || !window.BANDAID_PERSONA_PROMPT) {
+      this.updateMessage(assistantBody, "The shared assistant isn't loaded yet. Open Ask Dr. Holtkamp once, then try the recording again.", false);
+      return;
+    }
+
+    const validMetricIdsList = this.getValidMetricIds().map((id) => `"${id}"`).join(", ");
+    const systemPrompt = `${window.BANDAID_PERSONA_PROMPT}\n\n${this.DCCS_CONTEXT_RULES.replace("[VALID_METRIC_IDS]", validMetricIdsList)}`;
+    const contextBlock = this.buildDccsContext("Summarize this meeting and route updates to the correct service lines.");
+    const framing = [
+      "MEETING_RECORDER_INPUT",
+      `Date: ${date}`,
+      `Focus: ${focus}`,
+      "",
+      "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then route each discussed item to the correct service line / metric / task / KPI. Give a concise BLUF and a short per-section summary. Append DCCS_COMMAND actions only for items with a clear destination, date, and value/status/text. Route by topic; speaker names are not required. List anything ambiguous under 'Needs user confirmation' without a command."
+    ].join("\n");
+
+    try {
+      const url = workerUrl + (workerUrl.includes("?") ? "&" : "?") + "stream=0";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gemini-3.5-flash",
+          fallbackModel: "gemini-2.5-flash",
+          stream: false,
+          systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [
+            { inlineData: { mimeType: mimeType || "audio/webm", data: base64Audio } },
+            { text: framing },
+            { text: contextBlock }
+          ] }],
+          generationConfig: { temperature: 0.2 }
+        })
+      });
+      if (!response.ok) {
+        const errTxt = await response.text().catch(() => "");
+        throw new Error(`HTTP ${response.status}${errTxt ? " - " + errTxt.slice(0, 160) : ""}`);
+      }
+      const data = await response.json();
+      const text = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts
+        ? data.candidates[0].content.parts.map((p) => p.text).filter(Boolean).join("")
+        : "") || "No summary text was returned from the meeting recording.";
+      this.updateMessage(assistantBody, text, true);
+    } catch (err) {
+      this.updateMessage(assistantBody, `Meeting summary failed: ${err.message || "unknown error"}. You can paste notes into the recorder and try again.`, false);
+    }
+  },
+
   updateSendButtonState() {
     if (!this.els.send) return;
     const hasText = this.els.input.value.trim().length > 0;
