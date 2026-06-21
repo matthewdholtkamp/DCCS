@@ -1,5 +1,5 @@
 // Mobile-first DCCS capture tools. Records meeting audio and routes it to Gemini.
-// Desktop app behavior is left unchanged.
+// Hardened for long, unattended meetings: wake-lock, periodic flushing, safe finalize.
 (function () {
   const MobileCommand = {
     els: {},
@@ -12,6 +12,7 @@
     isRecording: false,
     startedAt: 0,
     timerId: null,
+    _onStopDone: null,
 
     init() {
       this.els = {
@@ -27,7 +28,6 @@
         submit: document.getElementById("mobile-recorder-submit"),
         home: document.getElementById("ask-home")
       };
-
       if (!this.els.askAction || !this.els.recordAction || !this.els.recorder) return;
 
       this.populateServiceLineOptions();
@@ -57,7 +57,7 @@
       if (!navigator.mediaDevices || !window.MediaRecorder) {
         this.setState("Recording isn't supported on this browser. Use the notes field below, then Summarize.");
       } else {
-        this.setState("Tap the mic, set the phone down, and keep this screen on.");
+        this.setState("Tap the mic, set the phone down, keep this screen on. Put the phone on Do Not Disturb.");
       }
     },
 
@@ -85,8 +85,8 @@
       setTimeout(() => { if (this.els.toggle) this.els.toggle.focus(); }, 50);
     },
 
-    closeRecorder() {
-      this.stopRecording(false);
+    async closeRecorder() {
+      await this.stopRecording(false);
       this.els.recorder.classList.remove("open");
       this.els.recorder.setAttribute("aria-hidden", "true");
     },
@@ -110,6 +110,12 @@
       else this.startRecording();
     },
 
+    recordingStatus() {
+      return this.wakeLock
+        ? "Recording - screen will stay on. Keep this app open; phone on Do Not Disturb."
+        : "Recording - heads up: your phone may sleep. Tap the screen now and then, or keep it plugged in.";
+    },
+
     async startRecording() {
       if (!navigator.mediaDevices || !window.MediaRecorder) {
         this.setState("Recording unsupported here. Type notes below, then Summarize.");
@@ -119,33 +125,47 @@
       if (window.AskDrHoltkamp && AskDrHoltkamp.stopMic) AskDrHoltkamp.stopMic();
 
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
       } catch (err) {
         console.warn("DCCS Mobile Recorder: mic blocked:", err);
         this.setState("Microphone blocked. Allow mic access in the browser, or type notes below.");
         return;
       }
 
+      // If the mic track ends unexpectedly (call, interruption), finalize so audio isn't lost.
+      try {
+        const track = this.stream.getAudioTracks()[0];
+        if (track) track.addEventListener("ended", () => { if (this.isRecording) this.stopRecording(true); });
+      } catch (_) {}
+
       this.audioMime = this.pickMime();
       this.chunks = [];
       this.audioBlob = null;
+      const recOpts = { audioBitsPerSecond: 40000 };
+      if (this.audioMime) recOpts.mimeType = this.audioMime;
       try {
-        this.mediaRecorder = this.audioMime
-          ? new MediaRecorder(this.stream, { mimeType: this.audioMime })
-          : new MediaRecorder(this.stream);
+        this.mediaRecorder = new MediaRecorder(this.stream, recOpts);
       } catch (_) {
-        this.mediaRecorder = new MediaRecorder(this.stream);
+        try {
+          this.mediaRecorder = new MediaRecorder(this.stream, { audioBitsPerSecond: 40000 });
+        } catch (_2) {
+          this.mediaRecorder = new MediaRecorder(this.stream);
+        }
       }
 
       this.mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
+      this.mediaRecorder.onerror = () => { if (this.isRecording) this.stopRecording(true); };
       this.mediaRecorder.onstop = () => {
         const type = this.audioMime || (this.mediaRecorder && this.mediaRecorder.mimeType) || "audio/webm";
         this.audioBlob = this.chunks.length ? new Blob(this.chunks, { type }) : null;
         this.updateSubmitState();
+        const done = this._onStopDone; this._onStopDone = null;
+        if (done) done();
       };
 
       try {
-        this.mediaRecorder.start();
+        // Flush a chunk every 5s so an interruption costs seconds, not the whole meeting.
+        this.mediaRecorder.start(5000);
       } catch (err) {
         console.warn("DCCS Mobile Recorder: could not start:", err);
         this.setState("Mic could not start. Type notes below, then Summarize.");
@@ -156,42 +176,70 @@
       this.startedAt = Date.now();
       this.setToggle(true);
       this.els.submit.disabled = true;
-      this.setState("Recording. Keep this screen on. Tap the square to stop.");
+      await this.requestWakeLock();
+      this.setState(this.recordingStatus());
       this.tickTimer();
       this.timerId = window.setInterval(() => this.tickTimer(), 1000);
-      this.requestWakeLock();
     },
 
+    // Returns a promise that resolves once the final blob is ready.
     stopRecording(updateState = true) {
-      if (this.mediaRecorder && this.mediaRecorder.state !== "inactive") {
-        try { this.mediaRecorder.stop(); } catch (_) {}
+      const active = this.mediaRecorder && this.mediaRecorder.state !== "inactive";
+      return new Promise((resolve) => {
+        const finish = () => {
+          if (this.stream) {
+            try { this.stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+            this.stream = null;
+          }
+          this.releaseWakeLock();
+          this.isRecording = false;
+          window.clearInterval(this.timerId);
+          this.timerId = null;
+          this.setToggle(false);
+          if (updateState) this.showRecorded();
+          this.updateSubmitState();
+          resolve();
+        };
+        if (active) {
+          this._onStopDone = finish;
+          try { this.mediaRecorder.stop(); } catch (_) { this._onStopDone = null; finish(); }
+        } else {
+          finish();
+        }
+      });
+    },
+
+    showRecorded() {
+      if (this.audioBlob && this.audioBlob.size) {
+        const mb = (this.audioBlob.size / 1048576).toFixed(1);
+        const dur = this.els.timer ? this.els.timer.textContent : "";
+        this.setState(`Recorded ${dur} \u00b7 ${mb} MB. Tap Summarize to transcribe and route.`);
+      } else {
+        this.setState("Stopped. Tap the mic to record, or add notes below.");
       }
-      if (this.stream) {
-        try { this.stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
-        this.stream = null;
-      }
-      this.releaseWakeLock();
-      this.isRecording = false;
-      window.clearInterval(this.timerId);
-      this.timerId = null;
-      this.setToggle(false);
-      if (updateState) this.setState("Recorded. Tap Summarize to transcribe and route it.");
-      this.updateSubmitState();
     },
 
     async requestWakeLock() {
       try {
-        if ("wakeLock" in navigator) this.wakeLock = await navigator.wakeLock.request("screen");
-      } catch (_) {}
+        if ("wakeLock" in navigator) {
+          this.wakeLock = await navigator.wakeLock.request("screen");
+          this.wakeLock.addEventListener("release", () => {
+            this.wakeLock = null;
+            // iOS drops the lock when hidden; re-acquire if we're still recording and visible.
+            if (this.isRecording && document.visibilityState === "visible") this.requestWakeLock();
+          });
+        }
+      } catch (_) { this.wakeLock = null; }
     },
 
     releaseWakeLock() {
       try { if (this.wakeLock) { this.wakeLock.release(); this.wakeLock = null; } } catch (_) {}
     },
 
-    handleVisibility() {
+    async handleVisibility() {
       if (document.visibilityState === "visible" && this.isRecording && !this.wakeLock) {
-        this.requestWakeLock();
+        await this.requestWakeLock();
+        if (this.els.state) this.setState(this.recordingStatus());
       }
     },
 
@@ -213,21 +261,8 @@
       this.els.submit.disabled = !(hasAudio || hasText);
     },
 
-    blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => {
-          const s = String(r.result || "");
-          const i = s.indexOf(",");
-          resolve(i >= 0 ? s.slice(i + 1) : s);
-        };
-        r.onerror = () => reject(new Error("Could not read audio"));
-        r.readAsDataURL(blob);
-      });
-    },
-
     async submitRecording() {
-      this.stopRecording(false);
+      await this.stopRecording(false);
       const selected = this.els.scope.value;
       const sl = selected && typeof FRAMEWORK !== "undefined"
         ? FRAMEWORK.serviceLines.find((item) => item.id === selected)
@@ -235,12 +270,9 @@
       const focus = sl ? `${sl.name} (${sl.id})` : "all DCCS service lines";
 
       if (this.audioBlob && this.audioBlob.size > 0 && window.AskDrHoltkamp && AskDrHoltkamp.sendMeetingAudio) {
-        this.setState("Transcribing the meeting...");
-        let base64;
-        try { base64 = await this.blobToBase64(this.audioBlob); }
-        catch (_) { this.setState("Could not read the recording. Try again or type notes."); return; }
+        const blob = this.audioBlob;
         this.closeRecorder();
-        AskDrHoltkamp.sendMeetingAudio(base64, this.audioBlob.type || this.audioMime || "audio/webm", focus);
+        AskDrHoltkamp.sendMeetingAudio(blob, focus);
         return;
       }
 
@@ -280,24 +312,13 @@
       AskDrHoltkamp.open();
       AskDrHoltkamp.els.input.value = prompt;
       AskDrHoltkamp.autoSizeInput();
-
-      const sendWhenReady = () => {
-        AskDrHoltkamp.updateSendButtonState();
-        AskDrHoltkamp.send();
-      };
-
+      const sendWhenReady = () => { AskDrHoltkamp.updateSendButtonState(); AskDrHoltkamp.send(); };
       if (AskDrHoltkamp.isReady) { sendWhenReady(); return; }
-
       this.setState("Ask Dr. Holtkamp is loading...");
       const started = Date.now();
       const interval = window.setInterval(() => {
-        if (AskDrHoltkamp.isReady) {
-          window.clearInterval(interval);
-          sendWhenReady();
-        } else if (Date.now() - started > 10000) {
-          window.clearInterval(interval);
-          AskDrHoltkamp.updateSendButtonState();
-        }
+        if (AskDrHoltkamp.isReady) { window.clearInterval(interval); sendWhenReady(); }
+        else if (Date.now() - started > 10000) { window.clearInterval(interval); AskDrHoltkamp.updateSendButtonState(); }
       }, 250);
     }
   };

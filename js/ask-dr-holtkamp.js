@@ -271,14 +271,16 @@ Always explain what changes or deletes you are proposing, and append the command
     this.els.button.setAttribute("aria-expanded", "false");
   },
 
-  async sendMeetingAudio(base64Audio, mimeType, focusLabel) {
+  async sendMeetingAudio(blob, focusLabel) {
     if (!this.isReady) {
       try { await this.loadDependencies(); } catch (_) {}
     }
     this.open();
     const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
     const focus = focusLabel || "all DCCS service lines";
-    this.createMessage("user", `Meeting recording captured (focus: ${focus}). Transcribing and routing to the right sections...`);
+    const mime = (blob && blob.type) || "audio/mp4";
+    const sizeMb = blob && blob.size ? (blob.size / 1048576).toFixed(1) : "?";
+    this.createMessage("user", `Meeting recording captured (${sizeMb} MB, focus: ${focus}). Transcribing and routing to the right sections...`);
     const assistantBody = this.createMessage("assistant", "Thinking...");
 
     const cfg = window.BANDAID_CONFIG || {};
@@ -299,6 +301,37 @@ Always explain what changes or deletes you are proposing, and append the command
       "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then route each discussed item to the correct service line / metric / task / KPI. Give a concise BLUF and a short per-section summary. Append DCCS_COMMAND actions only for items with a clear destination, date, and value/status/text. Route by topic; speaker names are not required. List anything ambiguous under 'Needs user confirmation' without a command."
     ].join("\n");
 
+    // Prefer the Files API (raw bytes, no size cap, no base64 inflation); fall back to inline for short clips.
+    let audioPart = null;
+    let uploadError = "";
+    try {
+      const origin = new URL(workerUrl).origin;
+      const upRes = await fetch(`${origin}/files/upload?mime=${encodeURIComponent(mime)}`, {
+        method: "POST",
+        headers: { "Content-Type": mime },
+        body: blob
+      });
+      if (!upRes.ok) {
+        const t = await upRes.text().catch(() => "");
+        throw new Error(`upload ${upRes.status}${t ? " " + t.slice(0, 120) : ""}`);
+      }
+      const up = await upRes.json();
+      if (!up || !up.fileUri) throw new Error("no fileUri returned");
+      audioPart = { fileData: { fileUri: up.fileUri, mimeType: up.mimeType || mime } };
+    } catch (e) {
+      uploadError = e.message || "upload failed";
+      if (blob && blob.size && blob.size < 18 * 1048576) {
+        try {
+          const b64 = await this._blobToBase64(blob);
+          audioPart = { inlineData: { mimeType: mime, data: b64 } };
+        } catch (_) {}
+      }
+    }
+    if (!audioPart) {
+      this.updateMessage(assistantBody, `Couldn't send the recording (${uploadError}). The file may be large or the connection dropped - try again on Wi-Fi. Your recording isn't lost; reopen the recorder to resend.`, false);
+      return;
+    }
+
     try {
       const url = workerUrl + (workerUrl.includes("?") ? "&" : "?") + "stream=0";
       const response = await fetch(url, {
@@ -309,11 +342,7 @@ Always explain what changes or deletes you are proposing, and append the command
           fallbackModel: "gemini-2.5-flash",
           stream: false,
           systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [
-            { inlineData: { mimeType: mimeType || "audio/webm", data: base64Audio } },
-            { text: framing },
-            { text: contextBlock }
-          ] }],
+          contents: [{ role: "user", parts: [audioPart, { text: framing }, { text: contextBlock }] }],
           generationConfig: { temperature: 0.2 }
         })
       });
@@ -329,6 +358,15 @@ Always explain what changes or deletes you are proposing, and append the command
     } catch (err) {
       this.updateMessage(assistantBody, `Meeting summary failed: ${err.message || "unknown error"}. You can paste notes into the recorder and try again.`, false);
     }
+  },
+
+  _blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => { const s = String(r.result || ""); const i = s.indexOf(","); resolve(i >= 0 ? s.slice(i + 1) : s); };
+      r.onerror = () => reject(new Error("Could not read audio"));
+      r.readAsDataURL(blob);
+    });
   },
 
   updateSendButtonState() {
