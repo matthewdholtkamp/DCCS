@@ -47,7 +47,7 @@ Available commands inside the JSON array:
    * Deletes the dialogue comment/entry matching the date and containing the textMatch substring.
 
 MEETING RECORDER INPUT:
-If the user message starts with MEETING_RECORDER_INPUT, treat it as a captured meeting/input transcript. First provide a concise BLUF summary, then list decisions, roadblocks, metric updates, task/KPI updates, and follow-up items. For each proposed portal update, name the destination service line or metric/task/KPI and why it belongs there. Append DCCS_COMMAND actions only for items with clear destination, date, value/status/text, and sufficient confidence. If one transcript contains updates for multiple service lines, split the proposed actions across those service lines. If anything is ambiguous, list it under "Needs user confirmation" and do not create a command for that ambiguous item.
+If the user message starts with MEETING_RECORDER_INPUT, treat it as a captured meeting/input transcript and produce a thorough, read-first summary ONLY. Open with a short BLUF, then organize the body by DCCS service line / lane, and under each lane capture what was discussed in clear, briefable prose: decisions, status and metric updates mentioned, roadblocks, and follow-up actions. Favor completeness and detail over brevity; this is the document the user reads first. Route each item to the correct lane by topic; speaker names are not required, but attribute an item to a named person only when a name is clearly spoken (never guess who said what). Do NOT append any DCCS_COMMAND actions, and do NOT propose portal updates on this pass. End by reminding the user they can next ask you to turn specific items into metric/task/KPI lines or add them to the weekly brief, which you will handle in a follow-up message.
 
 If the target is ambiguous (no/unknown metric, multiple plausible matches, missing date or value), ASK a clarifying question and emit NO command block. Never emit a delete affecting more than one entry without listing each.
 
@@ -298,7 +298,7 @@ Always explain what changes or deletes you are proposing, and append the command
       `Date: ${date}`,
       `Focus: ${focus}`,
       "",
-      "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then route each discussed item to the correct service line / metric / task / KPI. Give a concise BLUF and a short per-section summary. Append DCCS_COMMAND actions only for items with a clear destination, date, and value/status/text. Route by topic; speaker names are not required. List anything ambiguous under 'Needs user confirmation' without a command."
+      "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then write a thorough, briefable summary the user reads first: a short BLUF up top, then one section per DCCS service line / lane that came up (PCSL, Surgery, Mental Health, Emergency, MSCoE Surgeon), each capturing decisions, status and metric updates mentioned, roadblocks, and follow-ups in clear prose. Favor completeness over brevity. Route by topic; attribute an item to a named person only when a name is clearly spoken, never guess. Do NOT create DCCS_COMMAND actions or propose portal updates on this pass - the user reviews this summary first, then will separately ask you to format items into lines or add them to the weekly brief."
     ].join("\n");
 
     // Prefer the Files API (raw bytes, no size cap, no base64 inflation); retry transient failures.
