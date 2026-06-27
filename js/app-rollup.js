@@ -44,7 +44,7 @@
         const prior = last ? this.formatMetricValue(m, last.value) : '\u2014';
         const priorDate = last ? (last.label || last.date) : '';
         const st = this.metricStatus(m, disp);
-        const goal = (m.goal != null) ? `${m.direction === 'lower' ? '\u2264' : '\u2265'} ${this.formatMetricValue(m, m.goal)}` : '\u2014';
+        const goal = (m.goal != null) ? `${this.metricGoalSymbol(m)} ${this.formatMetricValue(m, m.goal)}` : '\u2014';
         return `
           <div class="roll-row">
             <div class="roll-metric">
@@ -53,7 +53,7 @@
             </div>
             <div class="roll-prior" title="Most recent entry">${esc(prior)}${priorDate ? `<span class="roll-prior-date"> \u00b7 ${esc(priorDate)}</span>` : ''}</div>
             <div class="roll-goal">${esc(goal)}</div>
-            <div class="roll-input"><input type="number" step="any" id="rollup-val-${esc(m.id)}" placeholder="new ${esc(m.unit || 'value')}"></div>
+            <div class="roll-input"><input type="number" step="${this.metricInputStep(m)}"${m.min !== null && m.min !== undefined ? ` min="${esc(m.min)}"` : ''} id="rollup-val-${esc(m.id)}" placeholder="new ${esc(m.unit || 'value')}"${this.metricIsMonthlySingle(m) ? ' title="Saving replaces the value for the selected month"' : ''}></div>
           </div>`;
       }).join('') : '';
       const rowsBlock = metrics.length ? `
@@ -125,14 +125,13 @@
           input.classList.remove('input-error');
           const raw = input.value.trim();
           if (raw === '') return;
-          const v = parseFloat(raw);
-          if (isNaN(v)) { input.classList.add('input-error'); badInput = true; return; }
-          const entries = Array.isArray(all[m.id]) ? [...all[m.id]] : [];
-          entries.push({ date, value: v, by: user });
-          entries.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-          all[m.id] = entries;
+          const v = Number(raw);
+          if (!this.metricValueIsValid(m, v)) { input.classList.add('input-error'); badInput = true; return; }
+          const saved = this.saveMetricEntryToStore(all, m, date, v, user);
+          if (!saved) { input.classList.add('input-error'); badInput = true; return; }
           changed.push(m.id);
-          if (this.logAudit) this.logAudit('update_metric', m.id, `${m.id} on ${date}: None`, `${m.id} on ${date}: ${v}`);
+          const beforeValue = saved.beforeEntry ? saved.beforeEntry.value : 'None';
+          if (this.logAudit) this.logAudit('update_metric', m.id, `${m.id} on ${saved.date}: ${beforeValue}`, `${m.id} on ${saved.date}: ${saved.nextEntry.value}`);
           count++;
         });
       });

@@ -112,7 +112,21 @@ HARD RULES:
 
     let cur, prior, headline, headlinePrior, basis;
 
-    if (metric.aggregation === "monthly-sum") {
+    if (metric.entryMode === "monthly-single") {
+      const endKey = win.endISO.slice(0, 7);
+      const monthly = entries.filter((entry) => String(entry.date).slice(0, 7) <= endKey);
+      const curB = monthly[monthly.length - 1] || null;
+      const priB = monthly[monthly.length - 2] || null;
+      headline = curB ? Number(curB.value) : null;
+      headlinePrior = priB ? Number(priB.value) : null;
+      cur = curB
+        ? { count: 1, sum: headline, avg: headline, last: headline, lastDate: curB.date, label: curB.label }
+        : { count: 0, sum: 0, avg: null, last: null };
+      prior = priB
+        ? { count: 1, sum: headlinePrior, avg: headlinePrior, last: headlinePrior, lastDate: priB.date, label: priB.label }
+        : { count: 0, sum: 0, avg: null, last: null };
+      basis = "monthly-value";
+    } else if (metric.aggregation === "monthly-sum") {
       const endKey = win.endISO.slice(0, 7);
       const buckets = entries.filter((b) => String(b.date).slice(0, 7) <= endKey);
       const curB = buckets[buckets.length - 1] || null;
@@ -130,12 +144,14 @@ HARD RULES:
       basis = hasGoal ? "period-average" : "period-total";
     }
 
+    const precision = Number.isInteger(metric.precision) ? metric.precision : 1;
+    const precisionFactor = Math.pow(10, precision);
     let deltaAbs = null, deltaPct = null;
     if (headline !== null && headlinePrior !== null && headlinePrior !== 0) {
-      deltaAbs = Math.round((headline - headlinePrior) * 10) / 10;
+      deltaAbs = Math.round((headline - headlinePrior) * precisionFactor) / precisionFactor;
       deltaPct = Math.round(((headline - headlinePrior) / Math.abs(headlinePrior)) * 100);
     } else if (headline !== null && headlinePrior === 0) {
-      deltaAbs = Math.round(headline * 10) / 10;
+      deltaAbs = Math.round(headline * precisionFactor) / precisionFactor;
     }
 
     let improved = null;
@@ -147,7 +163,11 @@ HARD RULES:
     let goalState = "no-goal", showTarget = false;
     if (hasGoal && headline !== null) {
       const g = Number(metric.goal);
-      const meets = dir === "lower" ? headline <= g : dir === "higher" ? headline >= g : null;
+      const meets = dir === "lower"
+        ? metric.goalInclusive ? headline <= g : headline < g
+        : dir === "higher"
+          ? metric.goalInclusive === false ? headline > g : headline >= g
+          : null;
       const within = Math.abs(headline - g) / (Math.abs(g) || 1) <= 0.1;
       showTarget = !!meets || within;
       goalState = meets ? "meets-goal" : within ? "near-goal" : "tracking";
@@ -164,6 +184,7 @@ HARD RULES:
     return {
       id: metric.id, name: metric.name, unit: unit, direction: dir,
       goal: hasGoal ? metric.goal : null, showTarget: showTarget, goalState: goalState,
+      entryMode: metric.entryMode || null, precision: precision,
       basis: basis, thisPeriod: cur, priorPeriod: prior,
       headline: headline, headlinePrior: headlinePrior,
       deltaAbs: deltaAbs, deltaPct: deltaPct, deltaText: deltaText, improved: improved

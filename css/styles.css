@@ -36,8 +36,7 @@
 .nav,
 .sidebar,
 .meeting-sidebar,
-.ask-panel,
-dialog.military-modal {
+.ask-panel {
   --bg-primary: #000000;
   --bg-secondary: #0a0b09;
   --bg-card: #121311;

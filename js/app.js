@@ -12,6 +12,7 @@
       document.addEventListener('blur', () => {
         setTimeout(() => this.applyStalePatches(), 50);
       }, true);
+      this.purgeRetiredMetricData();
       this.initUserChip();
       this.route();
     }

@@ -600,9 +600,12 @@ Always explain what changes or deletes you are proposing, and append the command
           case "delete_metric_entry": {
             const mappedId = this.validateAndMapMetricId(cmd.metricId);
             const date = this.normalizeDate(cmd.date);
+            const metric = window.App ? App.getMetricDefinition(mappedId) : null;
             const store = { ...Sync.getMetricStore() };
             const entries = Array.isArray(store[mappedId]) ? [...store[mappedId]] : [];
-            const index = entries.findIndex(e => this.normalizeDate(e.date) === date);
+            const index = metric?.entryMode === "monthly-single"
+              ? entries.findIndex(e => this.metricMonthKey(e.date) === this.metricMonthKey(date))
+              : entries.findIndex(e => this.normalizeDate(e.date) === date);
             if (index < 0) {
               throw new Error(`Entry on date ${date} not found for metric "${mappedId}"`);
             }
@@ -944,6 +947,16 @@ Always explain what changes or deletes you are proposing, and append the command
   getMetricReportEntries(metric, rawEntries) {
     const entries = Array.isArray(rawEntries) ? [...rawEntries] : [];
     entries.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+    if (metric?.entryMode === "monthly-single") {
+      return entries.map(entry => {
+        const monthKey = this.metricMonthKey(entry.date);
+        return {
+          ...entry,
+          date: monthKey ? `${monthKey}-01` : entry.date,
+          label: monthKey ? this.metricMonthLabel(monthKey) : entry.date
+        };
+      });
+    }
     if (!this.metricUsesReportAggregation(metric)) return entries;
 
     const buckets = new Map();
@@ -965,47 +978,39 @@ Always explain what changes or deletes you are proposing, and append the command
   },
 
   updateMetricLocal(metricId, value, dateString) {
-    const date = this.normalizeDate(dateString);
+    const metric = window.App ? App.getMetricDefinition(metricId) : null;
+    if (!metric) throw new Error(`Metric "${metricId}" is not defined`);
+    const normalizedDate = this.normalizeDate(dateString);
     const val = Number(value);
-    if (Number.isNaN(val)) throw new Error("Invalid metric value");
+    if (!App.metricValueIsValid(metric, val)) throw new Error("Invalid metric value");
 
     const user = window.App ? App.getCurrentUser() : 'Unknown';
     const by = `${user} (via Dr. Holtkamp)`;
 
     const store = { ...Sync.getMetricStore() };
-    const entries = Array.isArray(store[metricId]) ? [...store[metricId]] : [];
-    
-    const existingIndex = entries.findIndex(e => e.date === date);
-    const beforeVal = existingIndex >= 0 ? entries[existingIndex].value : null;
-    if (existingIndex >= 0) {
-      entries[existingIndex] = { ...entries[existingIndex], value: val, by };
-    } else {
-      entries.push({ date, value: val, by });
-    }
-
-    // Chronologically sort entries to prevent layout/drawing jank
-    entries.sort((a, b) => a.date.localeCompare(b.date));
-
-    store[metricId] = entries;
+    const saved = App.saveMetricEntryToStore(store, metric, normalizedDate, val, by, { replaceExactDate: true });
+    if (!saved) throw new Error("Invalid metric date or value");
     Sync.saveMetricSeries([metricId], store);
 
     // Audit
     if (window.App) {
-      App.logAudit('update_metric', metricId, `${metricId} on ${date}: ${beforeVal}`, `${metricId} on ${date}: ${val}`);
-      App.showUndoToast(`Saved ${metricId} = ${val}`, () => {
+      const beforeVal = saved.beforeEntry ? saved.beforeEntry.value : null;
+      const savedValue = saved.nextEntry.value;
+      App.logAudit('update_metric', metricId, `${metricId} on ${saved.date}: ${beforeVal}`, `${metricId} on ${saved.date}: ${savedValue}`);
+      App.showUndoToast(`Saved ${metricId} = ${savedValue}`, () => {
         const undoStore = { ...Sync.getMetricStore() };
         const undoEntries = Array.isArray(undoStore[metricId]) ? [...undoStore[metricId]] : [];
-        if (beforeVal !== null) {
-          const idx = undoEntries.findIndex(e => e.date === date);
-          if (idx >= 0) undoEntries[idx] = { ...undoEntries[idx], value: beforeVal };
-        } else {
-          const idx = undoEntries.findIndex(e => e.date === date);
-          if (idx >= 0) undoEntries.splice(idx, 1);
+        const idx = metric.entryMode === "monthly-single"
+          ? undoEntries.findIndex(e => this.metricMonthKey(e.date) === this.metricMonthKey(saved.date))
+          : undoEntries.findIndex(e => e.date === saved.date);
+        if (idx >= 0) {
+          if (saved.beforeEntry) undoEntries[idx] = saved.beforeEntry;
+          else undoEntries.splice(idx, 1);
         }
         undoStore[metricId] = undoEntries;
         Sync.saveMetricSeries([metricId], undoStore);
         if (typeof App.refreshMetricDisplay === 'function') App.refreshMetricDisplay(metricId);
-        App.logAudit('undo_metric', metricId, `${metricId} on ${date}: ${val}`, `${metricId} on ${date}: ${beforeVal}`);
+        App.logAudit('undo_metric', metricId, `${metricId} on ${saved.date}: ${savedValue}`, `${metricId} on ${saved.date}: ${beforeVal}`);
       });
     }
   },
@@ -1342,6 +1347,10 @@ Always explain what changes or deletes you are proposing, and append the command
       direction: metric.direction || "neutral",
       period: metric.period || null,
       aggregation: metric.aggregation || null,
+      entryMode: metric.entryMode || null,
+      precision: Number.isInteger(metric.precision) ? metric.precision : null,
+      goalInclusive: metric.goalInclusive === true,
+      min: metric.min ?? null,
       rawEntryCount: rawEntries.length,
       entryCount: entries.length,
       latest,
@@ -1355,8 +1364,13 @@ Always explain what changes or deletes you are proposing, and append the command
     if (metric.goal === null || metric.goal === undefined) return "no-goal-set";
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return "invalid-value";
-    if (metric.direction === "lower") return numeric <= Number(metric.goal) ? "meets-goal" : "above-goal";
-    if (metric.direction === "higher") return numeric >= Number(metric.goal) ? "meets-goal" : "below-goal";
+    const meets = window.App && typeof App.metricMeetsGoal === "function"
+      ? App.metricMeetsGoal(metric, numeric)
+      : metric.direction === "lower"
+        ? (metric.goalInclusive ? numeric <= Number(metric.goal) : numeric < Number(metric.goal))
+        : numeric >= Number(metric.goal);
+    if (metric.direction === "lower") return meets ? "meets-goal" : "above-goal";
+    if (metric.direction === "higher") return meets ? "meets-goal" : "below-goal";
     return "tracked";
   },
 
