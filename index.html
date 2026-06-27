@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="css/app-shell.css?v=20260619-rollup">
   <link rel="stylesheet" href="css/pages-workflow.css?v=20260619-rollup">
   <link rel="stylesheet" href="css/metrics.css?v=20260619-rollup">
-  <link rel="stylesheet" href="css/responsive.css?v=20260619-rollup">
+  <link rel="stylesheet" href="css/responsive.css?v=20260627-90min-transcript">
   <link rel="stylesheet" href="css/emergency-department.css?v=20260619-rollup">
   <link rel="stylesheet" href="css/runtime-overlays.css?v=20260627-confirm-modal">
   <link rel="stylesheet" href="css/landing-cinematic.css?v=20260619-rollup">
@@ -82,7 +82,7 @@
           </span>
           <span>
             <strong>Record Meeting/Input</strong>
-            <span>Transcribe, summarize, and propose where updates should go.</span>
+            <span>Transcribe live, review the text, and propose where updates should go.</span>
           </span>
         </button>
       </div>
@@ -95,7 +95,7 @@
       <div class="mobile-recorder-header">
         <div>
           <p class="mobile-command-kicker">Meeting Recorder</p>
-          <h2 id="mobile-recorder-title">Record DCCS input</h2>
+          <h2 id="mobile-recorder-title">Transcribe DCCS meeting</h2>
         </div>
         <button class="mobile-recorder-close" id="mobile-recorder-close" type="button" aria-label="Close recorder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -104,12 +104,8 @@
           </svg>
         </button>
       </div>
-      <label class="mobile-recorder-label" for="mobile-recorder-scope">Meeting focus</label>
-      <select id="mobile-recorder-scope" class="mobile-recorder-select">
-        <option value="">All service lines / let Ask sort it</option>
-      </select>
       <div class="rec-stage">
-        <button class="rec-orb" id="mobile-recorder-toggle" type="button" aria-label="Start recording">
+        <button class="rec-orb" id="mobile-recorder-toggle" type="button" aria-label="Start live transcription" aria-pressed="false">
           <svg class="rec-orb-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="2" width="6" height="12" rx="3"></rect>
             <path d="M5 10a7 7 0 0 0 14 0"></path>
@@ -118,14 +114,21 @@
           <span class="rec-orb-stop" aria-hidden="true"></span>
         </button>
         <div class="rec-timer" id="mobile-recorder-timer">00:00</div>
-        <div class="rec-state" id="mobile-recorder-state">Ready</div>
+        <div class="rec-state" id="mobile-recorder-state" role="status" aria-live="polite">Ready</div>
       </div>
-      <p class="rec-hint">On Summarize, the recording is transcribed and routed to the right service-line sections for your review. Nothing is saved until you confirm.</p>
-      <details class="rec-notes">
-        <summary>Add typed notes (optional)</summary>
-        <textarea id="mobile-recorder-transcript" class="mobile-recorder-transcript" placeholder="Type or paste notes if you'd rather not record audio - summarized and routed the same way."></textarea>
-      </details>
-      <button class="mobile-recorder-submit" id="mobile-recorder-submit" type="button" disabled>Summarize &amp; propose updates</button>
+      <p class="rec-hint">Built for long meetings: keep this page open in the foreground. Speech is converted to text live; no audio file is saved.</p>
+      <div class="rec-durability" aria-label="Long meeting safeguards">
+        <span class="rec-durability-item" id="mobile-recorder-wake-status">Screen wake activates while listening</span>
+        <span class="rec-durability-item" id="mobile-recorder-draft-status">No transcript saved yet</span>
+      </div>
+      <div class="rec-transcript">
+        <div class="rec-transcript-header">
+          <label class="mobile-recorder-label" for="mobile-recorder-transcript">Live transcript</label>
+          <button class="mobile-recorder-clear" id="mobile-recorder-clear" type="button" disabled>Clear</button>
+        </div>
+        <textarea id="mobile-recorder-transcript" class="mobile-recorder-transcript" spellcheck="true" placeholder="Your live transcript will appear here. You can also type, paste, or use your phone keyboard's dictation."></textarea>
+      </div>
+      <button class="mobile-recorder-submit" id="mobile-recorder-submit" type="button" disabled>Send transcript to Ask Dr. Holtkamp</button>
       <p class="mobile-recorder-note">Do not record patient information, PHI, classified information, or sensitive personal details.</p>
     </div>
   </section>
@@ -222,8 +225,8 @@
   <script src="js/app-rollup.js?v=20260627-mh-monthly"></script>
   <script src="js/app-sync-patches.js?v=20260620-exsum-polish"></script>
   <script src="js/app.js?v=20260627-mh-monthly"></script>
-  <script src="js/ask-dr-holtkamp.js?v=20260627-mh-monthly"></script>
+  <script src="js/ask-dr-holtkamp.js?v=20260627-live-transcript"></script>
   <script src="js/ask-dr-holtkamp-sitrep.js?v=20260627-mh-monthly"></script>
-  <script src="js/app-mobile-command.js?v=20260620-meeting7"></script>
+  <script src="js/app-mobile-command.js?v=20260627-90min-transcript"></script>
 </body>
 </html>
