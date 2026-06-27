@@ -14,6 +14,28 @@
     return `${year}-${month}-${day}`;
   },
 
+  purgeRetiredMetricData() {
+    const retiredIds = ['mh-brave-usage'];
+    const stored = { ...(Sync?.getMetricStore?.() || {}) };
+    let changed = false;
+
+    retiredIds.forEach(id => {
+      if (Object.prototype.hasOwnProperty.call(stored, id)) {
+        delete stored[id];
+        changed = true;
+      }
+      if (Sync?.cache?.metrics && Object.prototype.hasOwnProperty.call(Sync.cache.metrics, id)) {
+        delete Sync.cache.metrics[id];
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      localStorage.setItem('dccs-metric-entries', JSON.stringify(stored));
+      if (Sync?.cache) Sync.cache.metrics = stored;
+    }
+  },
+
   parseLocalDate(s) {
     if (!s) return null;
     if (s instanceof Date) return new Date(s.getFullYear(), s.getMonth(), s.getDate());
@@ -196,6 +218,7 @@
       toast.classList.remove('visible');
       this._undoTimer = null;
     }, 8000);
+    return newBtn;
   },
 
   formatAuditDate(isoString) {
@@ -251,31 +274,106 @@
     `).join('');
   },
 
-  confirmAction(message, onConfirm) {
+  confirmAction(options, onConfirm) {
+    const config = typeof options === 'string'
+      ? {
+          title: 'Confirm action',
+          message: options,
+          details: [],
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Confirm',
+          tone: 'default'
+        }
+      : {
+          title: options?.title || 'Confirm action',
+          message: options?.message || '',
+          details: Array.isArray(options?.details) ? options.details : [],
+          cancelLabel: options?.cancelLabel || 'Cancel',
+          confirmLabel: options?.confirmLabel || 'Confirm',
+          tone: options?.tone === 'danger' ? 'danger' : 'default'
+        };
+
     let dialog = document.getElementById('confirm-dialog');
     if (!dialog) {
       dialog = document.createElement('dialog');
       dialog.id = 'confirm-dialog';
-      dialog.className = 'military-modal';
+      dialog.className = 'dccs-confirm-dialog';
       document.body.appendChild(dialog);
+
+      dialog.addEventListener('cancel', event => {
+        event.preventDefault();
+        dialog.close('cancel');
+      });
+      dialog.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          dialog.close('cancel');
+        }
+      });
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) dialog.close('cancel');
+      });
+      dialog.addEventListener('close', () => {
+        document.body.classList.remove('dccs-confirm-open');
+        const returnFocusTo = dialog._returnFocusTo;
+        const shouldRestoreFocus = dialog.returnValue !== 'confirm';
+        dialog._returnFocusTo = null;
+        if (shouldRestoreFocus && returnFocusTo?.isConnected && typeof returnFocusTo.focus === 'function') {
+          requestAnimationFrame(() => returnFocusTo.focus({ preventScroll: true }));
+        }
+      });
     }
+
+    const details = config.details
+      .filter(detail => detail && detail.label && detail.value !== null && detail.value !== undefined)
+      .map(detail => `
+        <div class="dccs-confirm-detail">
+          <dt>${this.escapeHtml(detail.label)}</dt>
+          <dd>${this.escapeHtml(String(detail.value))}</dd>
+        </div>
+      `).join('');
+
+    dialog._returnFocusTo = document.activeElement;
+    dialog.className = `dccs-confirm-dialog tone-${config.tone}`;
+    dialog.setAttribute('role', config.tone === 'danger' ? 'alertdialog' : 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', 'confirm-dialog-title');
+    dialog.setAttribute('aria-describedby', 'confirm-dialog-description');
     dialog.innerHTML = `
-      <div class="military-modal-header">Confirm Action</div>
-      <div class="military-modal-body">${this.escapeHtml(message)}</div>
-      <div class="military-modal-actions">
-        <button class="military-modal-btn cancel" id="confirm-dialog-cancel">Cancel</button>
-        <button class="military-modal-btn confirm" id="confirm-dialog-confirm">Confirm</button>
+      <div class="dccs-confirm-content">
+        <div class="dccs-confirm-heading">
+          <div class="dccs-confirm-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7h16"></path>
+              <path d="M9 7V4h6v3"></path>
+              <path d="M7 7l1 13h8l1-13"></path>
+              <path d="M10 11v5"></path>
+              <path d="M14 11v5"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 id="confirm-dialog-title">${this.escapeHtml(config.title)}</h2>
+            <p id="confirm-dialog-description">${this.escapeHtml(config.message)}</p>
+          </div>
+        </div>
+        ${details ? `<dl class="dccs-confirm-details">${details}</dl>` : ''}
+      </div>
+      <div class="dccs-confirm-actions">
+        <button class="dccs-confirm-btn cancel" type="button" id="confirm-dialog-cancel">${this.escapeHtml(config.cancelLabel)}</button>
+        <button class="dccs-confirm-btn confirm" type="button" id="confirm-dialog-confirm">${this.escapeHtml(config.confirmLabel)}</button>
       </div>
     `;
     const cancelBtn = dialog.querySelector('#confirm-dialog-cancel');
     const confirmBtn = dialog.querySelector('#confirm-dialog-confirm');
     
-    cancelBtn.addEventListener('click', () => dialog.close());
+    cancelBtn.addEventListener('click', () => dialog.close('cancel'));
     confirmBtn.addEventListener('click', () => {
-      dialog.close();
+      dialog.close('confirm');
       onConfirm();
     });
+    document.body.classList.add('dccs-confirm-open');
     dialog.showModal();
+    requestAnimationFrame(() => cancelBtn.focus({ preventScroll: true }));
   },
 
   showTooltip(event, date, value) {

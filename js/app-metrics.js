@@ -44,6 +44,10 @@
     return all[metricId] || [];
   },
 
+  metricIsMonthlySingle(metric) {
+    return metric?.entryMode === 'monthly-single';
+  },
+
   metricUsesReportAggregation(metric) {
     return metric?.aggregation === 'monthly-sum';
   },
@@ -53,6 +57,16 @@
     if (!metric) return [];
     const entries = Array.isArray(rawEntries) ? [...rawEntries] : [...this.getMetricEntries(metric.id)];
     entries.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    if (this.metricIsMonthlySingle(metric)) {
+      return entries.map(entry => {
+        const monthKey = this.metricMonthKey(entry.date);
+        return {
+          ...entry,
+          date: monthKey ? `${monthKey}-01` : entry.date,
+          label: monthKey ? this.metricMonthLabel(monthKey) : entry.date
+        };
+      });
+    }
     if (!this.metricUsesReportAggregation(metric)) return entries;
     return this.aggregateMetricEntriesByMonth(entries);
   },
@@ -101,21 +115,40 @@
     return `${months[Number(match[2]) - 1]} ${match[1]}`;
   },
 
+  metricHumanDateLabel(dateValue) {
+    const parsed = this.parseLocalDate(dateValue);
+    if (!parsed || Number.isNaN(parsed.getTime())) return String(dateValue || '');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${parsed.getDate()} ${months[parsed.getMonth()]} ${parsed.getFullYear()}`;
+  },
+
+  metricDeleteDateLabel(metric, dateValue) {
+    if (this.metricIsMonthlySingle(metric)) {
+      const monthKey = this.metricMonthKey(dateValue);
+      return monthKey ? this.metricMonthLabel(monthKey) : String(dateValue || '');
+    }
+    return this.metricHumanDateLabel(dateValue);
+  },
+
   metricEntryDateLabel(entry) {
     return entry?.label || entry?.date || '';
   },
 
   metricDateInputLabel(metric) {
-    return this.metricUsesReportAggregation(metric) ? 'Referral Date' : this.metricPeriodLabel(metric);
+    if (this.metricUsesReportAggregation(metric)) return 'Referral Date';
+    return this.metricPeriodLabel(metric);
   },
 
   metricDateColumnLabel(metric) {
-    return this.metricUsesReportAggregation(metric) ? 'Month' : 'Date';
+    return this.metricUsesReportAggregation(metric) || this.metricIsMonthlySingle(metric) ? 'Month' : 'Date';
   },
 
   metricHistorySummaryText(metric, entries) {
     if (this.metricUsesReportAggregation(metric)) {
       return `Monthly totals (${entries.length} ${entries.length === 1 ? 'month' : 'months'})`;
+    }
+    if (this.metricIsMonthlySingle(metric)) {
+      return `Monthly values (${entries.length} ${entries.length === 1 ? 'month' : 'months'})`;
     }
     return `Data log (${entries.length} ${entries.length === 1 ? 'entry' : 'entries'})`;
   },
@@ -124,13 +157,74 @@
     if (this.metricUsesReportAggregation(metric)) {
       return `${entries.length} ${entries.length === 1 ? 'month' : 'months'} reported`;
     }
+    if (this.metricIsMonthlySingle(metric)) {
+      return `${entries.length} ${entries.length === 1 ? 'month' : 'months'} saved`;
+    }
     return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} saved`;
+  },
+
+  metricCanonicalEntryDate(metric, dateValue) {
+    if (!this.metricIsMonthlySingle(metric)) return String(dateValue || '');
+    const monthKey = this.metricMonthKey(dateValue);
+    return monthKey ? `${monthKey}-01` : '';
+  },
+
+  metricInputType(metric) {
+    return this.metricIsMonthlySingle(metric) ? 'month' : 'date';
+  },
+
+  metricInputDefaultValue(metric) {
+    const today = this.getLocalToday();
+    return this.metricIsMonthlySingle(metric) ? today.slice(0, 7) : today;
+  },
+
+  metricInputStep(metric) {
+    return Number.isInteger(metric?.precision) ? String(1 / Math.pow(10, metric.precision)) : 'any';
+  },
+
+  metricValueIsValid(metric, value) {
+    if (value === null || value === undefined || String(value).trim() === '') return false;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return false;
+    if (metric?.min !== null && metric?.min !== undefined && numeric < Number(metric.min)) return false;
+    return true;
+  },
+
+  metricNormalizedValue(metric, value) {
+    const numeric = Number(value);
+    if (!Number.isInteger(metric?.precision)) return numeric;
+    const factor = Math.pow(10, metric.precision);
+    return Math.round((numeric + Number.EPSILON) * factor) / factor;
+  },
+
+  saveMetricEntryToStore(all, metric, rawDate, value, by, options = {}) {
+    if (!metric || !this.metricValueIsValid(metric, value)) return null;
+    const date = this.metricCanonicalEntryDate(metric, rawDate);
+    if (!date) return null;
+
+    const entries = Array.isArray(all[metric.id]) ? [...all[metric.id]] : [];
+    const replaceExactDate = options.replaceExactDate === true;
+    const existingIndex = this.metricIsMonthlySingle(metric)
+      ? entries.findIndex(entry => this.metricMonthKey(entry.date) === this.metricMonthKey(date))
+      : replaceExactDate
+        ? entries.findIndex(entry => entry.date === date)
+        : -1;
+    const beforeEntry = existingIndex >= 0 ? { ...entries[existingIndex] } : null;
+    const nextEntry = { date, value: this.metricNormalizedValue(metric, value), by };
+
+    if (existingIndex >= 0) entries[existingIndex] = nextEntry;
+    else entries.push(nextEntry);
+
+    entries.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    all[metric.id] = entries;
+    return { date, beforeEntry, nextEntry, replaced: existingIndex >= 0 };
   },
 
   addMetricEntry(metricId) {
     const valInput = document.getElementById(`metric-val-${metricId}`);
     const dateInput = document.getElementById(`metric-date-${metricId}`);
-    if (!valInput) return;
+    const metric = this.getMetricDefinition(metricId);
+    if (!valInput || !metric) return;
     
     valInput.classList.remove('input-error');
     if (dateInput) dateInput.classList.remove('input-error');
@@ -141,8 +235,8 @@
       hasError = true;
     }
     
-    const parsedVal = parseFloat(valInput.value);
-    if (valInput.value === '' || isNaN(parsedVal)) {
+    const parsedVal = Number(valInput.value);
+    if (valInput.value === '' || !this.metricValueIsValid(metric, parsedVal)) {
       valInput.classList.add('input-error');
       hasError = true;
     }
@@ -150,13 +244,13 @@
     if (hasError) return;
     
     const all = { ...this.getMetricStore() };
-    const entries = Array.isArray(all[metricId]) ? [...all[metricId]] : [];
-    const beforeVal = entries.length > 0 ? { ...entries[entries.length - 1] } : null;
     const user = this.getCurrentUser();
-    
-    entries.push({ date: dateInput.value, value: parsedVal, by: user });
-    entries.sort((a, b) => a.date.localeCompare(b.date));
-    all[metricId] = entries;
+    const saved = this.saveMetricEntryToStore(all, metric, dateInput.value, parsedVal, user);
+    if (!saved) {
+      dateInput.classList.add('input-error');
+      return;
+    }
+
     Sync.saveMetricSeries([metricId], all);
     valInput.value = '';
     
@@ -165,17 +259,22 @@
     setTimeout(() => { valInput.style.boxShadow = ''; }, 800);
     this.refreshMetricDisplay(metricId);
     
-    this.logAudit('update_metric', metricId, `${metricId} on ${dateInput.value}: None`, `${metricId} on ${dateInput.value}: ${parsedVal}`);
-    this.showUndoToast(`Added ${metricId} = ${parsedVal}`, () => {
+    const beforeValue = saved.beforeEntry ? saved.beforeEntry.value : 'None';
+    const savedValue = saved.nextEntry.value;
+    this.logAudit('update_metric', metricId, `${metricId} on ${saved.date}: ${beforeValue}`, `${metricId} on ${saved.date}: ${savedValue}`);
+    this.showUndoToast(`${saved.replaced ? 'Updated' : 'Added'} ${metric.name} = ${this.formatMetricNumber(savedValue, metric.precision)}`, () => {
       const undoAll = { ...this.getMetricStore() };
       const undoEntries = Array.isArray(undoAll[metricId]) ? [...undoAll[metricId]] : [];
-      const idx = undoEntries.findIndex(e => e.date === dateInput.value && e.value === parsedVal);
+      const idx = this.metricIsMonthlySingle(metric)
+        ? undoEntries.findIndex(e => this.metricMonthKey(e.date) === this.metricMonthKey(saved.date))
+        : undoEntries.findIndex(e => e.date === saved.date && e.value === savedValue);
       if (idx >= 0) {
-        undoEntries.splice(idx, 1);
+        if (saved.beforeEntry) undoEntries[idx] = saved.beforeEntry;
+        else undoEntries.splice(idx, 1);
         undoAll[metricId] = undoEntries;
         Sync.saveMetricSeries([metricId], undoAll);
         this.refreshMetricDisplay(metricId);
-        this.logAudit('undo_metric', metricId, `${metricId} on ${dateInput.value}: ${parsedVal}`, `${metricId} on ${dateInput.value}: None`);
+        this.logAudit('undo_metric', metricId, `${metricId} on ${saved.date}: ${savedValue}`, `${metricId} on ${saved.date}: ${beforeValue}`);
       }
     });
   },
@@ -282,8 +381,11 @@
     chart.innerHTML = this.renderMetricGroupChart(found.group);
   },
 
-  formatMetricNumber(value) {
+  formatMetricNumber(value, precision = null) {
     if (!Number.isFinite(Number(value))) return '0';
+    if (Number.isInteger(precision) && precision >= 0) {
+      return Number(value).toFixed(precision);
+    }
     const rounded = Math.round(Number(value) * 10) / 10;
     return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
   },
@@ -297,7 +399,7 @@
   },
 
   formatMetricValue(metric, value) {
-    return `${this.formatMetricNumber(value)} ${this.metricUnitLabel(metric, value)}`;
+    return `${this.formatMetricNumber(value, metric?.precision)} ${this.metricUnitLabel(metric, value)}`;
   },
 
   metricPeriodLabel(metricOrGroup) {
@@ -314,7 +416,10 @@
 
   metricTargetText(metric) {
     if (metric.goal !== null && metric.goal !== undefined) {
-      return `Goal: ${metric.direction === 'lower' ? 'under' : 'at least'} ${this.formatMetricValue(metric, metric.goal)}`;
+      const relation = metric.direction === 'lower'
+        ? metric.goalInclusive ? 'at or below' : 'under'
+        : metric.goalInclusive === false ? 'above' : 'at least';
+      return `Goal: ${relation} ${this.formatMetricValue(metric, metric.goal)}`;
     }
     if (metric.direction === 'neutral') {
       return `Track ${this.metricPeriodAdverb(metric)} count`;
@@ -328,6 +433,22 @@
     return this.formatMetricValue(metric, latest.value);
   },
 
+  metricMeetsGoal(metric, value) {
+    if (metric?.goal === null || metric?.goal === undefined) return null;
+    const numeric = Number(value);
+    const goal = Number(metric.goal);
+    if (!Number.isFinite(numeric) || !Number.isFinite(goal)) return null;
+    if (metric.direction === 'lower') return metric.goalInclusive ? numeric <= goal : numeric < goal;
+    if (metric.direction === 'higher') return metric.goalInclusive === false ? numeric > goal : numeric >= goal;
+    return null;
+  },
+
+  metricGoalSymbol(metric) {
+    if (metric?.direction === 'lower') return metric.goalInclusive ? '≤' : '<';
+    if (metric?.direction === 'higher') return metric.goalInclusive === false ? '>' : '≥';
+    return '';
+  },
+
   metricStatus(metric, entries) {
     if (!entries.length) return { label: 'Awaiting first entry', tone: 'neutral' };
     if (metric.goal === null || metric.goal === undefined) {
@@ -335,7 +456,7 @@
     }
 
     const latest = entries[entries.length - 1].value;
-    const meetsGoal = metric.direction === 'lower' ? latest < metric.goal : latest >= metric.goal;
+    const meetsGoal = this.metricMeetsGoal(metric, latest);
     if (meetsGoal) return { label: 'Meets goal', tone: 'good' };
     return { label: metric.direction === 'lower' ? 'Above goal' : 'Below goal', tone: 'warn' };
   },
@@ -347,7 +468,9 @@
     }
     const previous = entries[entries.length - 2].value;
     const latest = entries[entries.length - 1].value;
-    const delta = Math.round((latest - previous) * 10) / 10;
+    const precision = Number.isInteger(metric?.precision) ? metric.precision : 1;
+    const factor = Math.pow(10, precision);
+    const delta = Math.round((latest - previous) * factor) / factor;
     if (delta === 0) return { label: 'Stable from last entry', tone: 'neutral' };
 
     if (metric.direction === 'neutral') {
@@ -464,12 +587,12 @@
     return plot.bottom - ((Number(value) - scale.min) / (scale.max - scale.min)) * (plot.bottom - plot.top);
   },
 
-  renderMetricChartAxes({ width, height, plot, scale, xTicks, xForIndex, xLabel, yLabel }) {
+  renderMetricChartAxes({ width, height, plot, scale, xTicks, xForIndex, xLabel, yLabel, precision = null }) {
     const yGrid = scale.ticks.map(value => {
       const y = this.metricChartYFor(value, scale, plot);
       return `
         <line x1="${plot.left}" y1="${y.toFixed(1)}" x2="${plot.right}" y2="${y.toFixed(1)}" class="metric-chart-gridline"/>
-        <text x="${plot.left - 8}" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" class="metric-chart-y-tick">${this.escapeHtml(this.formatMetricNumber(value))}</text>
+        <text x="${plot.left - 8}" y="${y.toFixed(1)}" text-anchor="end" dominant-baseline="middle" class="metric-chart-y-tick">${this.escapeHtml(this.formatMetricNumber(value, precision))}</text>
       `;
     }).join('');
 
@@ -512,7 +635,7 @@
       return `
         <div class="metric-chart-empty ${isExpanded ? 'expanded' : ''}">
           <strong>No data entered</strong>
-          <span>Add dated values to begin the ${this.metricPeriodAdverb(metric)} trend line.</span>
+          <span>Add ${this.metricIsMonthlySingle(metric) ? 'monthly' : 'dated'} values to begin the ${this.metricPeriodAdverb(metric)} trend line.</span>
         </div>`;
     }
 
@@ -550,7 +673,8 @@
       xTicks: this.metricChartDateTicks(labels, isExpanded ? 5 : metric.featured ? 4 : 3),
       xForIndex,
       xLabel: x,
-      yLabel: y
+      yLabel: y,
+      precision: metric.precision
     });
     const goalLine = metric.goal !== null && metric.goal !== undefined ? (() => {
       const y = yFor(metric.goal);
@@ -735,15 +859,50 @@
     const entry = entries[entryIndex];
     if (!entry) return;
     const metric = this.getMetricDefinition(metricId);
-    const metricName = metric ? metric.name : 'this metric';
-    
-    this.confirmAction(`Delete the ${entry.date} entry for ${metricName}?`, () => {
+    if (!metric) return;
+    const dateLabel = this.metricDeleteDateLabel(metric, entry.date);
+    const valueLabel = this.formatMetricValue(metric, entry.value);
+
+    this.confirmAction({
+      title: 'Delete metric entry?',
+      message: 'This removes the selected point from the chart and data log. You can undo this for 8 seconds.',
+      details: [
+        { label: 'Metric', value: metric.name },
+        { label: this.metricIsMonthlySingle(metric) ? 'Month' : 'Date', value: dateLabel },
+        { label: 'Value', value: valueLabel }
+      ],
+      cancelLabel: 'Keep entry',
+      confirmLabel: 'Delete entry',
+      tone: 'danger'
+    }, () => {
       const allCopy = { ...this.getMetricStore() };
       const entriesCopy = Array.isArray(allCopy[metricId]) ? [...allCopy[metricId]] : [];
+      const beforeState = entriesCopy.map(item => ({ ...item }));
+      const removedEntry = entriesCopy[entryIndex];
+      if (!removedEntry) return;
       entriesCopy.splice(entryIndex, 1);
       allCopy[metricId] = entriesCopy;
       Sync.saveMetricSeries([metricId], allCopy);
       this.refreshMetricDisplay(metricId);
+      this.logAudit(
+        'delete_metric',
+        metricId,
+        `${metricId} on ${removedEntry.date}: ${removedEntry.value}`,
+        `${metricId} on ${removedEntry.date}: Deleted`
+      );
+
+      const undoButton = this.showUndoToast(`Deleted ${dateLabel} from ${metric.name}`, () => {
+        const undoAll = { ...this.getMetricStore(), [metricId]: beforeState };
+        Sync.saveMetricSeries([metricId], undoAll);
+        this.refreshMetricDisplay(metricId);
+        this.logAudit(
+          'undo_metric',
+          metricId,
+          `${metricId} on ${removedEntry.date}: Deleted`,
+          `${metricId} on ${removedEntry.date}: ${removedEntry.value}`
+        );
+      });
+      requestAnimationFrame(() => undoButton?.focus({ preventScroll: true }));
     });
   },
 
@@ -761,13 +920,51 @@
 
     const monthLabel = this.metricMonthLabel(normalizedMonth);
     const rawEntryLabel = `${matchingEntries.length} raw ${matchingEntries.length === 1 ? 'entry' : 'entries'}`;
+    const monthlyTotal = matchingEntries.reduce((sum, entry) => {
+      const value = Number(entry.value);
+      return Number.isFinite(value) ? sum + value : sum;
+    }, 0);
 
-    this.confirmAction(`Delete all ${rawEntryLabel} from ${monthLabel}?`, () => {
+    this.confirmAction({
+      title: 'Delete monthly metric total?',
+      message: 'This removes every source value included in this monthly total. You can undo this for 8 seconds.',
+      details: [
+        { label: 'Metric', value: metric.name },
+        { label: 'Month', value: monthLabel },
+        { label: 'Monthly total', value: this.formatMetricValue(metric, monthlyTotal) },
+        { label: 'Source entries', value: rawEntryLabel }
+      ],
+      cancelLabel: 'Keep entries',
+      confirmLabel: 'Delete entries',
+      tone: 'danger'
+    }, () => {
       const allCopy = { ...this.getMetricStore() };
       const entriesCopy = Array.isArray(allCopy[metricId]) ? [...allCopy[metricId]] : [];
+      const beforeState = entriesCopy.map(item => ({ ...item }));
+      const removedEntries = entriesCopy.filter(entry => this.metricMonthKey(entry.date) === normalizedMonth);
+      if (!removedEntries.length) return;
       allCopy[metricId] = entriesCopy.filter(entry => this.metricMonthKey(entry.date) !== normalizedMonth);
       Sync.saveMetricSeries([metricId], allCopy);
       this.refreshMetricDisplay(metricId);
+      this.logAudit(
+        'delete_metric',
+        metricId,
+        `${metricId} for ${normalizedMonth}: ${removedEntries.length} source entries`,
+        `${metricId} for ${normalizedMonth}: Deleted`
+      );
+
+      const undoButton = this.showUndoToast(`Deleted ${monthLabel} from ${metric.name}`, () => {
+        const undoAll = { ...this.getMetricStore(), [metricId]: beforeState };
+        Sync.saveMetricSeries([metricId], undoAll);
+        this.refreshMetricDisplay(metricId);
+        this.logAudit(
+          'undo_metric',
+          metricId,
+          `${metricId} for ${normalizedMonth}: Deleted`,
+          `${metricId} for ${normalizedMonth}: ${removedEntries.length} source entries restored`
+        );
+      });
+      requestAnimationFrame(() => undoButton?.focus({ preventScroll: true }));
     });
   },
 
@@ -781,14 +978,49 @@
     const entries = all[series.id] || [];
     const entry = entries[entryIndex];
     if (!entry) return;
+    const dateLabel = this.metricHumanDateLabel(entry.date);
+    const valueLabel = this.formatMetricValue(series, entry.value);
 
-    this.confirmAction(`Delete the ${entry.date} ${series.name} entry?`, () => {
+    this.confirmAction({
+      title: 'Delete metric entry?',
+      message: 'This removes the selected point from the combined chart and data log. You can undo this for 8 seconds.',
+      details: [
+        { label: 'Metric', value: series.name },
+        { label: 'Date', value: dateLabel },
+        { label: 'Value', value: valueLabel }
+      ],
+      cancelLabel: 'Keep entry',
+      confirmLabel: 'Delete entry',
+      tone: 'danger'
+    }, () => {
       const allCopy = { ...this.getMetricStore() };
       const entriesCopy = Array.isArray(allCopy[series.id]) ? [...allCopy[series.id]] : [];
+      const beforeState = entriesCopy.map(item => ({ ...item }));
+      const removedEntry = entriesCopy[entryIndex];
+      if (!removedEntry) return;
       entriesCopy.splice(entryIndex, 1);
       allCopy[series.id] = entriesCopy;
       Sync.saveMetricSeries([series.id], allCopy);
       this.refreshMetricGroupDisplay(groupId);
+      this.logAudit(
+        'delete_metric',
+        series.id,
+        `${series.id} on ${removedEntry.date}: ${removedEntry.value}`,
+        `${series.id} on ${removedEntry.date}: Deleted`
+      );
+
+      const undoButton = this.showUndoToast(`Deleted ${dateLabel} from ${series.name}`, () => {
+        const undoAll = { ...this.getMetricStore(), [series.id]: beforeState };
+        Sync.saveMetricSeries([series.id], undoAll);
+        this.refreshMetricGroupDisplay(groupId);
+        this.logAudit(
+          'undo_metric',
+          series.id,
+          `${series.id} on ${removedEntry.date}: Deleted`,
+          `${series.id} on ${removedEntry.date}: ${removedEntry.value}`
+        );
+      });
+      requestAnimationFrame(() => undoButton?.focus({ preventScroll: true }));
     });
   },
 
@@ -975,13 +1207,13 @@
         <form class="metric-entry-form" onsubmit="App.addMetricEntry('${metric.id}'); return false;">
           <label>
             <span>${this.escapeHtml(this.metricDateInputLabel(metric))}</span>
-            <input type="date" id="metric-date-${metric.id}" value="${this.getLocalToday()}">
+            <input type="${this.metricInputType(metric)}" id="metric-date-${metric.id}" value="${this.metricInputDefaultValue(metric)}">
           </label>
           <label>
             <span>Value</span>
-            <input type="number" step="any" id="metric-val-${metric.id}" placeholder="${this.escapeHtml(metric.unit)}">
+            <input type="number" step="${this.metricInputStep(metric)}"${metric.min !== null && metric.min !== undefined ? ` min="${this.escapeHtml(metric.min)}"` : ''} id="metric-val-${metric.id}" placeholder="${this.escapeHtml(metric.unit)}">
           </label>
-          <button type="submit">Add</button>
+          <button type="submit">${this.metricIsMonthlySingle(metric) ? 'Save month' : 'Add'}</button>
         </form>
 
         <details class="metric-log">
@@ -1167,7 +1399,7 @@
         </div>
 
         <div class="metric-expanded-log">
-          <div class="metric-expanded-log-title">${this.metricUsesReportAggregation(metric) ? 'Monthly Totals' : 'Entry History'}</div>
+          <div class="metric-expanded-log-title">${this.metricUsesReportAggregation(metric) ? 'Monthly Totals' : this.metricIsMonthlySingle(metric) ? 'Monthly Values' : 'Entry History'}</div>
           <div class="metric-log-table-wrap expanded">
             <table>
               <thead>
