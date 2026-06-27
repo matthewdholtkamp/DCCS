@@ -47,7 +47,15 @@ Available commands inside the JSON array:
    * Deletes the dialogue comment/entry matching the date and containing the textMatch substring.
 
 MEETING RECORDER INPUT:
-If the user message starts with MEETING_RECORDER_INPUT, treat it as a captured meeting/input transcript and produce a thorough, read-first summary ONLY. Open with a short BLUF, then organize the body by DCCS service line / lane, and under each lane capture what was discussed in clear, briefable prose: decisions, status and metric updates mentioned, roadblocks, and follow-up actions. Favor completeness and detail over brevity; this is the document the user reads first. Route each item to the correct lane by topic; speaker names are not required, but attribute an item to a named person only when a name is clearly spoken (never guess who said what). Do NOT append any DCCS_COMMAND actions, and do NOT propose portal updates on this pass. End by reminding the user they can next ask you to turn specific items into metric/task/KPI lines or add them to the weekly brief, which you will handle in a follow-up message.
+If the user message starts with MEETING_RECORDER_INPUT, treat it as a transcript of a multi-person DCCS meeting. Do not infer, label, or attribute speakers. Open with a concise BLUF, then organize the summary by every affected DCCS service line / lane. Under each lane capture the decisions, current status, roadblocks, explicit metric values, and follow-up actions discussed.
+
+After the summary, propose portal updates in one DCCS_COMMAND block:
+- Create no more than one combined add_dialogue action per affected service line. Consolidate that lane's decisions, status, and roadblocks into one concise dated Weekly Dialogue entry.
+- Create update_metric actions only when the transcript explicitly provides a recognizable metric, a numeric value, and a date or month. Use only metric IDs present in DCCS_CONTEXT.
+- Do not create task or KPI commands from a meeting transcript.
+- Put unclear destinations, dates, metric matches, or values under "Needs clarification" and create no command for those items.
+
+Tell the user that nothing changes until they review the single confirmation card and click Confirm. They may instead cancel or reply in chat with corrections.
 
 If the target is ambiguous (no/unknown metric, multiple plausible matches, missing date or value), ASK a clarifying question and emit NO command block. Never emit a delete affecting more than one entry without listing each.
 
@@ -271,108 +279,6 @@ Always explain what changes or deletes you are proposing, and append the command
     this.els.button.setAttribute("aria-expanded", "false");
   },
 
-  async sendMeetingAudio(blob, focusLabel) {
-    if (!this.isReady) {
-      try { await this.loadDependencies(); } catch (_) {}
-    }
-    this.open();
-    const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
-    const focus = focusLabel || "all DCCS service lines";
-    const mime = (blob && blob.type) || "audio/mp4";
-    const sizeMb = blob && blob.size ? (blob.size / 1048576).toFixed(1) : "?";
-    this.createMessage("user", `Meeting recording captured (${sizeMb} MB, focus: ${focus}). Transcribing and routing to the right sections...`);
-    const assistantBody = this.createMessage("assistant", "Thinking...");
-
-    const cfg = window.BANDAID_CONFIG || {};
-    const workerUrl = cfg.WORKER_URL;
-    if (!workerUrl || !window.BANDAID_PERSONA_PROMPT) {
-      this.updateMessage(assistantBody, "The shared assistant isn't loaded yet. Open Ask Dr. Holtkamp once, then try the recording again.", false);
-      return;
-    }
-
-    const validMetricIdsList = this.getValidMetricIds().map((id) => `"${id}"`).join(", ");
-    const systemPrompt = `${window.BANDAID_PERSONA_PROMPT}\n\n${this.DCCS_CONTEXT_RULES.replace("[VALID_METRIC_IDS]", validMetricIdsList)}`;
-    const contextBlock = this.buildDccsContext("Summarize this meeting and route updates to the correct service lines.");
-    const framing = [
-      "MEETING_RECORDER_INPUT",
-      `Date: ${date}`,
-      `Focus: ${focus}`,
-      "",
-      "The attached audio is a recording of a multi-person DCCS meeting. Transcribe it internally, then write a thorough, briefable summary the user reads first: a short BLUF up top, then one section per DCCS service line / lane that came up (PCSL, Surgery, Mental Health, Emergency, MSCoE Surgeon), each capturing decisions, status and metric updates mentioned, roadblocks, and follow-ups in clear prose. Favor completeness over brevity. Route by topic; attribute an item to a named person only when a name is clearly spoken, never guess. Do NOT create DCCS_COMMAND actions or propose portal updates on this pass - the user reviews this summary first, then will separately ask you to format items into lines or add them to the weekly brief."
-    ].join("\n");
-
-    // Prefer the Files API (raw bytes, no size cap, no base64 inflation); retry transient failures.
-    let audioPart = null;
-    let uploadError = "";
-    const origin = new URL(workerUrl).origin;
-    for (let attempt = 1; attempt <= 3 && !audioPart; attempt += 1) {
-      try {
-        const upRes = await fetch(`${origin}/files/upload?mime=${encodeURIComponent(mime)}`, {
-          method: "POST",
-          headers: { "Content-Type": mime },
-          body: blob
-        });
-        if (!upRes.ok) {
-          const t = await upRes.text().catch(() => "");
-          throw new Error(`upload ${upRes.status}${t ? " " + t.slice(0, 120) : ""}`);
-        }
-        const up = await upRes.json();
-        if (!up || !up.fileUri) throw new Error("no fileUri returned");
-        audioPart = { fileData: { fileUri: up.fileUri, mimeType: up.mimeType || mime } };
-      } catch (e) {
-        uploadError = e.message || "upload failed";
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
-      }
-    }
-    if (!audioPart && blob && blob.size && blob.size < 18 * 1048576) {
-      try {
-        const b64 = await this._blobToBase64(blob);
-        audioPart = { inlineData: { mimeType: mime, data: b64 } };
-      } catch (_) {}
-    }
-    if (!audioPart) {
-      this.updateMessage(assistantBody, `Couldn't send the recording after 3 tries (${uploadError}). Likely a weak connection - move to better Wi-Fi, then reopen the recorder and it will offer the saved audio to resend.`, false);
-      return;
-    }
-
-    try {
-      const url = workerUrl + (workerUrl.includes("?") ? "&" : "?") + "stream=0";
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gemini-3.5-flash",
-          fallbackModel: "gemini-2.5-flash",
-          stream: false,
-          systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [audioPart, { text: framing }, { text: contextBlock }] }],
-          generationConfig: { temperature: 0.2 }
-        })
-      });
-      if (!response.ok) {
-        const errTxt = await response.text().catch(() => "");
-        throw new Error(`HTTP ${response.status}${errTxt ? " - " + errTxt.slice(0, 160) : ""}`);
-      }
-      const data = await response.json();
-      const text = (data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts
-        ? data.candidates[0].content.parts.map((p) => p.text).filter(Boolean).join("")
-        : "") || "No summary text was returned from the meeting recording.";
-      this.updateMessage(assistantBody, text, true);
-      if (window.MobileCommand && MobileCommand.clearSaved) MobileCommand.clearSaved();
-    } catch (err) {
-      this.updateMessage(assistantBody, `Meeting summary failed: ${err.message || "unknown error"}. You can paste notes into the recorder and try again.`, false);
-    }
-  },
-
-  _blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => { const s = String(r.result || ""); const i = s.indexOf(","); resolve(i >= 0 ? s.slice(i + 1) : s); };
-      r.onerror = () => reject(new Error("Could not read audio"));
-      r.readAsDataURL(blob);
-    });
-  },
-
   updateSendButtonState() {
     if (!this.els.send) return;
     const hasText = this.els.input.value.trim().length > 0;
@@ -550,6 +456,25 @@ Always explain what changes or deletes you are proposing, and append the command
     }
   },
 
+  supersedePendingConfirmations() {
+    if (!this.els.messages) return;
+    this.els.messages
+      .querySelectorAll('.ask-confirm-card[data-confirmation-state="pending"]')
+      .forEach((card) => {
+        card.dataset.confirmationState = "superseded";
+        card.style.opacity = "0.65";
+        card.querySelectorAll("button").forEach((button) => {
+          button.disabled = true;
+          button.style.cursor = "default";
+        });
+        const notice = document.createElement("div");
+        notice.className = "ask-system-log";
+        notice.style.marginTop = "8px";
+        notice.textContent = "Superseded by your follow-up — nothing from this proposal was changed.";
+        card.appendChild(notice);
+      });
+  },
+
   async executeCommands(commands, body) {
     const commandsArray = Array.isArray(commands) ? commands : [commands];
     const results = [];
@@ -706,6 +631,7 @@ Always explain what changes or deletes you are proposing, and append the command
 
     const card = document.createElement("div");
     card.className = "ask-confirm-card";
+    card.dataset.confirmationState = "pending";
     card.style.border = "1px solid rgba(255, 255, 255, 0.15)";
     card.style.borderRadius = "8px";
     card.style.padding = "12px";
@@ -803,6 +729,7 @@ Always explain what changes or deletes you are proposing, and append the command
     body.appendChild(card);
 
     confirmBtn.addEventListener("click", () => {
+      card.dataset.confirmationState = "confirmed";
       confirmBtn.disabled = true;
       cancelBtn.disabled = true;
       confirmBtn.style.opacity = "0.5";
@@ -813,6 +740,7 @@ Always explain what changes or deletes you are proposing, and append the command
     });
 
     cancelBtn.addEventListener("click", () => {
+      card.dataset.confirmationState = "cancelled";
       confirmBtn.disabled = true;
       cancelBtn.disabled = true;
       confirmBtn.style.opacity = "0.5";
@@ -1086,6 +1014,7 @@ Always explain what changes or deletes you are proposing, and append the command
     const question = this.els.input.value.trim();
     if (!question || this.els.send.disabled) return;
 
+    this.supersedePendingConfirmations();
     this.els.input.value = "";
     this.autoSizeInput();
     this.updateSendButtonState();
@@ -1093,7 +1022,8 @@ Always explain what changes or deletes you are proposing, and append the command
     this.saveHistory();
     this.createMessage("user", question);
 
-    if (this.isClinicalQuestion(question)) {
+    const isMeetingTranscript = question.startsWith("MEETING_RECORDER_INPUT");
+    if (!isMeetingTranscript && this.isClinicalQuestion(question)) {
       this.history.push({ role: "assistant", text: this.CLINICAL_REFUSAL });
       this.saveHistory();
       this.createMessage("assistant", this.CLINICAL_REFUSAL);

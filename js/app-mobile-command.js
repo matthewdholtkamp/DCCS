@@ -1,18 +1,34 @@
-// Mobile-first DCCS capture tools. Records meeting audio and routes it to Gemini.
-// Hardened for long, unattended meetings: wake-lock, periodic flushing, safe finalize.
+// Mobile-first DCCS capture tools. Uses browser speech recognition to build
+// a recoverable meeting transcript; no audio file is stored or uploaded.
 (function () {
   const MobileCommand = {
+    DRAFT_KEY: "dccs-mobile-transcript-draft",
+    DRAFT_VERSION: 1,
+    checkpointIntervalMs: 15000,
+    draftSaveDelayMs: 400,
+    restartBaseDelayMs: 300,
+    restartMaxDelayMs: 5000,
     els: {},
-    mediaRecorder: null,
-    chunks: [],
-    audioBlob: null,
-    audioMime: "",
-    stream: null,
-    wakeLock: null,
+    recognition: null,
+    recognitionActive: false,
+    recognitionStartedAt: 0,
+    restartAttempts: 0,
     isRecording: false,
+    stopRequested: false,
+    fatalRecognitionError: false,
+    resumeOnVisible: false,
+    wakeLock: null,
     startedAt: 0,
+    elapsedSeconds: 0,
     timerId: null,
-    _onStopDone: null,
+    restartTimerId: null,
+    checkpointTimerId: null,
+    draftSaveTimerId: null,
+    visibilityResumeTimerId: null,
+
+    now() {
+      return Date.now();
+    },
 
     init() {
       this.els = {
@@ -20,53 +36,118 @@
         recordAction: document.getElementById("mobile-record-action"),
         recorder: document.getElementById("mobile-recorder"),
         close: document.getElementById("mobile-recorder-close"),
-        scope: document.getElementById("mobile-recorder-scope"),
         timer: document.getElementById("mobile-recorder-timer"),
         state: document.getElementById("mobile-recorder-state"),
         transcript: document.getElementById("mobile-recorder-transcript"),
         toggle: document.getElementById("mobile-recorder-toggle"),
         submit: document.getElementById("mobile-recorder-submit"),
+        clear: document.getElementById("mobile-recorder-clear"),
+        wakeStatus: document.getElementById("mobile-recorder-wake-status"),
+        draftStatus: document.getElementById("mobile-recorder-draft-status"),
         home: document.getElementById("ask-home")
       };
       if (!this.els.askAction || !this.els.recordAction || !this.els.recorder) return;
 
-      this.populateServiceLineOptions();
-      this.detectSupport();
-
+      this.initSpeechRecognition();
+      this.restoreDraft();
       this.els.askAction.addEventListener("click", () => this.openAsk());
       this.els.recordAction.addEventListener("click", () => this.openRecorder());
       this.els.close.addEventListener("click", () => this.closeRecorder());
       if (this.els.toggle) this.els.toggle.addEventListener("click", () => this.toggleRecording());
-      this.els.submit.addEventListener("click", () => this.submitRecording());
-      if (this.els.transcript) this.els.transcript.addEventListener("input", () => this.updateSubmitState());
+      if (this.els.submit) this.els.submit.addEventListener("click", () => this.submitTranscript());
+      if (this.els.clear) this.els.clear.addEventListener("click", () => this.confirmClearTranscript());
+      if (this.els.transcript) {
+        this.els.transcript.addEventListener("input", () => {
+          this.updateSubmitState();
+          this.scheduleDraftSave();
+        });
+      }
       if (this.els.home) this.els.home.addEventListener("click", () => this.goHome());
-      document.addEventListener("visibilitychange", () => this.handleVisibility());
+      document.addEventListener("visibilitychange", () => this.handleVisibilityChange());
+      window.addEventListener("pagehide", () => this.saveDraft());
+      this.updateDurabilityStatus();
+      this.updateSubmitState();
     },
 
-    populateServiceLineOptions() {
-      if (!this.els.scope || typeof FRAMEWORK === "undefined") return;
-      (FRAMEWORK.serviceLines || []).forEach((sl) => {
-        const option = document.createElement("option");
-        option.value = sl.id;
-        option.textContent = `${sl.name}${sl.abbr ? ` (${sl.abbr})` : ""}`;
-        this.els.scope.appendChild(option);
-      });
-    },
-
-    detectSupport() {
-      if (!navigator.mediaDevices || !window.MediaRecorder) {
-        this.setState("Recording isn't supported on this browser. Use the notes field below, then Summarize.");
-      } else {
-        this.setState("Tap the mic, set the phone down, keep this screen on. Put the phone on Do Not Disturb.");
+    initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        this.setState("Live transcription is unavailable here. Type, paste, or use your phone keyboard's dictation below.");
+        return;
       }
-    },
 
-    pickMime() {
-      const types = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg"];
-      for (const t of types) {
-        try { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t; } catch (_) {}
-      }
-      return "";
+      this.recognition = new SpeechRecognition();
+      this.recognition.lang = "en-US";
+      this.recognition.interimResults = true;
+      this.recognition.continuous = true;
+
+      this.recognition.onstart = () => {
+        this.recognitionActive = true;
+        this.recognitionStartedAt = this.now();
+        if (this.isRecording) this.setState("Listening... keep this page open and in the foreground.");
+      };
+
+      this.recognition.onresult = (event) => {
+        const finalParts = [];
+        const interimParts = [];
+
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const text = String(event.results[i][0]?.transcript || "").trim();
+          if (!text) continue;
+          if (event.results[i].isFinal) finalParts.push(text);
+          else interimParts.push(text);
+        }
+
+        if (finalParts.length) {
+          this.restartAttempts = 0;
+          this.appendTranscript(finalParts.join(" "));
+        }
+        if (!this.isRecording) return;
+        this.setState(
+          interimParts.length
+            ? `Listening... ${interimParts.join(" ")}`
+            : "Listening... keep this page open and in the foreground."
+        );
+      };
+
+      this.recognition.onerror = (event) => {
+        const error = event.error || "unknown";
+        if (error === "aborted" && this.stopRequested) return;
+        if (error === "no-speech" && this.isRecording) {
+          this.setState("Listening... waiting for speech.");
+          return;
+        }
+
+        const permissionError = error === "not-allowed" || error === "service-not-allowed";
+        const captureError = error === "audio-capture";
+        const languageError = error === "language-not-supported";
+        this.fatalRecognitionError = permissionError || captureError || languageError || error === "network";
+        this.finishRecordingState({ save: true });
+
+        if (permissionError) {
+          this.setState("Microphone access was blocked. Allow access, or type, paste, or use keyboard dictation below.");
+        } else if (captureError) {
+          this.setState("No microphone was available. Type, paste, or use keyboard dictation below.");
+        } else if (error === "network") {
+          this.setState("Live transcription lost its connection. Your saved transcript is preserved; tap the mic to resume.");
+        } else {
+          this.setState("Live transcription paused. Your saved transcript is preserved; tap the mic to resume.");
+        }
+      };
+
+      this.recognition.onend = () => {
+        const sessionMs = Math.max(0, this.now() - this.recognitionStartedAt);
+        this.recognitionActive = false;
+        this.recognitionStartedAt = 0;
+        if (sessionMs > 10000) this.restartAttempts = 0;
+        if (this.isRecording && !this.stopRequested && !this.fatalRecognitionError) {
+          this.scheduleRecognitionRestart();
+          return;
+        }
+        if (!this.isRecording) this.updateSubmitState();
+      };
+
+      this.setState("Tap the mic to begin live transcription. Keep this page open while recording.");
     },
 
     openAsk() {
@@ -77,182 +158,218 @@
       }
     },
 
-    async openRecorder() {
-      this.resetRecorderState();
+    openRecorder() {
       this.els.recorder.classList.add("open");
       this.els.recorder.setAttribute("aria-hidden", "false");
-      await this.restoreSaved();
+      if (!this.isRecording) {
+        if (!this.recognition) {
+          this.setState("Live transcription is unavailable here. Type, paste, or use your phone keyboard's dictation below.");
+        } else if (this.els.transcript?.value.trim()) {
+          this.setState("Your saved transcript is ready. Continue recording, edit it, or send it to Ask Dr. Holtkamp.");
+        } else {
+          this.setState("Tap the mic to begin live transcription. Keep this page open while recording.");
+        }
+      }
+      this.updateTimer();
+      this.updateDurabilityStatus();
       this.updateSubmitState();
-      setTimeout(() => { if (this.els.toggle) this.els.toggle.focus(); }, 50);
+      window.setTimeout(() => {
+        if (this.recognition && this.els.toggle) this.els.toggle.focus();
+        else if (this.els.transcript) this.els.transcript.focus();
+      }, 50);
     },
 
-    async closeRecorder() {
-      await this.stopRecording(false);
+    closeRecorder() {
+      this.resumeOnVisible = false;
+      this.stopRecording(false);
       this.els.recorder.classList.remove("open");
       this.els.recorder.setAttribute("aria-hidden", "true");
-    },
-
-    resetRecorderState() {
-      this.audioBlob = null;
-      this.chunks = [];
-      if (this.els.timer) this.els.timer.textContent = "00:00";
-      this.setToggle(false);
-      this.detectSupport();
     },
 
     setToggle(recording) {
       if (!this.els.toggle) return;
       this.els.toggle.classList.toggle("recording", recording);
-      this.els.toggle.setAttribute("aria-label", recording ? "Stop recording" : "Start recording");
+      this.els.toggle.setAttribute("aria-label", recording ? "Stop live transcription" : "Start live transcription");
+      this.els.toggle.setAttribute("aria-pressed", recording ? "true" : "false");
     },
 
     toggleRecording() {
+      this.resumeOnVisible = false;
       if (this.isRecording) this.stopRecording();
       else this.startRecording();
     },
 
-    recordingStatus() {
-      return this.wakeLock
-        ? "Recording - screen will stay on. Keep this app open; phone on Do Not Disturb."
-        : "Recording - heads up: your phone may sleep. Tap the screen now and then, or keep it plugged in.";
-    },
-
-    async startRecording() {
-      if (!navigator.mediaDevices || !window.MediaRecorder) {
-        this.setState("Recording unsupported here. Type notes below, then Summarize.");
+    startRecording() {
+      if (!this.recognition) {
+        this.setState("Live transcription is unavailable here. Type, paste, or use your phone keyboard's dictation below.");
         if (this.els.transcript) this.els.transcript.focus();
-        return;
+        return false;
+      }
+      if (this.recognitionActive) {
+        this.setState("The microphone is finishing the previous session. Try again in a moment.");
+        return false;
       }
       if (window.AskDrHoltkamp && AskDrHoltkamp.stopMic) AskDrHoltkamp.stopMic();
 
-      try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-      } catch (err) {
-        console.warn("DCCS Mobile Recorder: mic blocked:", err);
-        this.setState("Microphone blocked. Allow mic access in the browser, or type notes below.");
-        return;
-      }
-
-      // If the mic track ends unexpectedly (call, interruption), finalize so audio isn't lost.
-      try {
-        const track = this.stream.getAudioTracks()[0];
-        if (track) track.addEventListener("ended", () => { if (this.isRecording) this.stopRecording(true); });
-      } catch (_) {}
-
-      this.audioMime = this.pickMime();
-      this.chunks = [];
-      this.audioBlob = null;
-      this._idbDel().catch(() => {});
-      const recOpts = { audioBitsPerSecond: 40000 };
-      if (this.audioMime) recOpts.mimeType = this.audioMime;
-      try {
-        this.mediaRecorder = new MediaRecorder(this.stream, recOpts);
-      } catch (_) {
-        try {
-          this.mediaRecorder = new MediaRecorder(this.stream, { audioBitsPerSecond: 40000 });
-        } catch (_2) {
-          this.mediaRecorder = new MediaRecorder(this.stream);
-        }
-      }
-
-      this.mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) this.chunks.push(e.data); };
-      this.mediaRecorder.onerror = () => { if (this.isRecording) this.stopRecording(true); };
-      this.mediaRecorder.onstop = () => {
-        const type = this.audioMime || (this.mediaRecorder && this.mediaRecorder.mimeType) || "audio/webm";
-        this.audioBlob = this.chunks.length ? new Blob(this.chunks, { type }) : null;
-        if (this.audioBlob) this._idbPut(this.audioBlob).catch(() => {});
-        this.updateSubmitState();
-        const done = this._onStopDone; this._onStopDone = null;
-        if (done) done();
-      };
-
-      try {
-        // No timeslice: one complete file at stop is a valid MP4 on iOS (chunked MP4 can be
-        // unreadable when reassembled). Interruptions are still caught by the track-ended/onerror
-        // handlers, which call stop() and finalize a valid partial file.
-        this.mediaRecorder.start();
-      } catch (err) {
-        console.warn("DCCS Mobile Recorder: could not start:", err);
-        this.setState("Mic could not start. Type notes below, then Summarize.");
-        return;
-      }
-
+      this.stopRequested = false;
+      this.fatalRecognitionError = false;
+      this.restartAttempts = 0;
       this.isRecording = true;
-      this.startedAt = Date.now();
+      this.startedAt = this.now();
       this.setToggle(true);
-      this.els.submit.disabled = true;
-      await this.requestWakeLock();
-      this.setState(this.recordingStatus());
-      this.tickTimer();
-      this.timerId = window.setInterval(() => this.tickTimer(), 1000);
-    },
+      this.updateSubmitState();
+      this.setState("Starting microphone...");
+      this.updateTimer();
+      window.clearInterval(this.timerId);
+      this.timerId = window.setInterval(() => this.updateTimer(), 1000);
+      this.startCheckpointing();
+      void this.requestWakeLock();
 
-    // Returns a promise that resolves once the final blob is ready.
-    stopRecording(updateState = true) {
-      const active = this.mediaRecorder && this.mediaRecorder.state !== "inactive";
-      return new Promise((resolve) => {
-        const finish = () => {
-          if (this.stream) {
-            try { this.stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
-            this.stream = null;
-          }
-          this.releaseWakeLock();
-          this.isRecording = false;
-          window.clearInterval(this.timerId);
-          this.timerId = null;
-          this.setToggle(false);
-          if (updateState) this.showRecorded();
-          this.updateSubmitState();
-          resolve();
-        };
-        if (active) {
-          this._onStopDone = finish;
-          try { this.mediaRecorder.stop(); } catch (_) { this._onStopDone = null; finish(); }
-        } else {
-          finish();
-        }
-      });
-    },
-
-    showRecorded() {
-      if (this.audioBlob && this.audioBlob.size) {
-        const mb = (this.audioBlob.size / 1048576).toFixed(1);
-        const dur = this.els.timer ? this.els.timer.textContent : "";
-        this.setState(`Recorded ${dur} \u00b7 ${mb} MB. Tap Summarize to transcribe and route.`);
-      } else {
-        this.setState("Stopped. Tap the mic to record, or add notes below.");
-      }
-    },
-
-    async requestWakeLock() {
       try {
-        if ("wakeLock" in navigator) {
-          this.wakeLock = await navigator.wakeLock.request("screen");
-          this.wakeLock.addEventListener("release", () => {
-            this.wakeLock = null;
-            // iOS drops the lock when hidden; re-acquire if we're still recording and visible.
-            if (this.isRecording && document.visibilityState === "visible") this.requestWakeLock();
-          });
-        }
-      } catch (_) { this.wakeLock = null; }
-    },
-
-    releaseWakeLock() {
-      try { if (this.wakeLock) { this.wakeLock.release(); this.wakeLock = null; } } catch (_) {}
-    },
-
-    async handleVisibility() {
-      if (document.visibilityState === "visible" && this.isRecording && !this.wakeLock) {
-        await this.requestWakeLock();
-        if (this.els.state) this.setState(this.recordingStatus());
+        this.recognition.start();
+        return true;
+      } catch (error) {
+        console.warn("DCCS Mobile Transcript: could not start speech recognition:", error);
+        this.finishRecordingState({ save: true });
+        this.setState("The microphone could not start. Tap the mic to try again, or enter the transcript below.");
+        return false;
       }
     },
 
-    tickTimer() {
-      const elapsed = Math.max(0, Math.floor((Date.now() - this.startedAt) / 1000));
-      const minutes = String(Math.floor(elapsed / 60)).padStart(2, "0");
-      const seconds = String(elapsed % 60).padStart(2, "0");
-      this.els.timer.textContent = `${minutes}:${seconds}`;
+    scheduleRecognitionRestart() {
+      window.clearTimeout(this.restartTimerId);
+      const exponent = Math.min(this.restartAttempts, 5);
+      const delay = Math.min(this.restartBaseDelayMs * Math.pow(2, exponent), this.restartMaxDelayMs);
+      this.restartAttempts += 1;
+      this.setState(`Transcription reconnecting${this.restartAttempts > 1 ? ` (attempt ${this.restartAttempts})` : ""}...`);
+      this.restartTimerId = window.setTimeout(() => this.restartRecognition(), delay);
+    },
+
+    restartRecognition() {
+      this.restartTimerId = null;
+      if (!this.isRecording || this.stopRequested || this.fatalRecognitionError || !this.recognition) return;
+      if (document.visibilityState === "hidden") {
+        this.pauseForBackground();
+        return;
+      }
+      try {
+        this.recognition.start();
+      } catch (error) {
+        console.warn("DCCS Mobile Transcript: recognition restart delayed:", error);
+        this.scheduleRecognitionRestart();
+      }
+    },
+
+    stopRecording(updateState = true) {
+      const wasRecording = this.isRecording || this.recognitionActive;
+      this.stopRequested = true;
+      this.isRecording = false;
+      window.clearTimeout(this.restartTimerId);
+      this.restartTimerId = null;
+
+      if (this.recognition && (this.recognitionActive || wasRecording)) {
+        try { this.recognition.stop(); } catch (_) {}
+      }
+
+      this.finishRecordingState({ save: true });
+      if (updateState && wasRecording) {
+        this.setState(
+          this.els.transcript?.value.trim()
+            ? "Stopped. Review or edit the saved transcript, then send it to Ask Dr. Holtkamp."
+            : "Stopped. No speech was captured; type notes below or tap the mic to try again."
+        );
+      }
+    },
+
+    finishRecordingState({ save = false } = {}) {
+      this.captureElapsedTime();
+      this.isRecording = false;
+      window.clearInterval(this.timerId);
+      this.timerId = null;
+      this.stopCheckpointing();
+      this.setToggle(false);
+      this.releaseWakeLock();
+      this.updateTimer();
+      this.updateSubmitState();
+      this.updateDurabilityStatus();
+      if (save) this.saveDraft();
+    },
+
+    pauseForBackground() {
+      if (!this.isRecording && !this.recognitionActive) return;
+      this.resumeOnVisible = true;
+      this.stopRequested = true;
+      this.isRecording = false;
+      window.clearTimeout(this.restartTimerId);
+      this.restartTimerId = null;
+      if (this.recognition) {
+        try { this.recognition.stop(); } catch (_) {}
+      }
+      this.finishRecordingState({ save: true });
+      this.setState("Paused because the page left the foreground. Your transcript is saved; return here to resume.");
+    },
+
+    handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        if (this.isRecording || this.recognitionActive) this.pauseForBackground();
+        else this.saveDraft();
+        return;
+      }
+
+      if (!this.resumeOnVisible) {
+        if (this.isRecording) void this.requestWakeLock();
+        return;
+      }
+
+      window.clearTimeout(this.visibilityResumeTimerId);
+      this.setState("Page active again. Resuming live transcription...");
+      this.visibilityResumeTimerId = window.setTimeout(() => {
+        this.visibilityResumeTimerId = null;
+        if (!this.resumeOnVisible) return;
+        if (this.recognitionActive) {
+          this.handleVisibilityChange();
+          return;
+        }
+        this.resumeOnVisible = false;
+        if (!this.startRecording()) {
+          this.setState("Your transcript is saved. Tap the mic to resume live transcription.");
+        }
+      }, 350);
+    },
+
+    appendTranscript(text) {
+      if (!text || !this.els.transcript) return;
+      const current = this.els.transcript.value.trim();
+      this.els.transcript.value = current ? `${current}\n${text}` : text;
+      this.els.transcript.scrollTop = this.els.transcript.scrollHeight;
+      this.updateSubmitState();
+      this.scheduleDraftSave();
+    },
+
+    currentElapsedSeconds() {
+      const activeSeconds = this.isRecording && this.startedAt
+        ? Math.max(0, Math.floor((this.now() - this.startedAt) / 1000))
+        : 0;
+      return Math.max(0, Math.floor(this.elapsedSeconds + activeSeconds));
+    },
+
+    captureElapsedTime() {
+      if (this.startedAt) {
+        const activeSeconds = Math.max(0, Math.floor((this.now() - this.startedAt) / 1000));
+        this.elapsedSeconds = Math.max(0, Math.floor(this.elapsedSeconds + activeSeconds));
+      }
+      this.startedAt = 0;
+    },
+
+    formatDuration(totalSeconds) {
+      const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+      const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, "0");
+      const seconds = String(safeSeconds % 60).padStart(2, "0");
+      return `${minutes}:${seconds}`;
+    },
+
+    updateTimer() {
+      if (this.els.timer) this.els.timer.textContent = this.formatDuration(this.currentElapsedSeconds());
     },
 
     setState(text) {
@@ -260,130 +377,259 @@
     },
 
     updateSubmitState() {
-      if (!this.els.submit || this.isRecording) return;
-      const hasAudio = !!(this.audioBlob && this.audioBlob.size > 0);
-      const hasText = this.els.transcript && this.els.transcript.value.trim().length >= 12;
-      this.els.submit.disabled = !(hasAudio || hasText);
+      const hasTranscript = !!this.els.transcript?.value.trim();
+      if (this.els.submit) this.els.submit.disabled = this.isRecording || !hasTranscript;
+      if (this.els.clear) this.els.clear.disabled = this.isRecording || (!hasTranscript && this.elapsedSeconds === 0);
     },
 
-    async submitRecording() {
-      await this.stopRecording(false);
-      const selected = this.els.scope.value;
-      const sl = selected && typeof FRAMEWORK !== "undefined"
-        ? FRAMEWORK.serviceLines.find((item) => item.id === selected)
-        : null;
-      const focus = sl ? `${sl.name} (${sl.id})` : "all DCCS service lines";
+    startCheckpointing() {
+      this.stopCheckpointing();
+      this.checkpointTimerId = window.setInterval(() => this.saveDraft(), this.checkpointIntervalMs);
+    },
 
-      if (this.audioBlob && this.audioBlob.size > 0 && window.AskDrHoltkamp && AskDrHoltkamp.sendMeetingAudio) {
-        const blob = this.audioBlob;
-        this.closeRecorder();
-        AskDrHoltkamp.sendMeetingAudio(blob, focus);
+    stopCheckpointing() {
+      window.clearInterval(this.checkpointTimerId);
+      this.checkpointTimerId = null;
+    },
+
+    scheduleDraftSave() {
+      window.clearTimeout(this.draftSaveTimerId);
+      this.draftSaveTimerId = window.setTimeout(() => {
+        this.draftSaveTimerId = null;
+        this.saveDraft();
+      }, this.draftSaveDelayMs);
+    },
+
+    saveDraft() {
+      if (!this.els.transcript) return false;
+      const transcript = this.els.transcript.value.trim();
+      if (!transcript) {
+        try { localStorage.removeItem(this.DRAFT_KEY); } catch (_) {}
+        this.setDraftStatus("No transcript saved yet");
+        return true;
+      }
+
+      const draft = {
+        version: this.DRAFT_VERSION,
+        transcript,
+        elapsedSeconds: this.currentElapsedSeconds(),
+        savedAt: new Date(this.now()).toISOString()
+      };
+      try {
+        localStorage.setItem(this.DRAFT_KEY, JSON.stringify(draft));
+        this.setDraftStatus("Transcript saved on this device");
+        return true;
+      } catch (error) {
+        console.warn("DCCS Mobile Transcript: local draft could not be saved:", error);
+        this.setDraftStatus("Draft could not save — keep this page open", "warn");
+        return false;
+      }
+    },
+
+    restoreDraft() {
+      let draft = null;
+      try {
+        const raw = localStorage.getItem(this.DRAFT_KEY);
+        if (raw) draft = JSON.parse(raw);
+      } catch (error) {
+        console.warn("DCCS Mobile Transcript: saved draft could not be restored:", error);
+      }
+      if (!draft || draft.version !== this.DRAFT_VERSION || typeof draft.transcript !== "string") {
+        this.elapsedSeconds = 0;
+        this.updateTimer();
+        return false;
+      }
+
+      this.els.transcript.value = draft.transcript;
+      this.elapsedSeconds = Math.max(0, Math.floor(Number(draft.elapsedSeconds) || 0));
+      this.updateTimer();
+      this.setDraftStatus("Recovered transcript saved on this device");
+      this.setState(`Recovered an unsent ${this.formatDuration(this.elapsedSeconds)} transcript. Review it or tap the mic to continue.`);
+      return true;
+    },
+
+    clearDraftStorage() {
+      window.clearTimeout(this.draftSaveTimerId);
+      this.draftSaveTimerId = null;
+      try { localStorage.removeItem(this.DRAFT_KEY); } catch (_) {}
+    },
+
+    resetTranscript() {
+      this.resumeOnVisible = false;
+      this.stopRecording(false);
+      this.clearDraftStorage();
+      if (this.els.transcript) this.els.transcript.value = "";
+      this.elapsedSeconds = 0;
+      this.startedAt = 0;
+      this.updateTimer();
+      this.updateSubmitState();
+      this.setDraftStatus("No transcript saved yet");
+      this.setState("Transcript cleared. Tap the mic to begin a new meeting.");
+    },
+
+    confirmClearTranscript() {
+      const clear = () => this.resetTranscript();
+      if (window.App && typeof App.confirmAction === "function") {
+        App.confirmAction({
+          title: "Clear saved transcript?",
+          message: "This removes the unsent transcript from this device. It cannot be undone.",
+          details: [
+            { label: "Duration", value: this.formatDuration(this.currentElapsedSeconds()) },
+            { label: "Storage", value: "This device only" }
+          ],
+          cancelLabel: "Keep transcript",
+          confirmLabel: "Clear transcript",
+          tone: "danger"
+        }, clear);
+        return;
+      }
+      clear();
+    },
+
+    setWakeStatus(text, tone = "") {
+      if (!this.els.wakeStatus) return;
+      this.els.wakeStatus.textContent = text;
+      this.els.wakeStatus.className = `rec-durability-item ${tone}`.trim();
+    },
+
+    setDraftStatus(text, tone = "") {
+      if (!this.els.draftStatus) return;
+      this.els.draftStatus.textContent = text;
+      this.els.draftStatus.className = `rec-durability-item ${tone}`.trim();
+    },
+
+    updateDurabilityStatus() {
+      if (this.wakeLock) {
+        this.setWakeStatus("Screen awake");
+      } else if (!("wakeLock" in navigator)) {
+        this.setWakeStatus("Keep screen awake manually", "warn");
+      } else if (this.isRecording) {
+        this.setWakeStatus("Requesting screen wake...");
+      } else {
+        this.setWakeStatus("Screen wake activates while listening");
+      }
+      if (!this.els.transcript?.value.trim()) this.setDraftStatus("No transcript saved yet");
+    },
+
+    async requestWakeLock() {
+      if (!this.isRecording) return false;
+      if (!("wakeLock" in navigator) || !navigator.wakeLock?.request) {
+        this.setWakeStatus("Keep screen awake manually", "warn");
+        return false;
+      }
+      if (this.wakeLock && !this.wakeLock.released) return true;
+
+      try {
+        this.setWakeStatus("Requesting screen wake...");
+        const lock = await navigator.wakeLock.request("screen");
+        this.wakeLock = lock;
+        this.setWakeStatus("Screen awake");
+        lock.addEventListener("release", () => {
+          if (this.wakeLock === lock) this.wakeLock = null;
+          if (this.isRecording && document.visibilityState === "visible") {
+            this.setWakeStatus("Reconnecting screen wake...", "warn");
+            window.setTimeout(() => {
+              if (this.isRecording && !this.wakeLock) void this.requestWakeLock();
+            }, 1000);
+          } else {
+            this.updateDurabilityStatus();
+          }
+        });
+        return true;
+      } catch (error) {
+        console.warn("DCCS Mobile Transcript: screen wake lock unavailable:", error);
+        this.wakeLock = null;
+        this.setWakeStatus("Keep screen awake manually", "warn");
+        return false;
+      }
+    },
+
+    releaseWakeLock() {
+      const lock = this.wakeLock;
+      this.wakeLock = null;
+      if (lock) {
+        try { void lock.release(); } catch (_) {}
+      }
+      this.updateDurabilityStatus();
+    },
+
+    async submitTranscript() {
+      this.resumeOnVisible = false;
+      this.stopRecording(false);
+      const transcript = this.els.transcript ? this.els.transcript.value.trim() : "";
+      if (!transcript) {
+        this.setState("Record, type, paste, or dictate a transcript first.");
         return;
       }
 
-      const transcript = this.els.transcript ? this.els.transcript.value.trim() : "";
-      if (!transcript) { this.setState("Record audio or add notes first."); return; }
-      const date = window.App && App.getLocalToday ? App.getLocalToday() : new Date().toISOString().slice(0, 10);
+      const date = window.App && App.getLocalToday
+        ? App.getLocalToday()
+        : new Date().toISOString().slice(0, 10);
       const prompt = [
         "MEETING_RECORDER_INPUT",
         `Date: ${date}`,
-        `Focus: ${focus}`,
         "",
-        "You are reviewing a mobile meeting/input transcript for the DCCS portal.",
-        "Write a thorough, read-first summary: a short BLUF, then a section per DCCS service line / lane, each capturing decisions, status and metric updates, roadblocks, and follow-ups in clear prose. Favor completeness over brevity.",
-        "Route each item to the correct lane by topic; attribute to a named person only when a name is clearly spoken.",
-        "Do NOT create any DCCS command actions or portal updates on this pass.",
-        "End by noting the user can next ask you to turn items into metric/task lines or add them to the weekly brief.",
+        "This is a transcript of a multi-person DCCS meeting.",
+        "Do not infer or label speakers. Route each topic by content across all DCCS service lines.",
+        "Return a concise summary organized by affected service line, followed by confirmable proposed portal updates.",
+        "Propose exactly one combined add_dialogue action per affected service line.",
+        "Propose update_metric only when the transcript explicitly states a recognizable metric, numeric value, and date or month.",
+        "Do not propose task or KPI actions from this meeting transcript.",
+        "Put ambiguous items under 'Needs clarification' without creating commands for them.",
         "",
         "Transcript:",
         transcript
       ].join("\n");
-      this.closeRecorder();
-      this.sendPromptViaAsk(prompt);
+
+      this.els.submit.disabled = true;
+      this.setState("Opening Ask Dr. Holtkamp...");
+      const sent = await this.sendPromptViaAsk(prompt);
+      if (!sent) {
+        this.setState("Ask Dr. Holtkamp is not ready. Your transcript remains saved; try again in a moment.");
+        this.saveDraft();
+        this.updateSubmitState();
+        return;
+      }
+
+      this.clearDraftStorage();
+      this.els.transcript.value = "";
+      this.elapsedSeconds = 0;
+      this.startedAt = 0;
+      this.updateTimer();
+      this.updateSubmitState();
+      this.setDraftStatus("Transcript sent and local draft cleared");
+      this.els.recorder.classList.remove("open");
+      this.els.recorder.setAttribute("aria-hidden", "true");
+    },
+
+    async sendPromptViaAsk(prompt) {
+      if (!window.AskDrHoltkamp) return false;
+      if (!AskDrHoltkamp.els || !AskDrHoltkamp.els.input) AskDrHoltkamp.init();
+      if (!AskDrHoltkamp.els?.input) return false;
+
+      AskDrHoltkamp.open();
+      AskDrHoltkamp.els.input.value = prompt;
+      AskDrHoltkamp.autoSizeInput();
+
+      if (!AskDrHoltkamp.isReady) {
+        try {
+          if (AskDrHoltkamp.dependenciesPromise) await AskDrHoltkamp.dependenciesPromise;
+          if (!AskDrHoltkamp.isReady) await AskDrHoltkamp.loadDependencies();
+        } catch (_) {}
+      }
+
+      AskDrHoltkamp.updateSendButtonState();
+      if (!AskDrHoltkamp.isReady || AskDrHoltkamp.els.send?.disabled) return false;
+      void AskDrHoltkamp.send();
+      return true;
     },
 
     goHome() {
       if (window.AskDrHoltkamp && AskDrHoltkamp.close) AskDrHoltkamp.close();
       this.closeRecorder();
-      this.resetRecorderState();
       const home = document.getElementById("mobile-command-center");
       if (home) home.scrollTop = 0;
       window.scrollTo(0, 0);
-    },
-
-    sendPromptViaAsk(prompt) {
-      if (!window.AskDrHoltkamp) return;
-      if (!AskDrHoltkamp.els || !AskDrHoltkamp.els.input) AskDrHoltkamp.init();
-      AskDrHoltkamp.open();
-      AskDrHoltkamp.els.input.value = prompt;
-      AskDrHoltkamp.autoSizeInput();
-      const sendWhenReady = () => { AskDrHoltkamp.updateSendButtonState(); AskDrHoltkamp.send(); };
-      if (AskDrHoltkamp.isReady) { sendWhenReady(); return; }
-      this.setState("Ask Dr. Holtkamp is loading...");
-      const started = Date.now();
-      const interval = window.setInterval(() => {
-        if (AskDrHoltkamp.isReady) { window.clearInterval(interval); sendWhenReady(); }
-        else if (Date.now() - started > 10000) { window.clearInterval(interval); AskDrHoltkamp.updateSendButtonState(); }
-      }, 250);
-    },
-
-    async restoreSaved() {
-      try {
-        const rec = await this._idbGet();
-        if (rec && rec.blob && rec.blob.size) {
-          this.audioBlob = rec.blob;
-          this.audioMime = rec.blob.type || "audio/mp4";
-          const mb = (rec.blob.size / 1048576).toFixed(1);
-          this.setState(`Recovered an unsent recording (${mb} MB). Tap Summarize to send it, or the mic to start over.`);
-        }
-      } catch (_) {}
-    },
-
-    clearSaved() {
-      this.audioBlob = null;
-      this._idbDel().catch(() => {});
-    },
-
-    _idb() {
-      return new Promise((resolve, reject) => {
-        const req = indexedDB.open("dccsRecorder", 1);
-        req.onupgradeneeded = () => { req.result.createObjectStore("rec"); };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    },
-
-    async _idbPut(blob) {
-      const db = await this._idb();
-      try {
-        await new Promise((res, rej) => {
-          const tx = db.transaction("rec", "readwrite");
-          tx.objectStore("rec").put({ blob, ts: Date.now() }, "current");
-          tx.oncomplete = res; tx.onerror = () => rej(tx.error);
-        });
-      } finally { db.close(); }
-    },
-
-    async _idbGet() {
-      const db = await this._idb();
-      try {
-        return await new Promise((res, rej) => {
-          const tx = db.transaction("rec", "readonly");
-          const r = tx.objectStore("rec").get("current");
-          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-        });
-      } finally { db.close(); }
-    },
-
-    async _idbDel() {
-      const db = await this._idb();
-      try {
-        await new Promise((res) => {
-          const tx = db.transaction("rec", "readwrite");
-          tx.objectStore("rec").delete("current");
-          tx.oncomplete = res; tx.onerror = res;
-        });
-      } finally { db.close(); }
     }
   };
 
