@@ -120,6 +120,29 @@ test('derived LWOBS outlook records both raw source metric IDs', () => {
   assert.deepEqual(Outlook.outlookSnapshot(outcome).sourceMetricIds, ['er-lwobs', 'er-total-census']);
 });
 
+test('trainee forecasts remain visible but are excluded from decision attention', () => {
+  const traineeRows = datedValues(Array(84).fill(16), '2026-04-01', 1);
+  const lowAcuityRows = datedValues(Array(84).fill(7), '2026-04-01', 1);
+  const censusRows = datedValues(Array(84).fill(100), '2026-04-01', 1);
+  const metrics = {
+    'er-total-trainees': traineeRows,
+    'er-esi-4-5': lowAcuityRows,
+    'er-total-census': censusRows
+  };
+  const app = {
+    getMetricEntries: metricId => metrics[metricId] || [],
+    getDialogueEntries: () => []
+  };
+  const outlook = Outlook.buildOutlook(app, { asOf: traineeRows.at(-1).date });
+  const traineeOutcomes = outlook.outcomes.filter(outcome => ['er-trainees-average', 'er-low-acuity-average'].includes(outcome.id));
+
+  assert.equal(traineeOutcomes.length, 2);
+  assert.equal(traineeOutcomes.every(outcome => outcome.forecast.length === 12), true);
+  assert.equal(traineeOutcomes.every(outcome => outcome.state === 'off-track'), true);
+  assert.equal(traineeOutcomes.every(outcome => outcome.decisionEligible === false), true);
+  assert.equal(outlook.decisions.some(outcome => traineeOutcomes.includes(outcome)), false);
+});
+
 test('decision persistence is isolated to the additive Firestore path', () => {
   assert.equal(Outlook.DECISION_PATH, 'dccs_data/decisions/entries');
   const source = fs.readFileSync(path.join(__dirname, '../js/app-decision-outlook.js'), 'utf8');

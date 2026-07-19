@@ -56,6 +56,7 @@
       id: 'er-trainees-average', sourceType: 'daily-average', metricId: 'er-total-trainees',
       serviceLineId: 'mscoe', service: 'MSCoE / ER', name: 'Trainees in ER', cadence: 'week', unit: 'trainees/day', decimals: 1,
       target: 10, direction: 'lower', inclusive: false, milestone: '2026-08-10',
+      decisionEligible: false,
       supportIds: ['er-total-census', 'er-esi-4-5'],
       action: 'Review trainee entry-point discipline, after-hours routing, and brigade redirection before demand becomes sustained ER load.'
     },
@@ -63,6 +64,7 @@
       id: 'er-low-acuity-average', sourceType: 'daily-average', metricId: 'er-esi-4-5',
       serviceLineId: 'mscoe', service: 'MSCoE / ER', name: 'Low-acuity trainees', cadence: 'week', unit: 'Cat 4/5/day', decimals: 1,
       target: 4, direction: 'lower', inclusive: false, milestone: '2026-08-10',
+      decisionEligible: false,
       supportIds: ['er-total-trainees', 'er-total-census'],
       action: 'Review low-acuity redirection and medic fast-track capacity with brigade medical leadership before the next demand cycle.'
     }
@@ -226,6 +228,7 @@
       inclusive: spec.inclusive,
       milestone: spec.milestone || null,
       action: spec.action,
+      decisionEligible: spec.decisionEligible !== false,
       supportIds: spec.supportIds || [],
       sourceStart: windowPoints[0] ? windowPoints[0].date : null,
       sourceEnd: latest ? latest.date : null,
@@ -333,7 +336,7 @@
       outcome.notes = dialogueEvidence(app, spec.serviceLineId);
       return outcome;
     });
-    const decisions = outcomes.filter(outcome => outcome.state === 'off-track' || outcome.state === 'at-risk').sort((a, b) => {
+    const decisions = outcomes.filter(outcome => outcome.decisionEligible && (outcome.state === 'off-track' || outcome.state === 'at-risk')).sort((a, b) => {
       const severity = STATE_ORDER[b.state] - STATE_ORDER[a.state];
       if (severity) return severity;
       const aDate = a.projectedBreachDate || a.milestone || '9999-12-31';
@@ -436,6 +439,7 @@
       targetDate: outcome.milestone,
       direction: outcome.direction,
       confidence: outcome.confidence,
+      decisionEligible: outcome.decisionEligible,
       freshness: { periods: outcome.freshnessPeriods, cadence: outcome.cadence },
       outlookState: outcome.state,
       state: outcome.state,
@@ -579,12 +583,20 @@
       }
       const previous = this._decisionOutlookState || {};
       const outlook = buildOutlook(this, {});
-      const defaultSelection = outlook.decisions[0] || outlook.outcomes.find(item => item.state !== 'insufficient') || outlook.outcomes[0];
-      const selectedId = outlook.outcomes.some(item => item.id === previous.selectedId) ? previous.selectedId : defaultSelection && defaultSelection.id;
+      const defaultSelection = outlook.decisions[0]
+        || outlook.outcomes.find(item => item.decisionEligible && item.state !== 'insufficient')
+        || outlook.outcomes.find(item => item.decisionEligible);
+      const selectedId = outlook.outcomes.some(item => item.id === previous.selectedId && item.decisionEligible)
+        ? previous.selectedId
+        : defaultSelection && defaultSelection.id;
+      const scenarioId = outlook.outcomes.some(item => item.id === previous.scenarioId)
+        ? previous.scenarioId
+        : selectedId || outlook.outcomes[0]?.id;
       this._decisionOutlookState = {
         ...previous,
         outlook,
         selectedId,
+        scenarioId,
         decisions: Array.isArray(previous.decisions) ? previous.decisions : [],
         status: previous.status || '',
         supersedesId: previous.supersedesId || null
@@ -598,7 +610,9 @@
     renderDecisionOutlookMarkup() {
       const state = this._decisionOutlookState;
       const outlook = state.outlook;
-      const selected = outlook.outcomes.find(item => item.id === state.selectedId) || outlook.outcomes[0];
+      const selected = outlook.outcomes.find(item => item.id === state.selectedId && item.decisionEligible)
+        || outlook.outcomes.find(item => item.decisionEligible);
+      const scenario = outlook.outcomes.find(item => item.id === state.scenarioId) || selected || outlook.outcomes[0];
       const decisions = outlook.decisions;
       const decisionMarkup = decisions.map((outcome, index) => {
         const finalPoint = outcome.forecast[outcome.forecast.length - 1];
@@ -618,7 +632,7 @@
           <article class="outlook-forecast-row" data-state="${escapeHtml(outcome.state)}">
             <div>
               <div class="outlook-metric-name">${escapeHtml(outcome.service)} · ${escapeHtml(outcome.name)}</div>
-              <div class="outlook-metric-meta">${escapeHtml(formatValue(outcome, outcome.current))} current · target ${escapeHtml(outcome.targetLabel)}<br>${escapeHtml(confidenceLabel(outcome.confidence))} · ${outcome.pointCount} periods</div>
+              <div class="outlook-metric-meta">${escapeHtml(formatValue(outcome, outcome.current))} current · target ${escapeHtml(outcome.targetLabel)}<br>${escapeHtml(confidenceLabel(outcome.confidence))} · ${outcome.pointCount} periods${outcome.decisionEligible ? '' : ' · Report only'}</div>
               <span class="outlook-metric-state">${escapeHtml(stateLabel(outcome.state))}</span>
             </div>
             <div>${forecastSvg(outcome)}</div>
@@ -637,8 +651,8 @@
           <div class="outlook-freshness" role="status"><strong>Data check</strong><span>${escapeHtml(newestText)} · ${outlook.outcomes.filter(item => item.state !== 'insufficient').length}/${outlook.outcomes.length} outcome forecasts available.</span></div>
 
           <section class="outlook-section" aria-labelledby="outlook-decisions-title">
-            <div class="outlook-section-head"><h2 id="outlook-decisions-title">Decisions requiring attention</h2><p>Ranked by target risk, timing, and data confidence</p></div>
-            <div class="outlook-decision-list">${decisionMarkup || '<div class="outlook-log-empty">No target risks are currently projected.</div>'}</div>
+            <div class="outlook-section-head"><h2 id="outlook-decisions-title">Decisions requiring attention</h2><p>Hospital-controlled items ranked by target risk, timing, and data confidence</p></div>
+            <div class="outlook-decision-list">${decisionMarkup || '<div class="outlook-log-empty">No hospital-controlled target risks are currently projected.</div>'}</div>
           </section>
 
           <section class="outlook-section outlook-grid" aria-label="Forecasts and selected decision">
@@ -651,7 +665,7 @@
 
           <section class="outlook-section" aria-labelledby="outlook-scenario-title">
             <div class="outlook-section-head"><h2 id="outlook-scenario-title">What-if scenario</h2><p>An explicit assumption, not a causal prediction</p></div>
-            ${this.renderOutlookScenario(selected)}
+            ${this.renderOutlookScenario(scenario)}
           </section>
 
           <section class="outlook-section" aria-labelledby="outlook-log-title">
@@ -669,6 +683,9 @@
 
     renderDecisionInspector(outcome) {
       if (!outcome) return '<div class="outlook-loading">Select a forecast to review.</div>';
+      if (!outcome.decisionEligible) {
+        return `<h2>${escapeHtml(outcome.service)} · ${escapeHtml(outcome.name)}</h2><p class="outlook-inspector-copy">This KPI is report-only and is not available for decision recommendations, BAND-AID 6 decision prompts, or decision recording.</p>`;
+      }
       const supporting = outcome.supporting.length
         ? outcome.supporting.map(item => `<li>${escapeHtml(item.metricId)}: ${escapeHtml(formatNumber(item.latest.value, 1))} on ${escapeHtml(formatDate(item.latest.date))}</li>`).join('')
         : '<li>No supporting metric is configured.</li>';
@@ -733,12 +750,6 @@
         event.preventDefault();
         this.confirmDecisionRecord();
       });
-      el.querySelector('#outlook-scenario-outcome')?.addEventListener('change', event => {
-        this._decisionOutlookState.selectedId = event.target.value;
-        this._decisionOutlookState.supersedesId = null;
-        this.renderDecisionOutlook(el);
-        document.getElementById('outlook-scenario-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
       this.bindScenarioEvents(el);
       this.bindDecisionLogEvents(el);
       el.addEventListener('focusout', () => {
@@ -754,7 +765,17 @@
     },
 
     bindScenarioEvents(el) {
+      const select = el.querySelector('#outlook-scenario-outcome');
       const input = el.querySelector('#outlook-scenario-change');
+      if (select) select.addEventListener('change', () => {
+        this._decisionOutlookState.scenarioId = select.value;
+        const outcome = this._decisionOutlookState.outlook.outcomes.find(item => item.id === select.value);
+        const scenario = el.querySelector('.outlook-scenario');
+        if (scenario && outcome) {
+          scenario.outerHTML = this.renderOutlookScenario(outcome);
+          this.bindScenarioEvents(el);
+        }
+      });
       if (input) input.addEventListener('input', () => this.updateOutlookScenario());
     },
 
@@ -783,7 +804,7 @@
     discussDecisionOutlook(outcomeId) {
       const outcome = this._decisionOutlookState.outlook.outcomes.find(item => item.id === outcomeId);
       const assistant = typeof AskDrHoltkamp !== 'undefined' ? AskDrHoltkamp : root.AskDrHoltkamp;
-      if (!outcome || !assistant) return;
+      if (!outcome || !outcome.decisionEligible || !assistant) return;
       const finalPoint = outcome.forecast[outcome.forecast.length - 1];
       const prompt = [
         'DCCS DECISION OUTLOOK REVIEW',
@@ -810,7 +831,7 @@
       const rationale = document.getElementById('outlook-rationale')?.value.trim();
       const course = document.getElementById('outlook-course')?.value || 'recommended';
       const status = document.getElementById('outlook-save-status');
-      if (!outcome || !owner || !reviewDate || !rationale) {
+      if (!outcome || !outcome.decisionEligible || !owner || !reviewDate || !rationale) {
         if (status) status.textContent = 'Owner, review date, and rationale are required.';
         return;
       }
@@ -831,6 +852,7 @@
     async persistDecisionRecord({ outcome, owner, reviewDate, rationale, course, courseLabel }) {
       const status = document.getElementById('outlook-save-status');
       try {
+        if (!outcome || !outcome.decisionEligible) throw new Error('This KPI is report-only and cannot create a decision.');
         const sync = syncClient();
         if (!sync || !sync.enabled || !sync.db) throw new Error('Firestore is not connected.');
         const now = new Date().toISOString();
@@ -928,7 +950,8 @@
       const decision = this._decisionOutlookState.decisions.find(item => item.id === decisionId);
       if (!decision) return;
       const matching = this._decisionOutlookState.outlook.outcomes.find(item => item.id === decision.outcomeId);
-      if (matching) this._decisionOutlookState.selectedId = matching.id;
+      if (!matching || !matching.decisionEligible) return;
+      this._decisionOutlookState.selectedId = matching.id;
       this._decisionOutlookState.supersedesId = decisionId;
       const main = document.getElementById('app');
       this.renderDecisionOutlook(main);
