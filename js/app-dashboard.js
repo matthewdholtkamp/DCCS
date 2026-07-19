@@ -544,6 +544,7 @@
     },
 
     renderDashboard(el) {
+      if (typeof this.destroyDecisionOutlook === 'function') this.destroyDecisionOutlook();
       this.injectDashboardStyles();
       this._exsumRoot = null;
       if (this._exsumChart) {
@@ -583,6 +584,9 @@
         </section>`;
 
       this._exsumRoot = el.querySelector('.exsum-root');
+      if (typeof this.injectDashboardModeControl === 'function') {
+        this.injectDashboardModeControl(el, 'current');
+      }
       this.subscribeCampaignBrief(this._exsumRoot);
 
       const canvas = el.querySelector('#exsum-kpi-chart');
