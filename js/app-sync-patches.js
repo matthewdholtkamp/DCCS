@@ -79,6 +79,7 @@
           }
         });
         if (typeof this.refreshExsumDashboard === 'function') this.refreshExsumDashboard();
+        if (typeof this.refreshDecisionOutlook === 'function') this.refreshDecisionOutlook(changedKeys);
       } else if (docId === 'hedis') {
         changedKeys.forEach(slId => {
           const section = document.getElementById(`hedis-section-${slId}`);
@@ -109,6 +110,7 @@
             meetingList.innerHTML = this.renderMeetingDialogueList({ id: slId }, Sync.getDialogueEntries(slId));
           }
         });
+        if (typeof this.refreshDecisionOutlook === 'function') this.refreshDecisionOutlook(changedKeys);
       }
     });
 
