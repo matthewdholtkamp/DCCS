@@ -9,6 +9,8 @@
   const CONTEXT_BYTE_LIMIT = 18000;
   const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
   const INITIAL_WAIT_MS = 1500;
+  const MSCOE_KPIS = (root && root.DCCSMscoeKpis)
+    || (typeof module !== 'undefined' && module.exports ? require('./mscoe-kpis.js') : null);
   const REPORT_ONLY_OUTCOME_IDS = new Set(['er-trainees-average', 'er-low-acuity-average']);
   const REPORT_ONLY_SERVICE_LINE_IDS = new Set(['mscoe']);
   const STOP_WORDS = new Set([
@@ -318,18 +320,22 @@ The DCCS_CONTEXT may contain a decisionKnowledge section built from confirmed re
     return knowledge;
   }
 
-  function appendDecisionKnowledge(contextBlock, knowledge) {
+  function appendDecisionKnowledge(contextBlock, knowledge, mscoeKpiContext) {
     const prefix = 'DCCS_CONTEXT\n';
     if (typeof contextBlock === 'string' && contextBlock.startsWith(prefix)) {
       try {
         const context = JSON.parse(contextBlock.slice(prefix.length));
         context.decisionKnowledge = knowledge;
+        if (mscoeKpiContext) context.mscoeSurgeonAccountabilityKpis = mscoeKpiContext;
         return `${prefix}${JSON.stringify(context, null, 2)}`;
       } catch (_) {
         // Preserve the original context and append a separate bounded block.
       }
     }
-    return `${contextBlock || ''}\nDCCS_DECISION_KNOWLEDGE\n${JSON.stringify(knowledge, null, 2)}`;
+    const kpiBlock = mscoeKpiContext
+      ? `\nDCCS_MSCOE_SURGEON_ACCOUNTABILITY_KPIS\n${JSON.stringify(mscoeKpiContext, null, 2)}`
+      : '';
+    return `${contextBlock || ''}\nDCCS_DECISION_KNOWLEDGE\n${JSON.stringify(knowledge, null, 2)}${kpiBlock}`;
   }
 
   function createDecisionMemoryStore() {
@@ -408,11 +414,19 @@ The DCCS_CONTEXT may contain a decisionKnowledge section built from confirmed re
       const activeServiceLineId = typeof this.getActiveServiceLineId === 'function'
         ? this.getActiveServiceLineId()
         : null;
-      return appendDecisionKnowledge(baseContext, store.knowledge(question, activeServiceLineId));
+      const metricStore = typeof this.getMetricStore === 'function' ? this.getMetricStore() : {};
+      const mscoeKpiContext = MSCOE_KPIS && typeof MSCOE_KPIS.buildContext === 'function'
+        ? MSCOE_KPIS.buildContext(metricStore)
+        : null;
+      return appendDecisionKnowledge(baseContext, store.knowledge(question, activeServiceLineId), mscoeKpiContext);
     };
 
     if (!assistant.DCCS_CONTEXT_RULES.includes('DCCS DECISION KNOWLEDGE')) {
       assistant.DCCS_CONTEXT_RULES += DECISION_CONTEXT_RULES;
+    }
+    const kpiRules = MSCOE_KPIS && MSCOE_KPIS.AI_CONTEXT_RULES;
+    if (kpiRules && !assistant.DCCS_CONTEXT_RULES.includes('MSCOE SURGEON ACCOUNTABILITY KPIS')) {
+      assistant.DCCS_CONTEXT_RULES += kpiRules;
     }
 
     const timeoutHost = timerHost || root;

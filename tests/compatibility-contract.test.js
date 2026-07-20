@@ -76,7 +76,13 @@ test('service-line order, labels, routes, and metric IDs match the trained contr
 test('Outlook is loaded as an additive module and Dashboard still routes through renderDashboard', () => {
   const index = read('index.html');
   const routing = read('js/app-routing.js');
+  const kpiIndex = index.indexOf('src="js/mscoe-kpis.js?');
+  const outlookIndex = index.indexOf('src="js/app-decision-outlook.js?');
+  const dashboardIndex = index.indexOf('src="js/app-dashboard.js?');
   assert.match(index, /src="js\/app-decision-outlook\.js\?/);
+  assert.ok(kpiIndex >= 0);
+  assert.ok(outlookIndex > kpiIndex);
+  assert.ok(dashboardIndex > kpiIndex);
   assert.match(routing, /if \(isDashboard\) this\.renderDashboard\(main\);/);
 });
 

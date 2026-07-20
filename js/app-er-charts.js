@@ -97,16 +97,35 @@
     addTo(lwobs, 'lwobs');
 
     return Object.entries(dateMap)
-      .map(([date, vals]) => ({
-        date,
-        census:   vals.census   || 0,
-        trainees: vals.trainees || 0,
-        cat45:    vals.cat45    || 0,
-        cat23:    vals.cat23    || 0,
-        cat1:     vals.cat1     || 0,
-        lwobs:    vals.lwobs    || 0,
-      }))
+      .map(([date, vals]) => {
+        const read = (key) => {
+          if (!Object.prototype.hasOwnProperty.call(vals, key)) return null;
+          const value = Number(vals[key]);
+          return Number.isFinite(value) ? value : null;
+        };
+        return {
+          date,
+          census: read('census'),
+          trainees: read('trainees'),
+          cat45: read('cat45'),
+          cat23: read('cat23'),
+          cat1: read('cat1'),
+          lwobs: read('lwobs'),
+        };
+      })
       .sort((a, b) => a.date.localeCompare(b.date));
+  },
+
+  /** Describe one MSCoE accountability ratio using the shared authoritative thresholds. */
+  mscoeKpiRatioStatement(data, definitionKey, numeratorKey, denominatorKey) {
+    const kpis = window.DCCSMscoeKpis;
+    if (!kpis) return '<strong>insufficient KPI configuration</strong>';
+    const definition = kpis.getDefinition(definitionKey);
+    const ratio = kpis.ratioFromRows(data, numeratorKey, denominatorKey);
+    if (!definition || ratio.value === null) return '<strong>insufficient matched data</strong>';
+    const value = ratio.value.toFixed(definition.decimals);
+    const status = kpis.statusLabel(kpis.classify(definition, ratio.value));
+    return `<strong>${value}%</strong> — <strong>${status}</strong> (${definition.targetText})`;
   },
 
   /** Build Chart.js datasets for ER trend chart (mirrors ER dashboard logic). */
@@ -242,14 +261,15 @@
     const cChange = this.firstHalfSecondHalfChange(cat45);
     const lChange = this.firstHalfSecondHalfChange(lwobs);
 
-    const cat45Pct  = totalTrainees > 0 ? Math.round((totalCat45 / totalTrainees) * 100) : 0;
     const lwobsRate = totalTrainees > 0 ? ((totalLwobs / totalTrainees) * 100).toFixed(1) : '0';
 
     const tPhrase = tChange.dir === 'stable' ? 'has been stable' : `is <strong>${tChange.dir} ${tChange.pct}%</strong>`;
     const cPhrase = cChange.dir === 'stable' ? 'stable' : `${cChange.dir} ${cChange.pct}%`;
     const lPhrase = lChange.dir === 'stable' ? 'stable' : `${lChange.dir} ${lChange.pct}%`;
 
-    const s1 = `Across <strong>${data.length} days</strong>, trainee volume averages <strong>${avgT}/day</strong> and ${tPhrase}; <strong>${cat45Pct}%</strong> of trainee visits are Cat 4/5 (low-acuity).`;
+    const traineeShare = this.mscoeKpiRatioStatement(data, 'traineeCensusShare', 'trainees', 'census');
+    const lowAcuityShare = this.mscoeKpiRatioStatement(data, 'lowAcuityShare', 'cat45', 'trainees');
+    const s1 = `Across <strong>${data.length} days</strong>, trainee volume averages <strong>${avgT}/day</strong> and ${tPhrase}. Trainees as a share of ER census: ${traineeShare}. Cat 4/5 as a share of trainees: ${lowAcuityShare}.`;
 
     let lwobsFlag = '';
     if (parseFloat(lwobsRate) > 10) lwobsFlag = ' — <strong>elevated LWOBS rate warrants throughput review.</strong>';
@@ -278,14 +298,15 @@
     const cChange = this.firstHalfSecondHalfChange(cat45);
     const lChange = this.firstHalfSecondHalfChange(lwobs);
 
-    const cat45Pct  = totalTrainees > 0 ? Math.round((totalCat45 / totalTrainees) * 100) : 0;
     const lwobsRate = totalTrainees > 0 ? ((totalLwobs / totalTrainees) * 100).toFixed(1) : '0';
 
     const tPhrase = tChange.dir === 'stable' ? 'holding steady' : `<strong>${tChange.dir} ${tChange.pct}%</strong> vs the first half`;
     const cPhrase = cChange.dir === 'stable' ? 'flat' : `${cChange.dir} ${cChange.pct}%`;
     const lPhrase = lChange.dir === 'stable' ? 'flat' : `${lChange.dir} ${lChange.pct}%`;
 
-    const s1 = `Over the last <strong>${data.length} days</strong>, trainee volume averages <strong>${avgT}/day</strong> and is ${tPhrase}; Cat 4/5 represents <strong>${cat45Pct}%</strong> of trainee visits (avg ${avgC}/day, ${cPhrase}).`;
+    const traineeShare = this.mscoeKpiRatioStatement(data, 'traineeCensusShare', 'trainees', 'census');
+    const lowAcuityShare = this.mscoeKpiRatioStatement(data, 'lowAcuityShare', 'cat45', 'trainees');
+    const s1 = `Over the last <strong>${data.length} days</strong>, trainee volume averages <strong>${avgT}/day</strong> and is ${tPhrase}. Trainees as a share of ER census: ${traineeShare}. Cat 4/5 as a share of trainees: ${lowAcuityShare} (avg ${avgC}/day, ${cPhrase}).`;
 
     let lwobsFlag = '';
     if (parseFloat(lwobsRate) > 10) lwobsFlag = ' — <strong>elevated LWOBS rate warrants command attention.</strong>';

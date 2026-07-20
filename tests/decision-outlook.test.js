@@ -51,6 +51,15 @@ test('LWOBS ratio is calculated from matched daily counts', () => {
   assert.equal(buckets[0].value, 1);
 });
 
+test('ratio buckets omit denominator-only days instead of turning missing numerator data into zero', () => {
+  const census = datedValues([100, 100, 100], '2026-05-01', 1);
+  const trainees = datedValues([20, 30], '2026-05-01', 1);
+  const buckets = Outlook.weeklyRatioBuckets(trainees, census);
+  assert.equal(buckets.length, 1);
+  assert.equal(buckets[0].value, 25);
+  assert.equal(buckets[0].coverage, 2 / 7);
+});
+
 test('forecasts require eight weekly-equivalent observations', () => {
   const points = datedValues([20, 20, 20, 20, 20, 20, 20]);
   const result = Outlook.forecastSeries(points, weeklySpec(), { asOf: points.at(-1).date });
@@ -89,6 +98,23 @@ test('target classification uses the conservative 80% range', () => {
   assert.equal(offTrack.state, 'off-track');
 });
 
+test('banded percentage forecasts classify amber central values at risk and red values off track', () => {
+  const amber = Outlook.forecastSeries(
+    datedValues(Array(8).fill(22)),
+    weeklySpec({ unit: '%', target: 20, amberMax: 25, targetLabelOverride: 'Green <20% · Amber 20–25% · Red >25%' }),
+    { asOf: '2026-05-20' }
+  );
+  const redPoints = datedValues(Array(8).fill(26));
+  const red = Outlook.forecastSeries(
+    redPoints,
+    weeklySpec({ unit: '%', target: 20, amberMax: 25 }),
+    { asOf: redPoints.at(-1).date }
+  );
+  assert.equal(amber.state, 'at-risk');
+  assert.equal(amber.targetLabel, 'Green <20% · Amber 20–25% · Red >25%');
+  assert.equal(red.state, 'off-track');
+});
+
 test('forecast snapshot preserves the complete decision evidence contract', () => {
   const points = datedValues(Array(8).fill(18));
   const outcome = Outlook.forecastSeries(points, weeklySpec({ milestone: '2026-08-10' }), { asOf: points.at(-1).date });
@@ -121,8 +147,8 @@ test('derived LWOBS outlook records both raw source metric IDs', () => {
 });
 
 test('trainee forecasts remain visible but are excluded from decision attention', () => {
-  const traineeRows = datedValues(Array(84).fill(16), '2026-04-01', 1);
-  const lowAcuityRows = datedValues(Array(84).fill(7), '2026-04-01', 1);
+  const traineeRows = datedValues(Array(84).fill(22), '2026-04-01', 1);
+  const lowAcuityRows = datedValues(Array(84).fill(9), '2026-04-01', 1);
   const censusRows = datedValues(Array(84).fill(100), '2026-04-01', 1);
   const metrics = {
     'er-total-trainees': traineeRows,
@@ -138,7 +164,12 @@ test('trainee forecasts remain visible but are excluded from decision attention'
 
   assert.equal(traineeOutcomes.length, 2);
   assert.equal(traineeOutcomes.every(outcome => outcome.forecast.length === 12), true);
-  assert.equal(traineeOutcomes.every(outcome => outcome.state === 'off-track'), true);
+  assert.deepEqual(traineeOutcomes.map(outcome => outcome.sourceMetricIds), [
+    ['er-total-trainees', 'er-total-census'],
+    ['er-esi-4-5', 'er-total-trainees']
+  ]);
+  assert.deepEqual(traineeOutcomes.map(outcome => outcome.state), ['at-risk', 'off-track']);
+  assert.deepEqual(traineeOutcomes.map(outcome => outcome.current), [22, (9 / 22) * 100]);
   assert.equal(traineeOutcomes.every(outcome => outcome.decisionEligible === false), true);
   assert.equal(outlook.decisions.some(outcome => traineeOutcomes.includes(outcome)), false);
 });

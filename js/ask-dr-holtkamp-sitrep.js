@@ -41,6 +41,7 @@ HARD RULES:
 - ACCOMPLISHMENTS ONLY. This goes to senior leaders; it is NOT a request for help. If a line is short of where it needs to be, frame it as the SOLUTION already in motion ("we are closing this by..."), never as a problem or an ask.
 - Use ONLY the numbers in SITREP_DATA. Every figure and percentage there is pre-computed and authoritative - quote them as given; do NOT recompute, estimate, or invent any number, name, or date.
 - State a numeric goal/target ONLY when a metric has showTarget=true (at, near, or achieving goal). Otherwise report the value and its change WITHOUT naming the target.
+- For MSCoE metrics with entryMode="derived-ratio", quote the provided headline as a percentage, statusBand, targetText, and deltaText exactly. deltaText is a percentage-point change, not a relative percent; do not recompute it from the raw counts.
 - For metrics where improved=true, phrase the change as a positive movement even if the raw number went down (e.g. falling wait times are good).
 - Do NOT mention internal phase numbers ("Phase 1/2/3") or "LOE" - higher headquarters has no context for them. Speak in plain operational terms.
 - If a section has little data this period, briefly note steady-state performance and the key ongoing effort in 2-3 sentences rather than padding.
@@ -229,6 +230,9 @@ HARD RULES:
       const metrics = metricDefs
         .map((m) => this.sitrepMetricDelta(m, metricStore, win))
         .filter((md) => md.thisPeriod.count > 0 || md.priorPeriod.count > 0 || md.headline !== null);
+      if (slId === "mscoe" && window.DCCSMscoeKpis && typeof window.DCCSMscoeKpis.buildSitrepMetrics === "function") {
+        metrics.push.apply(metrics, window.DCCSMscoeKpis.buildSitrepMetrics(metricStore, win));
+      }
 
       const kpisCompleted = collectKpis(sl.tasks);
       const dialogue = (dialogueStore[slId] || [])
