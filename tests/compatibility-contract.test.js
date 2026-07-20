@@ -79,3 +79,13 @@ test('Outlook is loaded as an additive module and Dashboard still routes through
   assert.match(index, /src="js\/app-decision-outlook\.js\?/);
   assert.match(routing, /if \(isDashboard\) this\.renderDashboard\(main\);/);
 });
+
+test('decision memory is additive and loads between the protected assistant and SITREP extension', () => {
+  const index = read('index.html');
+  const assistantIndex = index.indexOf('src="js/ask-dr-holtkamp.js?');
+  const memoryIndex = index.indexOf('src="js/ask-dr-holtkamp-decisions.js?');
+  const sitrepIndex = index.indexOf('src="js/ask-dr-holtkamp-sitrep.js?');
+  assert.ok(assistantIndex >= 0);
+  assert.ok(memoryIndex > assistantIndex);
+  assert.ok(sitrepIndex > memoryIndex);
+});
