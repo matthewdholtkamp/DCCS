@@ -107,8 +107,6 @@
     if (kind === 'surgery') return number >= 40 ? 'green' : number >= 20 ? 'amber' : number >= 10 ? 'red' : 'black';
     if (kind === 'referrals') return number < 6 ? 'green' : number <= 15 ? 'amber' : 'red';
     if (kind === 'lwobs') return number < 1 ? 'green' : number <= 2 ? 'amber' : 'red';
-    if (kind === 'trainees') return number < 10 ? 'green' : number <= 15 ? 'amber' : 'red';
-    if (kind === 'acuity') return number < 4 ? 'green' : number <= 7 ? 'amber' : 'red';
     return 'grey';
   }
 
@@ -190,6 +188,9 @@
 
   function exCards(app) {
     const get = id => (app.getMetricEntries(id) || []).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    const mscoeKpis = window.DCCSMscoeKpis;
+    const traineeShare = mscoeKpis && mscoeKpis.getDefinition('traineeCensusShare');
+    const lowAcuityShare = mscoeKpis && mscoeKpis.getDefinition('lowAcuityShare');
     const currentMonth = new Date().toISOString().slice(0, 7);
     const SPARK_N = 14;
     const specs = [
@@ -199,12 +200,12 @@
       { label: 'MH Referrals Off-Post', unit: '', metric: 'mh-active-duty-off-post', mode: 'month', decimals: 0, kind: 'referrals', dir: 'lower', target: '<6/mo', caption: exMonthLabel(currentMonth) },
       { label: 'ER LWOBS', unit: '%', mode: 'ratio', num: 'er-lwobs', den: 'er-total-census', decimals: 1, kind: 'lwobs', dir: 'lower', target: '<1%', caption: 'latest 7 days' },
       { label: 'ER Avg Census', unit: '', metric: 'er-total-census', mode: 'window7', decimals: 0, kind: 'informational', dir: null, target: 'Monitor', caption: 'latest 7 days', reference: true },
-      { label: 'Trainees/day in ER', unit: '', metric: 'er-total-trainees', mode: 'window7', decimals: 0, kind: 'trainees', dir: 'lower', target: '<10/day', caption: 'latest 7 days' },
-      { label: 'Cat 4/5 Trainees/day', unit: '', metric: 'er-esi-4-5', mode: 'window7', decimals: 1, kind: 'acuity', dir: 'lower', target: '<4/day', caption: 'latest 7 days' }
+      { label: traineeShare ? traineeShare.label : 'Trainees as % of ER Census', unit: '%', mode: 'mscoe-derived', derived: 'traineeCensusShare', decimals: 1, dir: 'lower', target: traineeShare ? traineeShare.targetText : 'Green <20% · Amber 20–25% · Red >25%', caption: 'latest 7-day window' },
+      { label: lowAcuityShare ? lowAcuityShare.label : 'Cat 4/5 as % of Trainees', unit: '%', mode: 'mscoe-derived', derived: 'lowAcuityShare', decimals: 1, dir: 'lower', target: lowAcuityShare ? lowAcuityShare.targetText : 'Green ≤33% · Amber >33–40% · Red >40%', caption: 'latest 7-day window' }
     ];
 
     return specs.map(spec => {
-      let value = null, previous = null, series = [], caption = spec.caption;
+      let value = null, previous = null, series = [], caption = spec.caption, derivedTone = null;
       if (spec.mode === 'latest') {
         const rows = get(spec.metric);
         const latest = exLatest(rows), prev = exPrev(rows);
@@ -232,12 +233,19 @@
         value = ratioAt(end);
         previous = ratioAt(end && exDaysAgoISO(end, 7));
         series = exDailyRatioSeries(num, den, SPARK_N);
+      } else if (spec.mode === 'mscoe-derived' && mscoeKpis) {
+        const store = typeof app.getMetricStore === 'function' ? app.getMetricStore() : {};
+        const snapshot = mscoeKpis.buildSnapshot(store, spec.derived);
+        value = snapshot && snapshot.currentValue;
+        previous = snapshot && snapshot.previousValue;
+        series = snapshot ? snapshot.recentDailyRatios.slice(-SPARK_N).map(point => point.value) : [];
+        derivedTone = snapshot && snapshot.status;
       }
       const numericValue = Number.isFinite(Number(value)) ? Number(value) : null;
       const numericPrev = Number.isFinite(Number(previous)) ? Number(previous) : null;
       return {
         label: spec.label, value: numericValue, previous: numericPrev, decimals: spec.decimals, unit: spec.unit || '', target: spec.target, reference: !!spec.reference,
-        tone: exTone(numericValue, spec.kind), betterDirection: spec.dir, caption: caption, series
+        tone: derivedTone || exTone(numericValue, spec.kind), betterDirection: spec.dir, caption: caption, series
       };
     });
   }

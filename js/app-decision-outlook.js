@@ -8,6 +8,10 @@
   const DECISION_PATH = 'dccs_data/decisions/entries';
   const STATE_ORDER = { 'off-track': 3, 'at-risk': 2, 'on-track': 1, insufficient: 0 };
   const CONFIDENCE_ORDER = { high: 3, medium: 2, low: 1, insufficient: 0 };
+  const MSCOE_KPIS = (root && root.DCCSMscoeKpis)
+    || (typeof module !== 'undefined' && module.exports ? require('./mscoe-kpis.js') : null);
+  const TRAINEE_SHARE = MSCOE_KPIS && MSCOE_KPIS.getDefinition('traineeCensusShare');
+  const LOW_ACUITY_SHARE = MSCOE_KPIS && MSCOE_KPIS.getDefinition('lowAcuityShare');
 
   const OUTCOME_SPECS = [
     {
@@ -53,20 +57,22 @@
       action: 'Review flow and shift-transition reliability; preserve the processes keeping LWOBS below target before adding new throughput changes.'
     },
     {
-      id: 'er-trainees-average', sourceType: 'daily-average', metricId: 'er-total-trainees',
-      serviceLineId: 'mscoe', service: 'MSCoE / ER', name: 'Trainees in ER', cadence: 'week', unit: 'trainees/day', decimals: 1,
-      target: 10, direction: 'lower', inclusive: false, milestone: '2026-08-10',
+      id: 'er-trainees-average', sourceType: 'daily-ratio', numeratorId: 'er-total-trainees', denominatorId: 'er-total-census',
+      serviceLineId: 'mscoe', service: 'MSCoE / ER', name: TRAINEE_SHARE ? TRAINEE_SHARE.label : 'Trainees as % of ER Census', cadence: 'week', unit: '%', decimals: 1,
+      target: TRAINEE_SHARE ? TRAINEE_SHARE.greenMax : 20, direction: 'lower', inclusive: false, amberMax: TRAINEE_SHARE ? TRAINEE_SHARE.amberMax : 25,
+      targetLabelOverride: TRAINEE_SHARE ? TRAINEE_SHARE.targetText : 'Green <20% · Amber 20–25% · Red >25%', milestone: '2026-08-10',
       decisionEligible: false,
       supportIds: ['er-total-census', 'er-esi-4-5'],
-      action: 'Review trainee entry-point discipline, after-hours routing, and brigade redirection before demand becomes sustained ER load.'
+      action: 'Report this MSCoE Surgeon accountability KPI; it is not eligible for decision-attention ranking.'
     },
     {
-      id: 'er-low-acuity-average', sourceType: 'daily-average', metricId: 'er-esi-4-5',
-      serviceLineId: 'mscoe', service: 'MSCoE / ER', name: 'Low-acuity trainees', cadence: 'week', unit: 'Cat 4/5/day', decimals: 1,
-      target: 4, direction: 'lower', inclusive: false, milestone: '2026-08-10',
+      id: 'er-low-acuity-average', sourceType: 'daily-ratio', numeratorId: 'er-esi-4-5', denominatorId: 'er-total-trainees',
+      serviceLineId: 'mscoe', service: 'MSCoE / ER', name: LOW_ACUITY_SHARE ? LOW_ACUITY_SHARE.label : 'Cat 4/5 as % of Trainees', cadence: 'week', unit: '%', decimals: 1,
+      target: LOW_ACUITY_SHARE ? LOW_ACUITY_SHARE.greenMax : 33, direction: 'lower', inclusive: true, amberMax: LOW_ACUITY_SHARE ? LOW_ACUITY_SHARE.amberMax : 40,
+      targetLabelOverride: LOW_ACUITY_SHARE ? LOW_ACUITY_SHARE.targetText : 'Green ≤33% · Amber >33–40% · Red >40%', milestone: '2026-08-10',
       decisionEligible: false,
       supportIds: ['er-total-trainees', 'er-total-census'],
-      action: 'Review low-acuity redirection and medic fast-track capacity with brigade medical leadership before the next demand cycle.'
+      action: 'Report this MSCoE Surgeon accountability KPI; it is not eligible for decision-attention ranking.'
     }
   ];
 
@@ -160,11 +166,11 @@
 
   function weeklyRatioBuckets(numeratorEntries, denominatorEntries) {
     const numerator = new Map(sanitizeEntries(numeratorEntries).map(row => [row.date, row.value]));
-    const denominator = sanitizeEntries(denominatorEntries);
+    const denominator = sanitizeEntries(denominatorEntries).filter(row => numerator.has(row.date));
     if (!denominator.length) return [];
     return weeklyBuckets(denominator, rows => {
       const den = rows.reduce((sum, row) => sum + row.value, 0);
-      const num = rows.reduce((sum, row) => sum + (numerator.get(row.date) || 0), 0);
+      const num = rows.reduce((sum, row) => sum + numerator.get(row.date), 0);
       return den > 0 ? (num / den) * 100 : NaN;
     });
   }
@@ -195,6 +201,7 @@
   }
 
   function targetLabel(spec) {
+    if (spec.targetLabelOverride) return spec.targetLabelOverride;
     const symbol = spec.direction === 'lower' ? (spec.inclusive ? '≤' : '<') : (spec.inclusive === false ? '>' : '≥');
     return `${symbol}${formatNumber(spec.target, spec.decimals)} ${spec.unit}`;
   }
@@ -223,6 +230,7 @@
       decimals: spec.decimals,
       cadence: spec.cadence,
       target: spec.target,
+      amberMax: Number.isFinite(Number(spec.amberMax)) ? Number(spec.amberMax) : null,
       targetLabel: targetLabel(spec),
       direction: spec.direction,
       inclusive: spec.inclusive,
@@ -282,6 +290,7 @@
     const finalPoint = forecast[forecast.length - 1];
     const conservative = spec.direction === 'lower' ? finalPoint.upper : finalPoint.lower;
     if (targetMet(conservative, spec)) base.state = 'on-track';
+    else if (base.amberMax !== null && finalPoint.value <= base.amberMax) base.state = 'at-risk';
     else if (targetMet(finalPoint.value, spec)) base.state = 'at-risk';
     else base.state = 'off-track';
 
@@ -436,6 +445,8 @@
       currentValue: outcome.current,
       current: outcome.current,
       target: outcome.target,
+      amberMax: outcome.amberMax,
+      targetLabel: outcome.targetLabel,
       targetDate: outcome.milestone,
       direction: outcome.direction,
       confidence: outcome.confidence,

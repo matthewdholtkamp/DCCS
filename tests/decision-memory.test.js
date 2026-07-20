@@ -149,6 +149,16 @@ test('decision knowledge is inserted inside the existing DCCS context', () => {
   assert.deepEqual(parsed.decisionKnowledge, knowledge);
 });
 
+test('MSCoE accountability KPI data is inserted alongside decision knowledge for future AI answers', () => {
+  const base = 'DCCS_CONTEXT\n' + JSON.stringify({ framework: { title: 'DCCS' } });
+  const knowledge = { availability: 'ready', records: [] };
+  const kpis = { reportingOnly: true, metrics: [{ id: 'mscoe-trainee-census-share', currentSevenDayValue: 22 }] };
+  const combined = Memory.appendDecisionKnowledge(base, knowledge, kpis);
+  const parsed = JSON.parse(combined.slice('DCCS_CONTEXT\n'.length));
+  assert.deepEqual(parsed.mscoeSurgeonAccountabilityKpis, kpis);
+  assert.equal(parsed.decisionKnowledge.availability, 'ready');
+});
+
 test('unavailable Firestore history is represented explicitly without failing context', () => {
   const knowledge = Memory.buildDecisionKnowledge([], 'What did we decide?', null, 'unavailable', 'Offline');
   assert.equal(knowledge.availability, 'unavailable');
@@ -196,6 +206,11 @@ test('assistant integration preserves its base context and appends narrow decisi
     dependenciesPromise: Promise.resolve(),
     DCCS_CONTEXT_RULES: 'Existing rules.',
     getActiveServiceLineId: () => 'pcsl',
+    getMetricStore: () => ({
+      'er-total-census': [{ date: '2026-07-19', value: 100 }],
+      'er-total-trainees': [{ date: '2026-07-19', value: 22 }],
+      'er-esi-4-5': [{ date: '2026-07-19', value: 9 }]
+    }),
     buildDccsContext: () => 'DCCS_CONTEXT\n' + JSON.stringify({ existing: true })
   };
   const timerHost = { setTimeout: callback => { callback(); return 1; } };
@@ -206,7 +221,10 @@ test('assistant integration preserves its base context and appends narrow decisi
   const parsed = JSON.parse(combined.slice('DCCS_CONTEXT\n'.length));
   assert.equal(parsed.existing, true);
   assert.equal(parsed.decisionKnowledge.availability, 'ready');
+  assert.equal(parsed.mscoeSurgeonAccountabilityKpis.reportingOnly, true);
+  assert.equal(parsed.mscoeSurgeonAccountabilityKpis.metrics[0].currentSevenDayValue, 22);
   assert.match(assistant.DCCS_CONTEXT_RULES, /DCCS DECISION KNOWLEDGE/);
+  assert.match(assistant.DCCS_CONTEXT_RULES, /MSCOE SURGEON ACCOUNTABILITY KPIS/);
   assert.equal(Memory.installAssistantIntegration(assistant, store, timerHost), false);
 });
 

@@ -103,14 +103,13 @@ unfavorable, grey if flat/no prior. (Arrow = direction of raw change; tint = goo
 | 4 | MH Referrals Off-Post (mo) | `mh-active-duty-off-post` | current calendar-month sum | green <6, amber 6–15, red >15 | prior month sum |
 | 5 | ER LWOBS % (7d) | `er-lwobs` ÷ `er-total-census` | sum(LWOBS,7d)/sum(census,7d)×100, 1 dp | green <1%, amber 1–2%, red >2% | prior 7d |
 | 6 | ER Avg Census (7d) | `er-total-census` | avg/day over last 7d, 0 dp | informational (neutral grey), no threshold | prior 7d |
-| 7 | Trainees/day in ER (7d) | `er-total-trainees` | avg/day over last 7d, 0 dp | green <10, amber 10–15, red >15 | prior 7d |
-| 8 | Cat 4/5 Trainees/day (7d) | `er-esi-4-5` | avg/day over last 7d, 1 dp | green <4, amber 4–7, red >7 | prior 7d |
+| 7 | Trainees as % of ER Census (7d) | `er-total-trainees` ÷ `er-total-census` | ratio of matched 7d totals, 1 dp | green <20%, amber 20–25%, red >25% | prior matched 7d |
+| 8 | Cat 4/5 as % of Trainees (7d) | `er-esi-4-5` ÷ `er-total-trainees` | ratio of matched 7d totals, 1 dp | green ≤33%, amber >33–40%, red >40% | prior matched 7d |
 
 **CONFIRM (flagged for LTC Holtkamp):**
-- **Cards 7 & 8 data source.** MSCoE has no tracked metrics of its own; the only captured daily
-  trainee counts live in the ER's `er-trainee-acuity` group. So Card 7 = `er-total-trainees`
-  (total trainees seen in the ER/day) and Card 8 = `er-esi-4-5` (low-acuity "Cat 4/5" trainees/day),
-  both framed as the MSCoE trainee-care signal (fewer in the ER = better). Confirm this is the intent.
+- **Cards 7 & 8 data source.** The existing raw census, trainee, and Cat 4/5 counts remain in the ER's
+  `er-trainee-acuity` group. The dashboard derives the two MSCoE Surgeon accountability percentages
+  at read time and never writes them back to metric storage or changes the service-line entry workflow.
 - **Card 3 surgery bands.** Boundaries set to green ≥40, amber 20–39, red 10–19, black <10
   (closing the gaps in the spoken thresholds). Confirm.
 - **Card 6** has no stated threshold, so it renders neutral/informational (value + arrow only). Confirm.
