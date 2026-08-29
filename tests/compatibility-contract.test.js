@@ -17,7 +17,7 @@ function sha256(relativePath) {
 
 const protectedFiles = {
   'js/sync.js': '88382180da442ae16b5ff1773d8862371a2d391442f71d6a4a6d780d15a6f933',
-  'js/ask-dr-holtkamp.js': '308d196da262f987572e9abae7c4649b4c8408d37587299149f9fe7a265bdef3',
+  'js/ask-dr-holtkamp.js': '6b208876d23c2ece38bfa7cb2f01c972943f2737cfd6eccb284e2ab24292fc44',
   'js/app-routing.js': '838a22c12a714562db9167b07107d1a3c116332cf90906584b1456f8e66f1af3',
   'js/app-service-line.js': 'dc7a5f30424e92f30be6c2019f48ab1ed912f88f0e6e8ee05e273d65eaec7266',
   'js/app-metrics.js': '296bb9d11c09e02a5cb2c733ee8512b18fbd2d7d229808e14fab63d830df46dc',

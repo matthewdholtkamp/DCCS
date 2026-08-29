@@ -13,8 +13,8 @@
 Object.assign(AskDrHoltkamp, {
   SITREP_DUE_DAY: 15,
   SITREP_REMINDER_DAYS: [13, 14, 15],
-  SITREP_MODEL: "gemini-3.5-flash",            // go-to / primary model for the SITREP
-  EVERYDAY_FALLBACK_MODEL: "gemini-3.5-flash", // backup model for the everyday assistant
+  SITREP_MODEL: "gemini-3.7-flash",            // go-to / primary model for the SITREP
+  EVERYDAY_FALLBACK_MODEL: "gemini-3.7-flash", // backup model for the everyday assistant
   SITREP_SERVICE_ORDER: ["pcsl", "emergency", "surgery", "mental-health", "mscoe"],
   SITREP_SECTION_LABEL: {
     "pcsl": "PCSL",
@@ -292,9 +292,9 @@ HARD RULES:
   async callWorkerSitrep(win, data, assistantBody) {
     const cfg = window.BANDAID_CONFIG || {};
     const workerUrl = cfg.WORKER_URL;
-    // SITREP go-to model is gemini-3.5-flash; falls back to the everyday primary if it errors.
+    // SITREP go-to model is gemini-3.7-flash; falls back to the everyday primary if it errors.
     const model = (cfg && cfg.SITREP_MODEL) || this.SITREP_MODEL;
-    const fallbackModel = (cfg && cfg.MODEL) || "gemini-2.5-flash";
+    const fallbackModel = (cfg && cfg.MODEL) || "gemini-3.5-flash-lite";
     const systemPrompt = window.BANDAID_PERSONA_PROMPT + "\n\n" + this.SITREP_INSTRUCTIONS;
 
     const userPayload =
@@ -321,7 +321,7 @@ HARD RULES:
         fallbackModel: fallbackModel,
         systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPayload }] }],
-        generationConfig: { temperature: 0.45 }
+        generationConfig: { thinkingConfig: { thinkingLevel: "low" } }
       })
     });
 
@@ -422,12 +422,12 @@ HARD RULES:
     document.head.appendChild(style);
   },
 
-  /* ---------- Model routing: gemini-3.5-flash = SITREP primary + everyday backup ---------- */
+  /* ---------- Model routing: gemini-3.7-flash = SITREP primary + everyday backup ---------- */
   applyModelConfig() {
     const self = this;
     const apply = function () {
       if (window.BANDAID_CONFIG) {
-        // Make gemini-3.5-flash the backup for the everyday Ask Dr. Holtkamp assistant.
+        // Make gemini-3.7-flash the backup for the everyday Ask Dr. Holtkamp assistant.
         window.BANDAID_CONFIG.FALLBACK_MODEL = self.EVERYDAY_FALLBACK_MODEL;
       }
     };

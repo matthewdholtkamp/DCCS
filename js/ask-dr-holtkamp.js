@@ -1053,10 +1053,9 @@ Always explain what changes or deletes you are proposing, and append the command
   async callWorker(question, assistantBody) {
     const cfg = window.BANDAID_CONFIG || {};
     const workerUrl = cfg.WORKER_URL;
-    const model = cfg.MODEL || "gemini-3.1-flash-lite";
-    const fallbackModel = cfg.FALLBACK_MODEL || "gemini-2.5-flash";
-    const temperature = typeof cfg.TEMPERATURE === "number" ? cfg.TEMPERATURE : 0.4;
-    const thinkingBudget = typeof cfg.THINKING_BUDGET === "number" ? cfg.THINKING_BUDGET : -1;
+    const model = cfg.MODEL || "gemini-3.5-flash-lite";
+    const fallbackModel = cfg.FALLBACK_MODEL || "gemini-3.7-flash";
+    const thinkingLevel = cfg.THINKING_LEVEL || "low";
     const validMetricIdsList = this.getValidMetricIds().map(id => `"${id}"`).join(", ");
     const systemPrompt = `${window.BANDAID_PERSONA_PROMPT}\n\n${this.DCCS_CONTEXT_RULES.replace("[VALID_METRIC_IDS]", validMetricIdsList)}`;
     const contextBlock = this.buildDccsContext(question);
@@ -1070,10 +1069,7 @@ Always explain what changes or deletes you are proposing, and append the command
       latest.parts.push({ text: contextBlock });
     }
 
-    const generationConfig = { temperature };
-    if (!Number.isNaN(thinkingBudget)) {
-      generationConfig.thinkingConfig = { thinkingBudget };
-    }
+    const generationConfig = { thinkingConfig: { thinkingLevel } };
 
     const streamUrl = workerUrl + (workerUrl.includes("?") ? "&" : "?") + "stream=1";
     const response = await fetch(streamUrl, {
