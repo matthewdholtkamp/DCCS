@@ -493,6 +493,13 @@
   }
 
   Object.assign(window.App, {
+    // Single source of truth for the Access-to-Care campaign lanes. The Weekly
+    // Rollup brief generator reads these so lane copy never drifts from the
+    // Executive Summary.
+    getAccessCampaignLanes() {
+      return ACCESS_CAMPAIGN.map(lane => ({ ...lane }));
+    },
+
     setCampaignBriefStatus(root, message, state) {
       if (!root || !root.isConnected) return;
       const element = root.querySelector('[data-exsum-campaign-status]');

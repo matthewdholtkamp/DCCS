@@ -22,7 +22,7 @@ const protectedFiles = {
   'js/app-service-line.js': 'dc7a5f30424e92f30be6c2019f48ab1ed912f88f0e6e8ee05e273d65eaec7266',
   'js/app-metrics.js': '296bb9d11c09e02a5cb2c733ee8512b18fbd2d7d229808e14fab63d830df46dc',
   'js/app-service-collab.js': '1e4c925158c87da38e3f9016b6b1ca8655af7bc9e306f6995cb0ff25ecaaf79f',
-  'js/app-rollup.js': '5287272e7765973c1e1eb406c6e802da9b04e3e5b1580c498f8c9706c3db65a7',
+  'js/app-rollup.js': '1cbb3b7a8a67b3344ef030f3b888459c66d0ee06885a43af49cdc11cc1abc8f2',
   'css/app-shell.css': '617c14931dd76433dbbd7f6cd8d0c322f193e9ab2ad1e1f5acf9be96daf58c1a',
   'css/ask-dr-holtkamp.css': '52479c53a6d20090abd8c5ad47f7d78d883dd284e4e36622d54c14daafac45a0',
   'css/emergency-department.css': '16fc2d2088d94b00a720c42053245ccef4582124434b5925c8f7450c707b469b',
