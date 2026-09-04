@@ -5,6 +5,91 @@
 // so everything appears on the service line, the Dashboard, and the SITREP instantly.
 // Self-contained: injects own CSS.
 (function () {
+  // Progress vocabulary the Executive Summary lane CSS knows how to colour
+  // (.exsum-lane-progress.tone-*). Anything else renders unstyled, so the model
+  // is constrained to these four and the reply is normalised against them.
+  const CAMPAIGN_PROGRESS = ['On Track', 'Sustain', 'At Risk', 'Off Track'];
+
+  const CAMPAIGN_BRIEF_INSTRUCTIONS = [
+    'You are writing the monthly Access-to-Care campaign brief for the DCCS Executive Summary.',
+    'You receive one entry per campaign lane containing pre-computed metric figures and the',
+    'commander\'s dated dialogue notes for the period. Every number is authoritative: quote the',
+    'figures you are given verbatim and never calculate, extrapolate, or invent one.',
+    '',
+    'For each lane return exactly three fields:',
+    '  progress - one of: ' + CAMPAIGN_PROGRESS.join(' | ') + '. Judge it against the lane targetOutcome.',
+    '             Use "Sustain" when the target is already met and holding.',
+    '  evidence - the single strongest supporting figure, under 60 characters, e.g. "Acute 0.8h vs <24h goal".',
+    '  update   - 2 to 3 sentences of plain command narrative: what moved this period, what the notes',
+    '             attribute it to, and the next action. No markdown, no bullets, no headings.',
+    '',
+    'If a lane has no metric values and no notes, set progress to "At Risk", evidence to',
+    '"No data reported this period", and say so plainly in the update.',
+    'Return only the JSON object described by the schema.'
+  ].join('\n');
+
+  // Errors reach us from three layers (fetch, the Worker, and Gemini) and only
+  // the innermost one is a string. Flattening here is what keeps the failure
+  // message from rendering as "[object Object]".
+  function briefErrorText(err) {
+    if (err === null || err === undefined) return 'unknown error';
+    if (typeof err === 'string') return err.trim() || 'unknown error';
+    if (typeof err.message === 'string') return err.message.trim() || 'unknown error';
+    if (err.message) return briefErrorText(err.message);
+    if (err.error) return briefErrorText(err.error);
+    try { return JSON.stringify(err); } catch (e) { return String(err); }
+  }
+
+  // Gemini honours responseMimeType, but a fallback model or a Worker that
+  // strips generationConfig can still hand back fenced or prose-wrapped JSON.
+  function parseBriefJson(text) {
+    const cleaned = String(text || '').replace(/^\s*```(?:json)?/i, '').replace(/```\s*$/, '').trim();
+    try { return JSON.parse(cleaned); } catch (e) { /* fall through to brace scan */ }
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start < 0 || end <= start) throw new Error('the model did not return usable JSON');
+    return JSON.parse(cleaned.slice(start, end + 1));
+  }
+
+  // The BAND-AID 6 Worker always answers as text/event-stream, even without
+  // ?stream=1, so the reply has to be reassembled from SSE frames. The plain
+  // JSON branch is kept in case the Worker ever returns a buffered response.
+  async function readGeminiText(response) {
+    const partsText = (json) => {
+      const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+      return parts ? parts.map(p => p.text).filter(Boolean).join('') : '';
+    };
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.indexOf('text/event-stream') < 0 || !response.body) {
+      return partsText(await response.json());
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', text = '';
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const events = buffer.split(/\r?\n\r?\n/);
+      buffer = events.pop() || '';
+      events.forEach(event => {
+        event.split(/\r?\n/).forEach(line => {
+          if (line.indexOf('data:') !== 0) return;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') return;
+          try { text += partsText(JSON.parse(payload)); } catch (e) { /* partial SSE frame */ }
+        });
+      });
+    }
+    return text;
+  }
+
+  function normalizeProgress(value) {
+    const want = String(value || '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+    const hit = CAMPAIGN_PROGRESS.find(p => p.toLowerCase().replace(/\s+/g, '-') === want);
+    return hit || 'At Risk';
+  }
+
   window.App = window.App || {};
   Object.assign(window.App, {
     rollupServiceMetrics(sl) {
@@ -152,24 +237,155 @@
       }
     },
 
+    // Compact, bounded payload for the campaign brief: only the four
+    // Access-to-Care lanes, only their headline metric figures, and only the
+    // newest notes. Deliberately capped so a month of long dialogue entries
+    // cannot inflate the request.
+    buildCampaignBriefPayload(win) {
+      const ask = window.AskDrHoltkamp;
+      const metricStore = this.getMetricStore();
+      const lanes = (typeof this.getAccessCampaignLanes === 'function' && this.getAccessCampaignLanes()) || [];
+
+      return lanes.map(lane => {
+        const sl = (FRAMEWORK.serviceLines || []).find(s => s.id === lane.id) || null;
+        const metrics = sl ? this.rollupServiceMetrics(sl)
+          .map(m => ask.sitrepMetricDelta(m, metricStore, win))
+          .filter(d => d.headline !== null && d.headline !== undefined)
+          .map(d => ({
+            name: d.name,
+            latest: d.headline,
+            unit: d.unit,
+            goal: d.goal,
+            betterWhen: d.direction,
+            basis: d.basis,
+            changeVsPrior: d.deltaText,
+            goalState: d.goalState
+          })) : [];
+
+        const all = this.getDialogueEntries(lane.id) || []; // newest-first
+        const inWindow = all.filter(e => ask.sitrepInWindow(e.date, win.startISO, win.dialogueEndISO || win.endISO));
+        const picked = inWindow.length ? inWindow.slice(0, 6) : all.slice(0, 2);
+        const notes = picked.map(e => ({
+          date: e.date,
+          inPeriod: inWindow.indexOf(e) >= 0,
+          text: String(e.text || '').slice(0, 400)
+        }));
+
+        return {
+          laneId: lane.id,
+          service: lane.service,
+          owner: lane.owner,
+          targetOutcome: lane.outcome,
+          milestone: lane.date,
+          standingAction: lane.actionLabel + ': ' + lane.action,
+          metrics: metrics,
+          notes: notes
+        };
+      });
+    },
+
+    // Generates the brief client-side through the BAND-AID 6 Gemini proxy (the
+    // same path the SITREP uses) and publishes it to Firestore, which the
+    // Executive Summary is already subscribed to. There is no server-side
+    // brief route to call.
     async rollupGenerateCampaignBrief() {
       if (!window.confirm('Regenerate the monthly Access-to-Care campaign brief from current Rollup data? This replaces the brief shown on the Executive Summary.')) return;
       const flash = (msg) => { this._rollupFlash = msg; this.renderRollup(document.getElementById('app')); };
       flash('Refreshing the monthly campaign brief\u2026');
+
       try {
-        if (window.AskDrHoltkamp && AskDrHoltkamp.dependenciesPromise) { try { await AskDrHoltkamp.dependenciesPromise; } catch (e) {} }
-        const raw = (window.BANDAID_CONFIG && window.BANDAID_CONFIG.WORKER_URL) || 'https://bandaid6.mholtkamp.workers.dev';
-        const base = raw.endsWith('/') ? raw.slice(0, -1) : raw;
-        const body = { source: 'rollup', period: 'month' };
-        if (window.AskDrHoltkamp && typeof AskDrHoltkamp.getSitrepWindow === 'function') {
-          try { body.window = AskDrHoltkamp.getSitrepWindow(0); } catch (e) {}
+        const ask = window.AskDrHoltkamp;
+        if (!ask || typeof ask.getSitrepWindow !== 'function') throw new Error('the BAND-AID 6 assistant has not finished loading \u2014 try again in a moment');
+        if (ask.dependenciesPromise) { try { await ask.dependenciesPromise; } catch (e) {} }
+        if (typeof Sync === 'undefined' || !Sync.db) throw new Error('the shared database is not connected yet');
+
+        const cfg = window.BANDAID_CONFIG || {};
+        const workerUrl = cfg.WORKER_URL || 'https://bandaid6.mholtkamp.workers.dev';
+        // Follow the app's configured routing first, then fall back client-side.
+        // The Worker's own fallbackModel does not reliably rescue a 503 from the
+        // primary, so the brief walks the chain itself rather than failing outright.
+        const modelChain = [cfg.SITREP_MODEL || ask.SITREP_MODEL, 'gemini-3.5-flash-lite', 'gemini-2.5-flash']
+          .filter((m, i, arr) => m && arr.indexOf(m) === i);
+        const win = ask.getSitrepWindow(0);
+        const lanes = this.buildCampaignBriefPayload(win);
+        if (!lanes.length) throw new Error('no Access-to-Care lanes are configured');
+
+        const laneSchema = {
+          type: 'OBJECT',
+          properties: {
+            progress: { type: 'STRING', enum: CAMPAIGN_PROGRESS },
+            evidence: { type: 'STRING' },
+            update: { type: 'STRING' }
+          },
+          required: ['progress', 'evidence', 'update']
+        };
+        const responseSchema = {
+          type: 'OBJECT',
+          properties: lanes.reduce((acc, lane) => { acc[lane.laneId] = laneSchema; return acc; }, {}),
+          required: lanes.map(lane => lane.laneId)
+        };
+
+        const systemPrompt = (window.BANDAID_PERSONA_PROMPT ? window.BANDAID_PERSONA_PROMPT + '\n\n' : '') + CAMPAIGN_BRIEF_INSTRUCTIONS;
+        const userPayload = 'Write the monthly Access-to-Care campaign brief for the period ' + win.label + '.\n' +
+          'One object per lane, keyed by laneId.\n\nCAMPAIGN_DATA\n' + JSON.stringify({ periodCovered: win.label, hospital: FRAMEWORK.hospital, lanes: lanes }, null, 2);
+
+        let text = '', model = '', lastError = null;
+        for (let i = 0; i < modelChain.length && !text.trim(); i++) {
+          const candidate = modelChain[i];
+          if (i > 0) flash('Model ' + modelChain[i - 1] + ' is unavailable \u2014 retrying the brief on ' + candidate + '\u2026');
+          try {
+            const response = await fetch(workerUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: candidate,
+                fallbackModel: 'gemini-3.5-flash-lite',
+                systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] },
+                contents: [{ role: 'user', parts: [{ text: userPayload }] }],
+                generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: responseSchema }
+              })
+            });
+            if (!response.ok) {
+              const errorPayload = await response.json().catch(() => null);
+              throw new Error(errorPayload && errorPayload.error ? briefErrorText(errorPayload.error) : 'HTTP ' + response.status);
+            }
+            const candidateText = await readGeminiText(response);
+            if (!candidateText.trim()) throw new Error('the model returned an empty brief');
+            text = candidateText;
+            model = candidate;
+          } catch (attemptError) {
+            lastError = attemptError;
+          }
         }
-        const res = await fetch(base + '/campaign-brief/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        const payload = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(payload.error || (res.status === 409 ? 'A brief is already generating \u2014 try again shortly.' : 'Campaign brief refresh failed (' + res.status + ').'));
-        flash('Monthly campaign brief refreshed \u2014 the Executive Summary will update.');
+        if (!text.trim()) throw new Error(briefErrorText(lastError));
+        const parsed = parseBriefJson(text);
+
+        const laneMap = {};
+        let written = 0;
+        lanes.forEach(lane => {
+          const entry = parsed && parsed[lane.laneId];
+          if (!entry || !entry.evidence || !entry.update) return;
+          laneMap[lane.laneId] = {
+            progress: normalizeProgress(entry.progress),
+            evidence: String(entry.evidence).trim().slice(0, 90),
+            update: String(entry.update).trim().slice(0, 900)
+          };
+          written++;
+        });
+        if (!written) throw new Error('the model returned no usable lane updates');
+
+        await Sync.db.collection('dccs_data').doc('campaign_briefs').collection('snapshots').doc('current').set({
+          generatedAt: new Date().toISOString(),
+          generatedBy: (this.getCurrentUser && this.getCurrentUser()) || 'DCCS',
+          period: 'month',
+          model: model,
+          sourceWindow: { start: win.startISO, end: win.dialogueEndISO || win.endISO, label: win.label },
+          lanes: laneMap
+        });
+
+        flash('Monthly campaign brief refreshed for ' + win.label + ' \u2014 ' + written + ' of ' + lanes.length + ' lanes updated on the Executive Summary.');
       } catch (err) {
-        flash('Campaign brief refresh failed: ' + (err.message || 'unknown error') + '. The last published brief stays visible.');
+        flash('Campaign brief refresh failed: ' + briefErrorText(err) + '. The last published brief stays visible.');
       }
     },
 
