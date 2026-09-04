@@ -292,8 +292,11 @@ HARD RULES:
   async callWorkerSitrep(win, data, assistantBody) {
     const cfg = window.BANDAID_CONFIG || {};
     const workerUrl = cfg.WORKER_URL;
-    // SITREP go-to model is gemini-3.7-flash; falls back to the everyday primary if it errors.
-    const model = (cfg && cfg.SITREP_MODEL) || this.SITREP_MODEL;
+    // SITREP go-to model is gemini-3.7-flash. That model intermittently answers
+    // 503 UNAVAILABLE under load, and the Worker's own fallbackModel does not
+    // reliably rescue it, so the SITREP walks this chain itself before giving up.
+    const modelChain = [(cfg && cfg.SITREP_MODEL) || this.SITREP_MODEL, (cfg && cfg.MODEL), "gemini-3.5-flash-lite", "gemini-2.5-flash"]
+      .filter((m, i, arr) => m && arr.indexOf(m) === i);
     const fallbackModel = (cfg && cfg.MODEL) || "gemini-3.5-flash-lite";
     const systemPrompt = window.BANDAID_PERSONA_PROMPT + "\n\n" + this.SITREP_INSTRUCTIONS;
 
@@ -313,62 +316,87 @@ HARD RULES:
     };
 
     const streamUrl = workerUrl + (workerUrl.indexOf("?") >= 0 ? "&" : "?") + "stream=1";
-    const response = await fetch(streamUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: model,
-        fallbackModel: fallbackModel,
-        systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-        contents: [{ role: "user", parts: [{ text: userPayload }] }],
-        generationConfig: { thinkingConfig: { thinkingLevel: "low" } }
-      })
-    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error((errorData && errorData.error && errorData.error.message) || ("HTTP " + response.status));
-    }
+    // thinkingLevel is a gemini-3.x feature: gemini-2.5-flash rejects it outright
+    // with 400 "Thinking level is not supported for this model", which would make
+    // it a dead fallback. Older models get the temperature setting instead.
+    const configFor = (candidateModel) => (String(candidateModel).indexOf("gemini-3") === 0
+      ? { thinkingConfig: { thinkingLevel: "low" } }
+      : { temperature: 0.45 });
 
-    const contentType = response.headers.get("Content-Type") || "";
-    if (contentType.indexOf("text/event-stream") < 0 || !response.body) {
-      const json = await response.json();
-      const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
-      const text = parts ? parts.map((p) => p.text).filter(Boolean).join("") : "";
-      const finalText = headerPrefix + (text ? stripCmd(text) : "No SITREP text returned.");
-      this.renderSitrepResult(assistantBody, finalText);
-      return finalText;
-    }
+    // One attempt against a single model. Returns the raw reply text, or throws
+    // so the caller can move to the next candidate. Streamed text is rendered as
+    // it arrives; a mid-stream failure discards that attempt's partial text.
+    const attempt = async (candidateModel) => {
+      const response = await fetch(streamUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: candidateModel,
+          fallbackModel: fallbackModel,
+          systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userPayload }] }],
+          generationConfig: configFor(candidateModel)
+        })
+      });
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "", reply = "";
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-      const events = buffer.split(/\r?\n\r?\n/);
-      buffer = events.pop() || "";
-      for (const event of events) {
-        const lines = event.split(/\r?\n/);
-        for (const line of lines) {
-          if (line.indexOf("data:") !== 0) continue;
-          const payload = line.slice(5).trim();
-          if (!payload || payload === "[DONE]") continue;
-          try {
-            const json = JSON.parse(payload);
-            const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
-            const text = parts ? parts.map((p) => p.text).filter(Boolean).join("") : "";
-            if (text) {
-              reply += text;
-              this.updateMessage(assistantBody, headerPrefix + stripCmd(reply), false);
-            }
-          } catch (_) { /* ignore partial SSE chunks */ }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error((errorData && errorData.error && errorData.error.message) || ("HTTP " + response.status));
+      }
+
+      const contentType = response.headers.get("Content-Type") || "";
+      if (contentType.indexOf("text/event-stream") < 0 || !response.body) {
+        const json = await response.json();
+        const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+        const text = parts ? parts.map((p) => p.text).filter(Boolean).join("") : "";
+        if (!text) throw new Error("the model returned an empty SITREP");
+        return text;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "", reply = "";
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() || "";
+        for (const event of events) {
+          const lines = event.split(/\r?\n/);
+          for (const line of lines) {
+            if (line.indexOf("data:") !== 0) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const json = JSON.parse(payload);
+              const parts = json && json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+              const text = parts ? parts.map((p) => p.text).filter(Boolean).join("") : "";
+              if (text) {
+                reply += text;
+                this.updateMessage(assistantBody, headerPrefix + stripCmd(reply), false);
+              }
+            } catch (_) { /* ignore partial SSE chunks */ }
+          }
         }
       }
-    }
+      if (!reply) throw new Error("the model returned an empty SITREP");
+      return reply;
+    };
 
-    const finalText = headerPrefix + (reply ? stripCmd(reply) : "No SITREP text returned.");
+    let reply = "", lastError = null;
+    for (let i = 0; i < modelChain.length && !reply; i++) {
+      if (i > 0) this.updateMessage(assistantBody, "Model " + modelChain[i - 1] + " is unavailable \u2014 retrying the SITREP on " + modelChain[i] + "...", false);
+      try {
+        reply = await attempt(modelChain[i]);
+      } catch (attemptError) {
+        lastError = attemptError;
+      }
+    }
+    if (!reply) throw new Error((lastError && lastError.message) || "no model could generate the SITREP");
+
+    const finalText = headerPrefix + stripCmd(reply);
     this.renderSitrepResult(assistantBody, finalText);
     return finalText;
   },
